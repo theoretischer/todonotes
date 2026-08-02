@@ -23,7 +23,58 @@
 - [ ] **Block D2b – Sync-Trigger verbessern**: Sync bei Datenänderung (sofort nach Speichern/Loggen), beim App-Start, Pull-to-Refresh — damit nicht manuell oder 15min-WM getriggert werden muss
 - [ ] **Block D3 – Deploy finalisieren**: Reverse-Proxy (Caddy) für `todo.christopherh.de` + HTTPS, dann App auf HTTPS-URL umstellen
 - [ ] **Block E – Linux-Client**: GTK4, synchronisiert gegen denselben Server (Tower + Laptop)
-- [ ] **Block F – Notizen**: ordentliche Notiz-Funktion (statt Platzhalter-Tab)
+- [ ] **Block F – Notizen** (Samsung-Notes-Style, eigener Tab mit echter Notiz-App, keine Todo-Sonderform):
+  - **F1 – Datenmodell & Migration (DB v6)**
+    - Neue Tabelle `notes`: `id (UUID)`, `folderId (UUID nullable)`, `title (string)`, `bodyJson (TEXT — serialisierter Rich-Text-Baum, siehe F3)`, `createdAt`, `updatedAt`, `deletedAt (soft delete für Sync)`.
+    - Neue Tabelle `folders`: `id (UUID)`, `parentId (UUID nullable — für Ordner-in-Ordner)`, `name (string)`, `createdAt`, `updatedAt`, `deletedAt`.
+    - Bilder werden **nicht** als Base64 in `bodyJson` gespeichert (bläht DB/Sync auf), sondern als Dateien im App-Internal-Storage (`files/notes/<noteId>/<imageId>.png`) und im `bodyJson` nur als Referenz `{type:image, imageId, width, height}`. Sync transportiert Bilder separat (später F9).
+    - Migration `MIGRATION_5_6` (echte Room-Migration, Schema `6.json`).
+    - Backend: `notes` + `folders` Tabellen + DTOs + `/sync` erweitern (LWW wie bisher).
+  - **F2 – DAOs, Repository, ViewModel**
+    - `NoteDao` (CRUD, observe by folder, observeAll für Sync), `FolderDao` (CRUD, observe tree).
+    - `NoteRepository`, `FolderRepository`, `NotesViewModel` (State: aktuelle Ordner-Hierarchie + Notiz-Liste im aktuellen Ordner, Traversal-State).
+  - **F3 – Rich-Text-Modell (eigenes kleines Format, kein externer Editor)**
+    - Datenmodell: Notiz-Body = geordnete Liste von `Block`-Elementen, jeder Block einer von:
+      - `Paragraph(segments: List<Segment>)` — Segment = `{text, style}` mit style = bold/italic/underline/none, fontSize (pt), color (argb).
+      - `ListBlock(items: List<ListItem>, listType)` — listType = `ORDERED (1. 2. 3.)` | `BULLET (•)` | `ARROW (→)` | `CHECKBOX (☐/☑)`. ListItem = `{segments, checked: bool}`.
+      - `ImageBlock(imageId, width, height, caption?)`.
+    - Serialisierung als JSON via kotlinx.serialization (kompakt, sync-freundlich).
+  - **F4 – Notes-Tab: Ordner- & Notiz-Übersicht**
+    - Hauptansicht: Liste der Ordner + Notizen im aktuellen Ordner. Breadcrumb-Pfad oben (Wurzel › Ordner › Unterordner).
+    - FAB `+`: Menü „Neue Notiz" / „Neuer Ordner" (Ordner-Name per Dialog).
+    - Tippen auf Ordner → navigiert rein. Tippen auf Notiz → öffnet Editor (F5).
+    - Long-press auf Ordner/Notiz → Multi-Select + Drag (F6) + Löschen + Verschieben.
+  - **F5 – Notiz-Editor (Text + Formatierung)**
+    - Vollbild-Editor. Erste Zeile = Titel (auto, groß fett), Rest = Body.
+    - Format-Toolbar unten (kontextsensitiv bei Selektion): Bold, Italic, Underline, Schriftgröße (Spinner/Slider), Schriftfarbe (Color-Picker), Listentyp-Umschalter (geparst aus aktueller Zeile).
+    - Listen: neue Zeile in einer Liste → automatisch nächstes Präfix (`1.`, `•`, `→`, `☐`); `☐` tappen toggelt `☑` und graut Zeile durch.
+    - Speichern bei Back/Verlassen (auto-save, `updatedAt` aktualisieren).
+  - **F6 – Drag & Drop (Ordner ↔ Notizen ↔ Ordner)**
+    - Drag eine Notiz auf einen Ordner → Notiz in diesen Ordner verschieben (`folderId` ändern).
+    - Drag eine Notiz aus einem Ordner auf dieBreadcrumb / Wurzel → aus Ordner raus.
+    - Drag einen Ordner auf einen anderen Ordner → als Unterordner verschachteln (`parentId` ändern). Zyklen-Prüfung (Ordner kann nicht in sich selbst/eigenen Kind verschoben werden).
+    - Drag einen Ordner auf eine Notiz → nichts (ungültig, visuelles Feedback).
+    - Compose: `Modifier.pointerInput` + Drag-Visual (Elevation/Shadow), Drop-Target-Highlight.
+  - **F7 – Bilder einfügen**
+    - Im Editor: Toolbar-Button „Bild" → Photo-Picker (Android `PickVisualMedia`) oder Kamera (optional später).
+    - Bild wird dekodiert, ggf. downgesampelt (max ~1600px Kantenlänge), PNG gespeichert unter `files/notes/<noteId>/<uuid>.png`, `ImageBlock` im Body eingefügt.
+    - Rendering im Editor via `AsyncImage` (Coil), Skalierung an Notizbreite.
+  - **F8 – Stift/Stylus-Support (Zeichnen auf Notiz)**
+    - Pro Notiz optionale „Zeichnung" (Drawing-Layer): eigener Canvas, Pfade als Liste von `Stroke(points, color, width)` im Notiz-Body als `DrawingBlock` gespeichert.
+    - Stift-Toolbar: Farbe (Palette), Strichstärke (3-4 Presets), Radiergummi, Rückgängig.
+    - `S-Pen`/generischer Stylus: `PointerEvent` mit `PointerType.Stylus` erkennen, Pressure → Strichstärke (optional), Palm-Rejection (nur Stylus-Eingabe zeichnen, wenn Stylus aktiv).
+    - Zeichnung als PNG rendern + als `ImageBlock` für Sync speichern ODER Pfade direkt im Body (besser für Editierbarkeit) → Entscheidung bei Implementierung.
+  - **F9 – Bild-Sync** (nach F7/F8, wenn Text-Sync steht)
+    - Server-Endpoint `/sync/images` (multipart) ODER Bilder als Base64-Chunks im `/sync` (einfacher, aber größer). Entscheidung: eher separates `/images/{noteId}/{imageId}` GET + `POST /sync/images` mit multipart, referenziert im `bodyJson`.
+    - Client: beim Sync pro Notiz prüfen, welche `imageId`s lokal fehlen → GET nachladen; lokale neuen → hochladen.
+  - **F10 – Sync-Anbindung**
+    - `notes` + `folders` in `SyncManager` aufnehmen (wie Todos/Habits: sammeln → POST → merge).
+    - `last_synced_at` gilt weiterhin global für alle Tabellen.
+    - Konflikt-Strategie: LWW über `updatedAt` (wie bisher). Body-Konflikte (gleichzeitige Edits) → letzter Schreiber gewinnt, akzeptiert für Ein-Nutzer.
+  - **F11 – Polish**
+    - Samsung-Notes-Look: weiße „Papier"-Notiz-Liste, dezente Trennlinien, Titel-Fett, Vorschau-Zeilen (erste ~2 Body-Zeilen als Preview in der Listenkarte).
+    - Leerer Zustand: „Keine Notizen — tippe + um eine zu erstellen".
+    - Suche (optional, später): filtert Titel + Body-Text.
 - [ ] **Block G – Design-Politur**: Samsung-Reminder-Look-and-Feel
 
 ## Wichtige Entscheidungen
@@ -37,4 +88,4 @@
 - **Git**: Monorepo auf GitHub (private), Account `theoretischer`, Commit-Email `75859777+theoretischer@users.noreply.github.com` (für Contribution-Graph)
 
 ## Nächster Schritt
-**Block D2 – Android-Sync-Client**: Retrofit-Service + WorkManager + Sync-Settings in der App.
+**Block F1 – Notizen: Datenmodell & Migration (DB v6).** Neue Tabellen `notes` + `folders`, echte Room-Migration `MIGRATION_5_6`, Backend-Sync um die beiden Tabellen erweitern. Danach F2 (DAO/Repo/VM) → F3 (Rich-Text-Modell) → F4 (Tab-Übersicht) → F5 (Editor) → F6 (Drag&Drop) → F7 (Bilder) → F8 (Stylus) → F9 (Bild-Sync) → F10 (Sync) → F11 (Polish).
