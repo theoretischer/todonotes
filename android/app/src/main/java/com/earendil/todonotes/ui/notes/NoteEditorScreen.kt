@@ -6,7 +6,9 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,11 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
@@ -50,24 +52,51 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.earendil.todonotes.data.repo.NoteRepository
-import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.data.richtext.ListType
+import com.earendil.todonotes.data.richtext.NoteLine
+import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.NoteEditorViewModel
 
+/** Eine editierbare Zeile im Editor. */
+private data class EditLine(
+    val id: Long,
+    val type: ListType?,
+    val checked: Boolean,
+    val value: TextFieldValue
+) {
+    val content: String get() = value.text
+}
+
+/** Einheitliche Breite des Prefix-Bereichs (Absatz für alle Listentypen). */
+private val PREFIX_WIDTH = 36.dp
+
 /**
- * Vollbild-Notiz-Editor (Block F5) — kontinuierlicher Textfluss wie Word.
+ * Vollbild-Notiz-Editor — kontinuierlicher Textfluss wie Word/Samsung Notes.
  *
- * Der gesamte Body ist ein einziges Textfeld. Listen-Formatierung
- * passiert über Zeilen-Präfixe (-, 1., [ ], →), die über die Toolbar
- * auf der aktuellen Cursor-Zeile umgeschaltet werden. Enter auto-
- * continue: eine neue Zeile in einer Liste übernimmt den Prefix.
+ * Der Body wird zeilenweise gerendert. Jede Zeile ist eine Row aus
+ * einem visuellen Prefix (echte Checkbox, großer runder Bullet-Punkt,
+ * Zahl, Pfeil) und einem BasicTextField. Der gespeicherte Text behält
+ * die Markdown-ähnlichen Präfixe (siehe [NoteTextBody]), die UI zeigt
+ * sie aber als grafische Elemente mit einheitlichem Absatz.
+ *
+ * - Checkbox: echtes tappbares Viereck → Haken wird gesetzt
+ * - Enter: neue Zeile mit auto-continue Prefix; leere Liste beenden
+ * - Backspace am Zeilenanfang: Prefix entfernen / Zeile löschen
+ * - Toolbar: aktive Zeile in Listen-Typ umwandeln (Toggle)
  */
 @Composable
 fun NoteEditorScreen(
@@ -79,18 +108,38 @@ fun NoteEditorScreen(
     val vm: NoteEditorViewModel = viewModel(factory = NoteEditorViewModel.Factory(noteRepo))
     val state by vm.state.collectAsState()
 
-    // --- Lokaler Editierzustand (UI ist Source of Truth) ---
-    var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
+    // --- Lokaler Editierzustand ---
+    var lines by remember { mutableStateOf<List<EditLine>>(emptyList()) }
+    var nextLineId by remember { mutableStateOf(0L) }
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var titleSelectedOnce by remember { mutableStateOf(false) }
+    var focusTarget by remember { mutableStateOf<Long?>(null) }
+    var activeLineId by remember { mutableStateOf<Long?>(null) }
     val titleFocusRequester = remember { FocusRequester() }
-    val bodyFocusRequester = remember { FocusRequester() }
+
+    fun genId(): Long {
+        nextLineId++
+        return nextLineId
+    }
 
     // Einmalig laden, sobald das VM-State bereit ist.
     LaunchedEffect(state.loaded) {
-        if (state.loaded && bodyValue == null) {
-            bodyValue = TextFieldValue(state.body)
+        if (state.loaded && lines.isEmpty()) {
+            val parsed = NoteTextBody.toLines(state.body)
+            lines = if (parsed.isEmpty()) {
+                listOf(EditLine(genId(), null, false, TextFieldValue("")))
+            } else {
+                parsed.map { li ->
+                    EditLine(
+                        id = genId(),
+                        type = li.type,
+                        checked = li.checked,
+                        value = TextFieldValue(li.content, TextRange(li.content.length))
+                    )
+                }
+            }
             titleValue = TextFieldValue(state.title)
+            focusTarget = lines.firstOrNull()?.id
         }
     }
 
@@ -104,19 +153,95 @@ fun NoteEditorScreen(
         onBack()
     }
 
-    // --- Hilfsfunktionen: Listen-Prefix auf Cursor-Zeile umschalten ---
-    // (als top-level Funktionen weiter unten definiert)
+    // --- Mutationen: neue Zeilen-Liste bauen + speichern ---
+    fun commit(newLines: List<EditLine>) {
+        lines = newLines
+        val body = NoteTextBody.fromLines(
+            newLines.map { NoteLine(it.content, it.type, 0, it.checked) }
+        )
+        vm.updateBody(body)
+    }
+
+    fun updateLine(idx: Int, newValue: TextFieldValue) {
+        if (idx !in lines.indices) return
+        commit(lines.mapIndexed { i, l -> if (i == idx) l.copy(value = newValue) else l })
+    }
+
+    /** Neue Zeile hinter [idx] einfügen (Enter), mit gleichem Listen-Typ. */
+    fun insertAfter(idx: Int) {
+        if (idx !in lines.indices) return
+        val type = lines[idx].type
+        val newLines = lines.toMutableList()
+        val newLine = EditLine(genId(), type, false, TextFieldValue(""))
+        newLines.add(idx + 1, newLine)
+        commit(newLines)
+        focusTarget = newLine.id
+        activeLineId = newLine.id
+    }
+
+    /** Zeile [idx] löschen, Fokus auf Vorgänger. */
+    fun removeLine(idx: Int) {
+        if (idx !in lines.indices || lines.size <= 1) return
+        val newLines = lines.toMutableList()
+        newLines.removeAt(idx)
+        commit(newLines)
+        focusTarget = newLines[(idx - 1).coerceAtLeast(0)].id
+    }
+
+    /** Listen-Prefix der Zeile [idx] entfernen (Backspace am Anfang). */
+    fun stripPrefixFrom(idx: Int) {
+        if (idx !in lines.indices) return
+        commit(lines.mapIndexed { i, l -> if (i == idx) l.copy(type = null, checked = false) else l })
+    }
+
+    /** Enter-Handling auf der aktiven Zeile. */
+    fun handleEnter(idx: Int) {
+        if (idx !in lines.indices) return
+        val line = lines[idx]
+        if (line.type != null && line.content.isBlank()) {
+            // Leere Listen-Zeile → Liste beenden (Prefix weg)
+            stripPrefixFrom(idx)
+        } else {
+            insertAfter(idx)
+        }
+    }
+
+    /** Backspace am Anfang einer leeren Zeile. */
+    fun handleBackspace(idx: Int) {
+        if (idx !in lines.indices) return
+        val line = lines[idx]
+        when {
+            line.type != null -> stripPrefixFrom(idx)
+            idx > 0 -> removeLine(idx)
+        }
+    }
+
+    /** Toolbar: Zeile auf Listen-Typ setzen (Toggle bei gleichem Typ). */
+    fun toolbarToggleType(type: ListType) {
+        val idx = lines.indexOfFirst { it.id == activeLineId }
+        if (idx < 0) return
+        val line = lines[idx]
+        val newType = if (line.type == type) null else type
+        val checked = if (newType == ListType.CHECKBOX) line.checked else false
+        commit(lines.mapIndexed { i, l -> if (i == idx) l.copy(type = newType, checked = checked) else l })
+    }
+
+    fun toggleCheckboxAt(idx: Int) {
+        if (idx !in lines.indices) return
+        commit(lines.mapIndexed { i, l ->
+            if (i == idx && l.type == ListType.CHECKBOX) l.copy(checked = !l.checked) else l
+        })
+    }
 
     // --- UI ---
 
-    if (!state.loaded || bodyValue == null || titleValue == null) {
+    if (!state.loaded || titleValue == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
     }
 
-    val currentBodyValue = bodyValue!!
     val currentTitleValue = titleValue!!
 
     Scaffold(
@@ -135,31 +260,22 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             BottomAppBar {
-                // Bullet-Liste
-                IconButton(onClick = { toggleListPrefix(ListType.BULLET, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                IconButton(onClick = { toolbarToggleType(ListType.BULLET) }) {
                     Icon(Icons.Filled.FormatListBulleted, contentDescription = "Aufzählung")
                 }
-                // Nummerierte Liste
-                IconButton(onClick = { toggleListPrefix(ListType.ORDERED, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                IconButton(onClick = { toolbarToggleType(ListType.ORDERED) }) {
                     Icon(Icons.Filled.FormatListNumbered, contentDescription = "Nummerierung")
                 }
-                // Checkbox-Liste
-                IconButton(onClick = { toggleListPrefix(ListType.CHECKBOX, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                IconButton(onClick = { toolbarToggleType(ListType.CHECKBOX) }) {
                     Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "Checkbox")
                 }
-                // Checkbox toggeln (an/aus)
-                IconButton(onClick = { toggleCheckboxAtCursor(bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
-                    Icon(Icons.Filled.Check, contentDescription = "Checkbox umschalten")
-                }
-                // Pfeil-Liste
-                IconButton(onClick = { toggleListPrefix(ListType.ARROW, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                IconButton(onClick = { toolbarToggleType(ListType.ARROW) }) {
                     Icon(Icons.Filled.FormatQuote, contentDescription = "Pfeil-Liste")
                 }
             }
         }
     ) { padding ->
-        // Ein Scrollbares Column mit Titel + Body-Textfeld
-        androidx.compose.foundation.layout.Column(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -177,9 +293,6 @@ fun NoteEditorScreen(
                     .fillMaxWidth()
                     .focusRequester(titleFocusRequester)
                     .onFocusChanged { focusState ->
-                        // Auto-select: bei neuer Notiz + erster Fokus →
-                        // gesamten Text markieren, damit Nutzer sofort
-                        // drüberschreiben kann.
                         if (focusState.isFocused && state.isNewNote && !titleSelectedOnce) {
                             titleSelectedOnce = true
                             titleValue = currentTitleValue.copy(
@@ -197,91 +310,147 @@ fun NoteEditorScreen(
                 )
             )
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // --- Body (ein einziges Textfeld, kontinuierlich) ---
-            TextField(
-                value = currentBodyValue,
-                onValueChange = { newVal ->
-                    // Enter auto-continue erkennen: wenn der neue Text
-                    // einen Zeilenumbruch an der Cursor-Position hat,
-                    // der im alten Text nicht war.
-                    val oldText = currentBodyValue.text
-                    val newText = newVal.text
-                    if (newText.length == oldText.length + 1 &&
-                        newText.substring(0, newVal.selection.min - 1) == oldText.substring(0, newVal.selection.min - 1) &&
-                        newText[newVal.selection.min - 1] == '\n'
-                    ) {
-                        // Enter wurde gedrückt → auto-continue
-                        // Aber nur, wenn die vorherige Zeile einen
-                        // Listen-Prefix hat.
-                        val beforeEnter = oldText.substring(0, newVal.selection.min - 1)
-                        val cursor = newVal.selection.min - 1
-                        val ls = run {
-                            var i = cursor - 1
-                            while (i >= 0 && beforeEnter[i] != '\n') i--
-                            i + 1
-                        }
-                        val le = run {
-                            var i = cursor
-                            while (i < beforeEnter.length && beforeEnter[i] != '\n') i++
-                            i
-                        }
-                        val line = beforeEnter.substring(ls, le)
-                        if (NoteTextBody.detectListType(line) != null) {
-                            // Den vom TextField bereits eingefügten \n
-                            // nehmen und Prefix dahinter setzen.
-                            val type = NoteTextBody.detectListType(line)!!
-                            val content = NoteTextBody.stripPrefix(line).trim()
-                            if (content.isEmpty()) {
-                                // Leerzeile → Liste beenden, \n bleibt
-                                val prefixLen = line.length - NoteTextBody.stripPrefix(line).length
-                                val newLineText = NoteTextBody.stripPrefix(line)
-                                val fixed = oldText.substring(0, ls) + newLineText + oldText.substring(le)
-                                bodyValue = TextFieldValue(fixed, TextRange(ls + newLineText.length))
-                                vm.updateBody(fixed)
-                                return@TextField
-                            }
-                            val prefix = when (type) {
-                                ListType.BULLET -> NoteTextBody.BULLET_PREFIX
-                                ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
-                                ListType.ARROW -> NoteTextBody.ARROW_PREFIX
-                                ListType.ORDERED -> {
-                                    var count = 0
-                                    var i = 0
-                                    while (i < ls) {
-                                        val end = oldText.indexOf('\n', i).let { if (it < 0) oldText.length else it }
-                                        val l = oldText.substring(i, end)
-                                        if (NoteTextBody.detectListType(l) == ListType.ORDERED) count++
-                                        i = end + 1
-                                    }
-                                    "$count. "
-                                }
-                            }
-                            val withPrefix = newText.substring(0, newVal.selection.min) + prefix + newText.substring(newVal.selection.min)
-                            val newCursor = newVal.selection.min + prefix.length
-                            bodyValue = TextFieldValue(withPrefix, TextRange(newCursor))
-                            vm.updateBody(withPrefix)
-                            return@TextField
-                        }
-                    }
-                    bodyValue = newVal
-                    vm.updateBody(newText)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(bodyFocusRequester),
-                placeholder = { Text("Notiz …", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = transparentTextFieldColors(),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Default
+            // --- Body: zeilenweises Rendering mit visuellen Prefixen ---
+            var orderedCounter = 0
+            lines.forEachIndexed { idx, line ->
+                val number = if (line.type == ListType.ORDERED) {
+                    orderedCounter++
+                    orderedCounter
+                } else {
+                    orderedCounter = 0
+                    0
+                }
+                NoteLineEditor(
+                    line = line,
+                    number = number,
+                    isFocused = activeLineId == line.id,
+                    onChange = { newValue ->
+                        updateLine(idx, newValue)
+                        activeLineId = line.id
+                    },
+                    onFocus = { activeLineId = line.id },
+                    onToggleCheckbox = { toggleCheckboxAt(idx) },
+                    onEnter = { handleEnter(idx) },
+                    onBackspace = { handleBackspace(idx) },
+                    focusTarget = focusTarget == line.id
                 )
-            )
+            }
 
             Spacer(Modifier.height(80.dp))
         }
+    }
+}
+
+/** Eine Zeile des Editors: Prefix-Widget + Textfeld. */
+@Composable
+private fun NoteLineEditor(
+    line: EditLine,
+    number: Int,
+    isFocused: Boolean,
+    onChange: (TextFieldValue) -> Unit,
+    onFocus: () -> Unit,
+    onToggleCheckbox: () -> Unit,
+    onEnter: () -> Unit,
+    onBackspace: () -> Unit,
+    focusTarget: Boolean
+) {
+    val focusRequester = remember(line.id) { FocusRequester() }
+    LaunchedEffect(focusTarget, line.id) {
+        if (focusTarget) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        // --- Prefix-Bereich (einheitlicher Absatz für alle Listentypen) ---
+        if (line.type == null) {
+            // Plain-Text-Zeile: kein Einzug
+            Spacer(Modifier.width(0.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .width(PREFIX_WIDTH)
+                    .padding(top = 10.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                when (line.type) {
+                    ListType.BULLET -> BulletDot()
+                    ListType.CHECKBOX -> Checkbox(
+                        checked = line.checked,
+                        onCheckedChange = { onToggleCheckbox() },
+                        modifier = Modifier.size(24.dp)
+                    )
+                    ListType.ORDERED -> Text(
+                        "$number.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(PREFIX_WIDTH)
+                    )
+                    ListType.ARROW -> Text(
+                        "→",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 20.sp,
+                        modifier = Modifier.width(PREFIX_WIDTH)
+                    )
+                    null -> Unit
+                }
+            }
+        }
+
+        // --- Textfeld ---
+        BasicTextField(
+            value = line.value,
+            onValueChange = onChange,
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester)
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) onFocus()
+                }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) {
+                        when (event.key) {
+                            Key.Enter -> {
+                                onEnter()
+                                true
+                            }
+                            Key.Backspace -> {
+                                if (line.value.text.isEmpty()) {
+                                    onBackspace()
+                                    true
+                                } else false
+                            }
+                            else -> false
+                        }
+                    } else false
+                }
+                .padding(vertical = 6.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                color = if (line.type == ListType.CHECKBOX && line.checked)
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Default
+            )
+        )
+    }
+}
+
+/** Großer runder Bullet-Punkt. */
+@Composable
+private fun BulletDot() {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(modifier = Modifier.size(20.dp)) {
+        drawCircle(color = color, radius = size.minDimension * 0.30f)
     }
 }
 
@@ -292,78 +461,3 @@ private fun transparentTextFieldColors() = TextFieldDefaults.colors(
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent
 )
-
-// ---- Hilfsfunktionen für Listen-Prefixe (top-level) ----
-
-/** Findet den Start-Index der Zeile, in der der Cursor steht. */
-private fun lineStart(text: String, cursor: Int): Int {
-    var i = cursor - 1
-    while (i >= 0 && text[i] != '\n') i--
-    return i + 1
-}
-
-/** Findet das Ende der Zeile (exklusive \n). */
-private fun lineEnd(text: String, cursor: Int): Int {
-    var i = cursor
-    while (i < text.length && text[i] != '\n') i++
-    return i
-}
-
-/** Zählt wie viele nummerierte Zeilen vor [ls] stehen (für fortlaufende Nummerierung). */
-private fun countOrderedBefore(text: String, ls: Int): Int {
-    var count = 0
-    var i = 0
-    while (i < ls) {
-        val end = text.indexOf('\n', i).let { if (it < 0) text.length else it }
-        val line = text.substring(i, end)
-        if (NoteTextBody.detectListType(line) == ListType.ORDERED) count++
-        i = end + 1
-    }
-    return count
-}
-
-/** Schaltet die Cursor-Zeile auf einen Listen-Typ um.
- *  Hat sie schon diesen Prefix, wird er entfernt (Toggle). */
-private fun toggleListPrefix(
-    type: ListType,
-    bodyValue: TextFieldValue?,
-    vm: NoteEditorViewModel,
-    bodyValueSetter: (TextFieldValue) -> Unit
-) {
-    val tv = bodyValue ?: return
-    val text = tv.text
-    val cursor = tv.selection.min
-    val ls = lineStart(text, cursor)
-    val le = lineEnd(text, cursor)
-    val line = text.substring(ls, le)
-
-    val currentType = NoteTextBody.detectListType(line)
-    if (currentType == type) {
-        // Toggle aus → Prefix entfernen
-        val newLine = NoteTextBody.stripPrefix(line)
-        val newText = text.substring(0, ls) + newLine + text.substring(le)
-        bodyValueSetter(TextFieldValue(newText, TextRange(ls + newLine.length)))
-        vm.updateBody(newText)
-    } else {
-        val number = countOrderedBefore(text, ls) + 1
-        val newText = NoteTextBody.setListPrefix(text, ls, type, number)
-        val newLineEnd = newText.indexOf('\n', ls).let { if (it < 0) newText.length else it }
-        bodyValueSetter(TextFieldValue(newText, TextRange(newLineEnd)))
-        vm.updateBody(newText)
-    }
-}
-
-/** Toggelt die Checkbox auf der Cursor-Zeile. */
-private fun toggleCheckboxAtCursor(
-    bodyValue: TextFieldValue?,
-    vm: NoteEditorViewModel,
-    bodyValueSetter: (TextFieldValue) -> Unit
-) {
-    val tv = bodyValue ?: return
-    val text = tv.text
-    val cursor = tv.selection.min
-    val ls = lineStart(text, cursor)
-    val newText = NoteTextBody.toggleCheckbox(text, ls)
-    bodyValueSetter(TextFieldValue(newText, tv.selection))
-    vm.updateBody(newText)
-}
