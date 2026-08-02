@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -48,6 +49,7 @@ fun SwipeToDeleteRow(
     onDelete: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     deleteWidth: Dp = 80.dp,
     content: @Composable () -> Unit
 ) {
@@ -108,14 +110,17 @@ fun SwipeToDeleteRow(
                         }
                     }
                 }
-                .clickable {
-                    if (offsetX.value < -10f) {
-                        // revealed → zurück snappen, kein onClick
-                        scope.launch { offsetX.animateTo(0f, tween(250)) }
-                    } else {
-                        onClick()
-                    }
-                }
+                .combinedClickable(
+                    onClick = {
+                        if (offsetX.value < -10f) {
+                            // revealed → zurück snappen, kein onClick
+                            scope.launch { offsetX.animateTo(0f, tween(250)) }
+                        } else {
+                            onClick()
+                        }
+                    },
+                    onLongClick = onLongClick
+                )
         ) {
             content()
         }

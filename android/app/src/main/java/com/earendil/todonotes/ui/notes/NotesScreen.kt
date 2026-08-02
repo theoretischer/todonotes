@@ -115,12 +115,10 @@ fun NotesScreen(
                 items(state.folders, key = { it.id }) { folder ->
                     SwipeToDeleteRow(
                         onDelete = { notesVm.deleteFolder(folder.id) },
-                        onClick = { notesVm.openFolder(folder) }
+                        onClick = { notesVm.openFolder(folder) },
+                        onLongClick = { renameTarget = folder }
                     ) {
-                        FolderRow(
-                            folder = folder,
-                            onRename = { renameTarget = folder }
-                        )
+                        FolderRow(folder = folder)
                     }
                 }
                 if (state.folders.isNotEmpty() && state.notes.isNotEmpty()) {
@@ -130,12 +128,10 @@ fun NotesScreen(
                 items(state.notes, key = { it.id }) { note ->
                     SwipeToDeleteRow(
                         onDelete = { notesVm.deleteNote(note.id) },
-                        onClick = { onOpenNote(note.id) }
+                        onClick = { onOpenNote(note.id) },
+                        onLongClick = { moveTarget = note }
                     ) {
-                        NoteRow(
-                            note = note,
-                            onMove = { moveTarget = note }
-                        )
+                        NoteRow(note = note)
                     }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -279,14 +275,10 @@ private fun NewMenuItem(
 
 @Composable
 private fun FolderRow(
-    folder: Folder,
-    onRename: () -> Unit
+    folder: Folder
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = { menuExpanded = true }),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -309,21 +301,6 @@ private fun FolderRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Optionen")
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Umbenennen") },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                        onClick = { menuExpanded = false; onRename() }
-                    )
-                }
-            }
         }
     }
 }
@@ -332,14 +309,11 @@ private fun FolderRow(
 
 @Composable
 private fun NoteRow(
-    note: Note,
-    onMove: () -> Unit
+    note: Note
 ) {
     val preview = remember(note.bodyJson) { notePreview(note) }
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = {}, onLongClick = onMove),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
