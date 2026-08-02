@@ -12,7 +12,9 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +60,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Edge-to-Edge mit korrekten Systemleisten-Farben.
+        // Icon-Farbe (hell/dunkel) folgt der Hell/Dunkel-Erscheinung des Systems,
+        // damit die Android-Elemente (Status-/Navigationsleiste) im Dark Mode
+        // lesbar sind (weisse Icons auf schwarzem Hintergrund).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
 
         // Erster Start: Notification-Permission anfragen
         val requestNotificationPermission = registerForActivityResult(
