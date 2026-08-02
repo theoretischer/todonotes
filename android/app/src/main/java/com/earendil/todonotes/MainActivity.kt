@@ -50,7 +50,6 @@ import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.notes.NoteEditorScreen
 import com.earendil.todonotes.ui.notes.NotesScreen
-import com.earendil.todonotes.ui.settings.ProfileSheet
 import com.earendil.todonotes.ui.settings.SettingsScreen
 import com.earendil.todonotes.ui.theme.TodoNotesTheme
 import com.earendil.todonotes.ui.todos.TodosScreen
@@ -105,7 +104,6 @@ private fun TodoNotesApp(
     val notesVm: NotesViewModel = viewModel(factory = NotesViewModel.Factory(folderRepo, noteRepo))
     val syncVm: SyncViewModel = viewModel()
     var currentTab by remember { mutableStateOf(Tab.Todos) }
-    var showProfile by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var openNoteId by remember { mutableStateOf<String?>(null) }
     var openNoteIsNew by remember { mutableStateOf(false) }
@@ -135,17 +133,6 @@ private fun TodoNotesApp(
         }
     ) { padding ->
         Box(Modifier.fillMaxSize()) {
-            // Rechte obere Ecke: User-Icon als unabhaengiger Kreis
-            // (ohne TopAppBar / TodoNotes-Schriftzug), ueber dem Inhalt
-            // schwebend, mit StatusBars-Abstand.
-            UserCircleIcon(
-                onClick = { showProfile = true },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 12.dp, top = 8.dp)
-            )
-
             when (currentTab) {
             Tab.Todos -> TodosScreen(
                 todos = openTodos,
@@ -181,6 +168,18 @@ private fun TodoNotesApp(
                 modifier = Modifier.padding(padding)
             )
             }
+
+            // Rechte obere Ecke: User-Icon als unabhaengiger Kreis
+            // (ohne TopAppBar / TodoNotes-Schriftzug), schwebt ueber dem
+            // Inhalt (wird NACH dem Tab-Inhalt gezeichnet = oben drauf),
+            // Tap oeffnet die Einstellungen (Sync/Backend).
+            UserCircleIcon(
+                onClick = { showSettings = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 12.dp, top = 8.dp)
+            )
         }
     }
 
@@ -191,15 +190,6 @@ private fun TodoNotesApp(
             isNew = openNoteIsNew,
             noteRepo = noteRepo,
             onBack = { openNoteId = null }
-        )
-    }
-
-    // Profil-BottomSheet (öffnet beim Tap aufs AccountCircle-Icon)
-    if (showProfile) {
-        ProfileSheet(
-            syncVm = syncVm,
-            onOpenSettings = { showSettings = true },
-            onDismiss = { showProfile = false }
         )
     }
 
