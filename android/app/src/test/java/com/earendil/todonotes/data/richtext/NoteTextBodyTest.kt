@@ -165,4 +165,70 @@ class NoteTextBodyTest {
         assertEquals(ListType.CHECKBOX, lines[5].type)
         assertFalse(lines[5].checked)
     }
+
+    // ===================== Inline-Stil (F5-Rest) =====================
+
+    @Test
+    fun parseInlineStyles_removesBoldMarkers() {
+        val segs = NoteTextBody.parseInlineStyles("Hallo **fett** Welt")
+        assertEquals(3, segs.size)
+        assertEquals("Hallo ", segs[0].text)
+        assertNull(segs[0].style)
+        assertEquals("fett", segs[1].text)
+        assertEquals(NoteTextBody.InlineStyle.BOLD, segs[1].style)
+        assertEquals(" Welt", segs[2].text)
+        assertNull(segs[2].style)
+    }
+
+    @Test
+    fun parseInlineStyles_removesItalicAndUnderline() {
+        val segs = NoteTextBody.parseInlineStyles("*kursiv* und __unter__")
+        assertEquals(3, segs.size)
+        assertEquals(NoteTextBody.InlineStyle.ITALIC, segs[0].style)
+        assertEquals("kursiv", segs[0].text)
+        assertEquals(NoteTextBody.InlineStyle.UNDERLINE, segs[2].style)
+        assertEquals("unter", segs[2].text)
+    }
+
+    @Test
+    fun parseInlineStyles_plainTextUntouched() {
+        val segs = NoteTextBody.parseInlineStyles("ganz normaler Text")
+        assertEquals(1, segs.size)
+        assertNull(segs[0].style)
+        assertEquals("ganz normaler Text", segs[0].text)
+    }
+
+    @Test
+    fun toggleInlineStyle_addsMarkersAroundSelection() {
+        val (text, s, e) = NoteTextBody.toggleInlineStyle("Hallo Welt", 0, 5, NoteTextBody.InlineStyle.BOLD)
+        assertEquals("**Hallo** Welt", text)
+        assertEquals(2, s)
+        assertEquals(7, e)
+    }
+
+    @Test
+    fun toggleInlineStyle_removesMarkersAgain() {
+        val (text, s, e) = NoteTextBody.toggleInlineStyle("**Hallo** Welt", 2, 7, NoteTextBody.InlineStyle.BOLD)
+        assertEquals("Hallo Welt", text)
+        assertEquals(0, s)
+        assertEquals(5, e)
+    }
+
+    @Test
+    fun visualToRawOffset_mapsAcrossMarkers() {
+        // „**Hallo** Welt“: Roh-Text = 2+5+2+5 = 14; sichtbar = 10
+        // Cursor nach „Hallo“ (visual=5) → raw=7 (= nach schließendem **)
+        assertEquals(7, NoteTextBody.visualToRawOffset("**Hallo** Welt", 5))
+        // Cursor am Anfang (visual=0) → raw=0
+        assertEquals(0, NoteTextBody.visualToRawOffset("**Hallo** Welt", 0))
+        // Cursor am Ende (visual=10) → raw=14
+        assertEquals(14, NoteTextBody.visualToRawOffset("**Hallo** Welt", 10))
+    }
+
+    @Test
+    fun rawToVisualOffset_mapsAcrossMarkers() {
+        assertEquals(5, NoteTextBody.rawToVisualOffset("**Hallo** Welt", 7))
+        assertEquals(0, NoteTextBody.rawToVisualOffset("**Hallo** Welt", 0))
+        assertEquals(10, NoteTextBody.rawToVisualOffset("**Hallo** Welt", 14))
+    }
 }

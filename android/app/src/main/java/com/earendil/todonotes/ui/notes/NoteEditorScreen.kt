@@ -25,9 +25,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Checkbox
@@ -62,9 +65,17 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -88,6 +99,40 @@ private data class EditLine(
 private val PREFIX_WIDTH = 34.dp
 
 /**
+ * Blendet Inline-Stil-Marker (**fett**, *kursiv*, __unterstrichen__) aus
+ * und rendert den Stil direkt (bold/italic/underline). Cursor-Positionen
+ * werden zwischen sichtbarem und Roh-Text gemappt, sodass der Cursor nie
+ * "in" den Markern landet.
+ */
+private class MarkdownVisualTransformation : VisualTransformation {
+
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text
+        val parsed = NoteTextBody.parseInlineStyles(raw)
+        val annotated = buildAnnotatedString {
+            parsed.forEach { seg ->
+                val style = when (seg.style) {
+                    NoteTextBody.InlineStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+                    NoteTextBody.InlineStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
+                    NoteTextBody.InlineStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
+                    null -> SpanStyle()
+                }
+                append(AnnotatedString(seg.text, style))
+            }
+        }
+        val offsetMapping = object : OffsetMapping {
+            // Mappt eine Position im ROH-Text auf die visuelle Position
+            override fun originalToTransformed(offset: Int): Int =
+                NoteTextBody.rawToVisualOffset(raw, offset)
+            // Mappt eine visuelle Position auf die Roh-Text-Position
+            override fun transformedToOriginal(offset: Int): Int =
+                NoteTextBody.visualToRawOffset(raw, offset)
+        }
+        return TransformedText(annotated, offsetMapping)
+    }
+}
+
+/**
  * Vollbild-Notiz-Editor — kontinuierlicher Textfluss wie Word/Samsung Notes.
  *
  * Der Body wird zeilenweise gerendert. Jede Zeile ist eine Row aus
@@ -107,7 +152,10 @@ private fun CompactFormatBar(
     onBullet: () -> Unit,
     onOrdered: () -> Unit,
     onCheckbox: () -> Unit,
-    onArrow: () -> Unit
+    onArrow: () -> Unit,
+    onBold: () -> Unit,
+    onItalic: () -> Unit,
+    onUnderline: () -> Unit
 ) {
     // Eigene kleine Surface statt BottomAppBar: weniger Höhe (48dp statt 80dp).
     androidx.compose.material3.Surface(
@@ -123,16 +171,25 @@ private fun CompactFormatBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBullet, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onBold, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.FormatBold, contentDescription = "Fett")
+            }
+            IconButton(onClick = onItalic, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.FormatItalic, contentDescription = "Kursiv")
+            }
+            IconButton(onClick = onUnderline, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.FormatUnderlined, contentDescription = "Unterstrichen")
+            }
+            IconButton(onClick = onBullet, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.FormatListBulleted, contentDescription = "Aufzählung")
             }
-            IconButton(onClick = onOrdered, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onOrdered, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.FormatListNumbered, contentDescription = "Nummerierung")
             }
-            IconButton(onClick = onCheckbox, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onCheckbox, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "Checkbox")
             }
-            IconButton(onClick = onArrow, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onArrow, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.FormatQuote, contentDescription = "Pfeil-Liste")
             }
         }
@@ -274,6 +331,19 @@ fun NoteEditorScreen(
         })
     }
 
+    /** Inline-Formatierung (B/I/U) auf die Auswahl der aktiven Zeile anwenden. */
+    fun toggleInlineStyleActive(style: NoteTextBody.InlineStyle) {
+        val idx = lines.indexOfFirst { it.id == activeLineId }
+        if (idx < 0) return
+        val line = lines[idx]
+        val sel = line.value.selection
+        val (newText, newStart, newEnd) =
+            NoteTextBody.toggleInlineStyle(line.value.text, sel.min, sel.max, style)
+        commit(lines.mapIndexed { i, l ->
+            if (i == idx) l.copy(value = TextFieldValue(newText, TextRange(newStart, newEnd))) else l
+        })
+    }
+
     // --- UI ---
 
     if (!state.loaded || titleValue == null) {
@@ -307,7 +377,10 @@ fun NoteEditorScreen(
                 onBullet = { toolbarToggleType(ListType.BULLET) },
                 onOrdered = { toolbarToggleType(ListType.ORDERED) },
                 onCheckbox = { toolbarToggleType(ListType.CHECKBOX) },
-                onArrow = { toolbarToggleType(ListType.ARROW) }
+                onArrow = { toolbarToggleType(ListType.ARROW) },
+                onBold = { toggleInlineStyleActive(NoteTextBody.InlineStyle.BOLD) },
+                onItalic = { toggleInlineStyleActive(NoteTextBody.InlineStyle.ITALIC) },
+                onUnderline = { toggleInlineStyleActive(NoteTextBody.InlineStyle.UNDERLINE) }
             )
         }
     ) { padding ->
@@ -483,6 +556,7 @@ private fun NoteLineEditor(
                     MaterialTheme.colorScheme.onSurfaceVariant
                 else MaterialTheme.colorScheme.onSurface
             ),
+            visualTransformation = remember(line.id) { MarkdownVisualTransformation() },
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences,

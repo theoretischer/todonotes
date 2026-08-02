@@ -145,6 +145,175 @@ object NoteTextBody {
         if (endsWith("\n")) deleteCharAt(length - 1)
     }
 
+    // ===================== Inline-Stil (B/I/U) =====================
+    //
+    // Fett/Kursiv/Unterstrichen wird mit Markdown-ähnlichen Markern im
+    // Text gespeichert (sync-freundlich, wie die Listen-Präfixe):
+    //   **fett**   *kursiv*   __unterstrichen__
+    // Die UI blenden die Marker aus und zeigen den Stil direkt an
+    // (siehe MarkdownVisualTransformation). Pro Auswahl wird maximal
+    // EIN Stil gesetzt (Toggle) – Kombinationen entstehen nicht durch
+    // die UI, der Parser ist trotzdem robust dagegen.
+
+    const val MD_BOLD = "**"
+    const val MD_ITALIC = "*"
+    const val MD_UNDERLINE = "__"
+
+    private val BOLD_REGEX = Regex("\\*\\*([^*]+)\\*\\*")
+    private val ITALIC_REGEX = Regex("\\*([^*]+)\\*")
+    private val UNDERLINE_REGEX = Regex("__([^_]+)__")
+
+    /** Marker-Paar für einen Stil (open == close). */
+    private fun marker(style: InlineStyle): String = when (style) {
+        InlineStyle.BOLD -> MD_BOLD
+        InlineStyle.ITALIC -> MD_ITALIC
+        InlineStyle.UNDERLINE -> MD_UNDERLINE
+    }
+
+    /**
+     * Zerlegt [text] in sichtbare Segmente (Marker entfernt) und liefert
+     * pro Segment den erkannten Stil (oder null). Fürs Rendering.
+     */
+    fun parseInlineStyles(text: String): List<InlineSegment> {
+        val vis = buildVisible(text)
+        if (vis.text.isEmpty()) return emptyList()
+        val result = mutableListOf<InlineSegment>()
+        var pos = 0
+        for ((range, style) in vis.styles) {
+            if (pos < range.first) result.add(InlineSegment(vis.text.substring(pos, range.first), null))
+            result.add(InlineSegment(vis.text.substring(range.first, range.last + 1), style))
+            pos = range.last + 1
+        }
+        if (pos < vis.text.length) result.add(InlineSegment(vis.text.substring(pos), null))
+        return result.ifEmpty { listOf(InlineSegment(text, null)) }
+    }
+
+    /**
+     * Mappt eine Cursor-Position [visualOffset] im sichtbaren Text (ohne
+     * Marker) auf den ursprünglichen Roh-Text-Index. Für TextFieldValue-Offsets.
+     *
+     * Exakte inverse Abbildung zu [rawToVisualOffset]: es wird der kleinste
+     * Roh-Index gesucht, dessen visueller Offset ≥ [visualOffset] ist.
+     * Dadurch steht der Cursor direkt nach einem formatierten Wort VOR den
+     * schließenden Markern — weitergetippter Text bleibt formatiert.
+     */
+    fun visualToRawOffset(text: String, visualOffset: Int): Int {
+        if (visualOffset <= 0) return 0
+        if (visualOffset >= text.length) return text.length
+        // buildVisible nur einmal berechnen und Roh-Indizes manuell zählen.
+        val vis = buildVisible(text)
+        if (visualOffset >= vis.text.length) return text.length
+        var visual = 0
+        var i = 0
+        while (i < text.length) {
+            if (visual >= visualOffset) return i
+            if (i !in vis.removedRaw) visual++
+            i++
+        }
+        return text.length
+    }
+
+    /**
+     * Mappt einen Roh-Text-Index [rawOffset] auf die Position im
+     * sichtbaren Text (ohne Marker). Für die Anzeige der Auswahl.
+     */
+    fun rawToVisualOffset(text: String, rawOffset: Int): Int {
+        if (rawOffset <= 0) return 0
+        if (rawOffset >= text.length) return buildVisible(text).text.length
+        val vis = buildVisible(text)
+        var visual = 0
+        var i = 0
+        while (i < rawOffset) {
+            if (i !in vis.removedRaw) visual++
+            i++
+        }
+        return visual
+    }
+
+    /**
+     * Togglet [style] um die Auswahl [start..end).
+     *
+     * Es werden drei Fälle unterschieden, damit die UI robust gegen
+     * unterschiedliche Auswahl-Bereiche ist (die visuelle Transformation
+     * kann die Auswahl inkl. Marker liefern ODER nur den Inhalt):
+     *  A) Auswahl selbst ist von Markern umschlossen → entfernen (aus)
+     *  B) Auswahl ist der Inhalt zwischen Markern direkt davor/danach → entfernen
+     *  C) sonst → Marker einfügen (an)
+     *
+     * @return Triple(neuerText, neueStart, neueEnd) der Auswahl im neuen Text
+     */
+    fun toggleInlineStyle(text: String, start: Int, end: Int, style: InlineStyle): Triple<String, Int, Int> {
+        val m = marker(style)
+        val before = text.substring(0, start)
+        val sel = text.substring(start, end)
+        val after = text.substring(end)
+
+        // Fall A: Auswahl enthält die Marker selbst
+        if (sel.startsWith(m) && sel.endsWith(m) && sel.length > 2 * m.length) {
+            val inner = sel.removePrefix(m).removeSuffix(m)
+            return Triple(before + inner + after, start, start + inner.length)
+        }
+        // Fall B: Marker umschließen die Auswahl von außen
+        if (before.endsWith(m) && after.startsWith(m)) {
+            return Triple(
+                before.removeSuffix(m) + sel + after.removePrefix(m),
+                start - m.length,
+                start - m.length + sel.length
+            )
+        }
+        // Fall C: einschalten
+        val newText = before + m + sel + m + after
+        return Triple(newText, start + m.length, start + m.length + sel.length)
+    }
+
+    /**
+     * Interne Darstellung: sichtbarer Text (ohne Marker) + entfernte
+     * Roh-Indizes UND visuelle Anker (für Offset-Mapping) + Stil-Bereiche.
+     */
+    private fun buildVisible(text: String): VisibleText {
+        val sb = StringBuilder()
+        val removedRaw = mutableListOf<Int>()
+        val styles = mutableListOf<Pair<IntRange, InlineStyle>>()
+
+        data class M(val range: IntRange, val style: InlineStyle, val content: String)
+        val matches = mutableListOf<M>()
+        BOLD_REGEX.findAll(text).forEach { matches.add(M(it.range, InlineStyle.BOLD, it.groupValues[1])) }
+        ITALIC_REGEX.findAll(text).forEach { matches.add(M(it.range, InlineStyle.ITALIC, it.groupValues[1])) }
+        UNDERLINE_REGEX.findAll(text).forEach { matches.add(M(it.range, InlineStyle.UNDERLINE, it.groupValues[1])) }
+        matches.sortBy { it.range.first }
+
+        var pos = 0
+        val used = mutableListOf<IntRange>()
+        for (m in matches) {
+            // Überlappende Matches (z.B. __a**b**a__) überspringen.
+            if (used.any { it.first < m.range.last && m.range.first < it.last }) continue
+            val openLen = marker(m.style).length
+            sb.append(text, pos, m.range.first)
+            removedRaw.addAll(m.range.first until m.range.first + openLen)
+            val vStart = sb.length
+            sb.append(m.content)
+            val vEnd = sb.length - 1  // inklusiv
+            removedRaw.addAll(m.range.last + 1 - openLen..m.range.last)
+            styles.add(vStart..vEnd to m.style)
+            pos = m.range.last + 1
+            used.add(m.range)
+        }
+        sb.append(text, pos, text.length)
+        return VisibleText(sb.toString(), removedRaw, styles)
+    }
+
+    private data class VisibleText(
+        val text: String,
+        val removedRaw: List<Int>,
+        val styles: List<Pair<IntRange, InlineStyle>>
+    )
+
+    /** Stil-Einstellung für Inline-Formatierung. */
+    enum class InlineStyle { BOLD, ITALIC, UNDERLINE }
+
+    /** Ein sichtbares Textsegment: [text] mit optionalem [style] (Marker entfernt). */
+    data class InlineSegment(val text: String, val style: InlineStyle?)
+
     // ---- Migration: Block-JSON → Plain Text ----
 
     /**
