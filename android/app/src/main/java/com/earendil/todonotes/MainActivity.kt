@@ -157,6 +157,10 @@ private fun TodoNotesApp(
             )
             Tab.Notes -> NotesScreen(
                 notesVm = notesVm,
+                onOpenNote = { noteId ->
+                    // F5: Notiz-Editor öffnen. Bis dahin nur merken.
+                    // (vorübergehend: keine Aktion — Editor kommt als Nächstes.)
+                },
                 modifier = Modifier.padding(padding)
             )
             Tab.History -> HistoryScreen(
