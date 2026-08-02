@@ -1,8 +1,10 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme (Material3) -->
-    <style name="Theme.TodoNotes" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Parent: Theme.Material.NoActionBar (dunkel) damit die ersten
+         Systemleisten-Frames im Dark Mode nicht weiss flackern;
+         CosSetEdgeToEdge uebernimmt dann die Icon-Farben. -->
+    <style name="Theme.TodoNotes" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- Theme für die Fullscreen-Alarm-Activity: dunkel, immediate -->
