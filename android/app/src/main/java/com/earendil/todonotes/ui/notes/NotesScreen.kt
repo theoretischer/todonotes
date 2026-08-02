@@ -82,7 +82,7 @@ import com.earendil.todonotes.ui.components.SwipeToDeleteRow
 @Composable
 fun NotesScreen(
     notesVm: NotesViewModel,
-    onOpenNote: (String) -> Unit,
+    onOpenNote: (noteId: String, isNew: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by notesVm.browserState.collectAsStateWithLifecycle()
@@ -128,7 +128,7 @@ fun NotesScreen(
                 items(state.notes, key = { it.id }) { note ->
                     SwipeToDeleteRow(
                         onDelete = { notesVm.deleteNote(note.id) },
-                        onClick = { onOpenNote(note.id) },
+                        onClick = { onOpenNote(note.id, false) },
                         onLongClick = { moveTarget = note }
                     ) {
                         NoteRow(note = note)
@@ -158,7 +158,7 @@ fun NotesScreen(
                 text = "Neue Notiz",
                 onClick = {
                     showNewMenu = false
-                    notesVm.createNote(onCreated = onOpenNote)
+                    notesVm.createNote(onCreated = { id -> onOpenNote(id, true) })
                 }
             )
             NewMenuItem(

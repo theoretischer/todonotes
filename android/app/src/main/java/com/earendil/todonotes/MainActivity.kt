@@ -44,6 +44,7 @@ import com.earendil.todonotes.ui.SyncViewModel
 import com.earendil.todonotes.ui.TodoViewModel
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
+import com.earendil.todonotes.ui.notes.NoteEditorScreen
 import com.earendil.todonotes.ui.notes.NotesScreen
 import com.earendil.todonotes.ui.settings.ProfileSheet
 import com.earendil.todonotes.ui.settings.SettingsScreen
@@ -102,6 +103,8 @@ private fun TodoNotesApp(
     var currentTab by remember { mutableStateOf(Tab.Todos) }
     var showProfile by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var openNoteId by remember { mutableStateOf<String?>(null) }
+    var openNoteIsNew by remember { mutableStateOf(false) }
 
     val openTodos by vm.openTodos.collectAsState()
     val completedTodos by vm.completedTodos.collectAsState()
@@ -157,9 +160,9 @@ private fun TodoNotesApp(
             )
             Tab.Notes -> NotesScreen(
                 notesVm = notesVm,
-                onOpenNote = { noteId ->
-                    // F5: Notiz-Editor öffnen. Bis dahin nur merken.
-                    // (vorübergehend: keine Aktion — Editor kommt als Nächstes.)
+                onOpenNote = { noteId, isNew ->
+                    openNoteId = noteId
+                    openNoteIsNew = isNew
                 },
                 modifier = Modifier.padding(padding)
             )
@@ -172,6 +175,16 @@ private fun TodoNotesApp(
                 modifier = Modifier.padding(padding)
             )
         }
+    }
+
+    // Notiz-Editor (Vollbild, über alles gelegt)
+    openNoteId?.let { id ->
+        NoteEditorScreen(
+            noteId = id,
+            isNew = openNoteIsNew,
+            noteRepo = noteRepo,
+            onBack = { openNoteId = null }
+        )
     }
 
     // Profil-BottomSheet (öffnet beim Tap aufs AccountCircle-Icon)
