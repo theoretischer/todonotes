@@ -3,18 +3,7 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -92,23 +81,23 @@ fun NotesScreen(
     var moveTarget by remember { mutableStateOf<Note?>(null) }
     var showNewMenu by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = modifier,
-        topBar = { NotesBreadcrumb(crumbs = state.breadcrumbs, onCrumb = notesVm::navigateToCrumb) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { showNewMenu = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Neu") }
+    Box(modifier = modifier.fillMaxSize()) {
+        // Breadcrumb nur zeigen, wenn nicht auf der Wurzel-Ebene ("Notizen").
+        if (state.breadcrumbs.size > 1) {
+            NotesBreadcrumb(
+                crumbs = state.breadcrumbs,
+                onCrumb = notesVm::navigateToCrumb,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
             )
         }
-    ) { padding ->
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
-            EmptyNotesHint(modifier = Modifier.padding(padding))
+            EmptyNotesHint()
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Ordner zuerst
@@ -134,9 +123,19 @@ fun NotesScreen(
                         NoteRow(note = note)
                     }
                 }
-                item { Spacer(Modifier.height(80.dp)) }
             }
         }
+
+        // FAB unten rechts (eigener Container, kein Scaffold nötig)
+        ExtendedFloatingActionButton(
+            onClick = { showNewMenu = true },
+            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            text = { Text("Neu") },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .navigationBarsPadding()
+        )
     }
 
     // --- Dialoge ---
@@ -215,10 +214,11 @@ fun NotesScreen(
 @Composable
 private fun NotesBreadcrumb(
     crumbs: List<Crumb>,
-    onCrumb: (Crumb) -> Unit
+    onCrumb: (Crumb) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .padding(horizontal = 8.dp),

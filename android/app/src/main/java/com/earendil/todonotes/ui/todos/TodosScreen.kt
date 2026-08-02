@@ -46,17 +46,10 @@ fun TodosScreen(
     val groups = remember(todos) { groupOpenTodos(todos) }
     val dateFmt = remember { SimpleDateFormat("EEE, dd. MMM · HH:mm", Locale.GERMAN) }
 
-    Scaffold(
-        modifier = modifier,
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Neue Aufgabe")
-            }
-        }
-    ) { padding ->
+    Box(modifier = modifier.fillMaxSize()) {
         if (groups.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -71,8 +64,8 @@ fun TodosScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (groups.overdue.isNotEmpty()) {
@@ -132,8 +125,18 @@ fun TodosScreen(
                         }
                     }
                 }
-                item { Spacer(Modifier.height(80.dp)) }
             }
+        }
+
+        // FAB unten rechts (eigener Container, kein Scaffold nötig)
+        FloatingActionButton(
+            onClick = { showCreateDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .navigationBarsPadding()
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Neue Aufgabe")
         }
     }
 
@@ -167,7 +170,7 @@ private fun SectionHeader(title: String, color: Color = MaterialTheme.colorSchem
         style = MaterialTheme.typography.labelLarge,
         color = color,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+        modifier = Modifier.padding(bottom = 4.dp)
     )
 }
 

@@ -35,17 +35,10 @@ fun HabitsScreen(
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var finishConfirmHabit by remember { mutableStateOf<Habit?>(null) }
 
-    Scaffold(
-        modifier = modifier,
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Neue Gewohnheit")
-            }
-        }
-    ) { padding ->
+    Box(modifier = modifier.fillMaxSize()) {
         if (habits.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -60,8 +53,8 @@ fun HabitsScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(habits, key = { it.habit.id }) { hwp ->
@@ -77,8 +70,18 @@ fun HabitsScreen(
                         )
                     }
                 }
-                item { Spacer(Modifier.height(80.dp)) }
             }
+        }
+
+        // FAB unten rechts (eigener Container, kein Scaffold nötig)
+        FloatingActionButton(
+            onClick = { showCreateDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .navigationBarsPadding()
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Neue Gewohnheit")
         }
     }
 

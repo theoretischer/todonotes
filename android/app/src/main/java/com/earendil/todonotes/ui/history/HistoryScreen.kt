@@ -54,7 +54,7 @@ fun HistoryScreen(
     } else {
         LazyColumn(
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp)
         ) {
             if (habitHistory.isNotEmpty()) {
                 item {
@@ -63,7 +63,7 @@ fun HistoryScreen(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
                 items(habitHistory, key = { it.id }) { entry ->
@@ -99,7 +99,7 @@ fun HistoryScreen(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
                 }
                 items(completedTodos, key = { it.id }) { todo ->

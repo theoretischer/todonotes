@@ -157,7 +157,7 @@ private fun TodoNotesApp(
                 onEditTodo = vm::updateTodo,
                 onCompleteTodo = vm::completeTodo,
                 onDeleteTodo = vm::deleteTodo,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.fillMaxSize()
             )
             Tab.Habits -> HabitsScreen(
                 habits = habits,
@@ -166,7 +166,7 @@ private fun TodoNotesApp(
                 onLogHabit = habitVm::logHabit,
                 onDeleteHabit = habitVm::deleteHabit,
                 onFinishPeriod = habitVm::finishCurrentPeriod,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.fillMaxSize()
             )
             Tab.Notes -> NotesScreen(
                 notesVm = notesVm,
@@ -174,7 +174,7 @@ private fun TodoNotesApp(
                     openNoteId = noteId
                     openNoteIsNew = isNew
                 },
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.fillMaxSize()
             )
             Tab.History -> HistoryScreen(
                 completedTodos = completedTodos,
@@ -182,7 +182,7 @@ private fun TodoNotesApp(
                 onReopenTodo = vm::reopenTodo,
                 onDeleteTodo = vm::deleteTodo,
                 onDeleteHistoryEntry = habitVm::deleteHistoryEntry,
-                modifier = Modifier.padding(padding)
+                modifier = Modifier.fillMaxSize()
             )
             }
 
