@@ -7,6 +7,7 @@ package com.earendil.todonotes.ui.notes
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -82,7 +84,7 @@ private data class EditLine(
 }
 
 /** Einheitliche Breite des Prefix-Bereichs (Absatz für alle Listentypen). */
-private val PREFIX_WIDTH = 36.dp
+private val PREFIX_WIDTH = 34.dp
 
 /**
  * Vollbild-Notiz-Editor — kontinuierlicher Textfluss wie Word/Samsung Notes.
@@ -98,6 +100,44 @@ private val PREFIX_WIDTH = 36.dp
  * - Backspace am Zeilenanfang: Prefix entfernen / Zeile löschen
  * - Toolbar: aktive Zeile in Listen-Typ umwandeln (Toggle)
  */
+/** Kompakte Format-Leiste (kleiner als BottomAppBar, sitzt über der Tastatur). */
+@Composable
+private fun CompactFormatBar(
+    onBullet: () -> Unit,
+    onOrdered: () -> Unit,
+    onCheckbox: () -> Unit,
+    onArrow: () -> Unit
+) {
+    // Eigene kleine Surface statt BottomAppBar: weniger Höhe (48dp statt 80dp).
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBullet, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.FormatListBulleted, contentDescription = "Aufzählung")
+            }
+            IconButton(onClick = onOrdered, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.FormatListNumbered, contentDescription = "Nummerierung")
+            }
+            IconButton(onClick = onCheckbox, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "Checkbox")
+            }
+            IconButton(onClick = onArrow, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.FormatQuote, contentDescription = "Pfeil-Liste")
+            }
+        }
+    }
+}
+
 @Composable
 fun NoteEditorScreen(
     noteId: String,
@@ -245,6 +285,9 @@ fun NoteEditorScreen(
     val currentTitleValue = titleValue!!
 
     Scaffold(
+        // imePadding: bei geöffneter Tastatur rutscht der gesamte Inhalt
+        // (inkl. unterer Toolbar) nach oben, statt verdeckt zu werden.
+        modifier = Modifier.fillMaxSize().imePadding(),
         topBar = {
             TopAppBar(
                 title = {},
@@ -259,20 +302,12 @@ fun NoteEditorScreen(
             )
         },
         bottomBar = {
-            BottomAppBar {
-                IconButton(onClick = { toolbarToggleType(ListType.BULLET) }) {
-                    Icon(Icons.Filled.FormatListBulleted, contentDescription = "Aufzählung")
-                }
-                IconButton(onClick = { toolbarToggleType(ListType.ORDERED) }) {
-                    Icon(Icons.Filled.FormatListNumbered, contentDescription = "Nummerierung")
-                }
-                IconButton(onClick = { toolbarToggleType(ListType.CHECKBOX) }) {
-                    Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "Checkbox")
-                }
-                IconButton(onClick = { toolbarToggleType(ListType.ARROW) }) {
-                    Icon(Icons.Filled.FormatQuote, contentDescription = "Pfeil-Liste")
-                }
-            }
+            CompactFormatBar(
+                onBullet = { toolbarToggleType(ListType.BULLET) },
+                onOrdered = { toolbarToggleType(ListType.ORDERED) },
+                onCheckbox = { toolbarToggleType(ListType.CHECKBOX) },
+                onArrow = { toolbarToggleType(ListType.ARROW) }
+            )
         }
     ) { padding ->
         Column(
@@ -375,7 +410,16 @@ private fun NoteLineEditor(
             Box(
                 modifier = Modifier
                     .width(PREFIX_WIDTH)
-                    .padding(top = 10.dp),
+                    .padding(top = when (line.type) {
+                        // Bullet bleibt wie er ist ("super aligned"),
+                        // Checkbox/Zahl werden höher gesetzt damit Mitte
+                        // exakt zur Textzeile passt.
+                        ListType.BULLET -> 10.dp
+                        ListType.CHECKBOX -> 6.dp
+                        ListType.ORDERED -> 6.dp
+                        ListType.ARROW -> 8.dp
+                        null -> 10.dp
+                    }),
                 contentAlignment = Alignment.CenterStart
             ) {
                 when (line.type) {
@@ -383,7 +427,7 @@ private fun NoteLineEditor(
                     ListType.CHECKBOX -> Checkbox(
                         checked = line.checked,
                         onCheckedChange = { onToggleCheckbox() },
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                     ListType.ORDERED -> Text(
                         "$number.",
