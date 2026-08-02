@@ -38,6 +38,12 @@ android {
         jvmTarget = "17"
     }
 
+    // Schema-JSONs (app/schemas/...) als Test-Assets ins androidTest-APK
+    // packen, damit MigrationTestHelper sie laden kann.
+    sourceSets {
+        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+    }
+
     // Room: Schema-JSON pro Version ins Repo committen (app/schemas).
     // Grundlage für Migrations-Tests und Nachvollziehbarkeit.
     ksp {
@@ -75,4 +81,9 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation("junit:junit:4.13.2")
+    testImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.testing)
 }

@@ -195,7 +195,6 @@ object Migrations {
                 )
                 """.trimIndent()
             )
-            db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_folderId` ON `notes` (`folderId`)")
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `folders` (
