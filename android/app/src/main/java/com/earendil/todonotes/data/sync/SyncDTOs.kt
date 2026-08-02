@@ -63,11 +63,34 @@ data class HabitHistoryEntryDTO(
 )
 
 @Serializable
+data class FolderDTO(
+    val id: String,
+    val parentId: String? = null,
+    val name: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null
+)
+
+@Serializable
+data class NoteDTO(
+    val id: String,
+    val folderId: String? = null,
+    val title: String = "",
+    val bodyJson: String = "[]",
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null
+)
+
+@Serializable
 data class ChangesBundle(
     val todos: List<TodoDTO> = emptyList(),
     val habits: List<HabitDTO> = emptyList(),
     val habit_logs: List<HabitLogDTO> = emptyList(),
-    val habit_history: List<HabitHistoryEntryDTO> = emptyList()
+    val habit_history: List<HabitHistoryEntryDTO> = emptyList(),
+    val folders: List<FolderDTO> = emptyList(),
+    val notes: List<NoteDTO> = emptyList()
 )
 
 @Serializable

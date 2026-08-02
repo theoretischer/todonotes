@@ -66,11 +66,36 @@ class HabitHistoryEntryDTO(BaseModel):
     loggedAt: int
 
 
+class FolderDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    parentId: str | None = None
+    name: str
+    createdAt: int
+    updatedAt: int
+    deletedAt: int | None = None
+
+
+class NoteDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    folderId: str | None = None
+    title: str = ""
+    bodyJson: str = "[]"
+    createdAt: int
+    updatedAt: int
+    deletedAt: int | None = None
+
+
 class ChangesBundle(BaseModel):
     todos: list[TodoDTO] = []
     habits: list[HabitDTO] = []
     habit_logs: list[HabitLogDTO] = []
     habit_history: list[HabitHistoryEntryDTO] = []
+    folders: list[FolderDTO] = []
+    notes: list[NoteDTO] = []
 
 
 class SyncRequest(BaseModel):

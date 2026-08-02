@@ -112,5 +112,30 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_habit_history_habitId ON habit_history(habitId);
         CREATE INDEX IF NOT EXISTS idx_habit_history_loggedAt ON habit_history(loggedAt);
+
+        -- Block F1: Notiz-App
+        CREATE TABLE IF NOT EXISTS folders (
+            id        TEXT PRIMARY KEY,
+            parentId  TEXT,
+            name      TEXT NOT NULL,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            deletedAt INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_folders_parentId ON folders(parentId);
+        CREATE INDEX IF NOT EXISTS idx_folders_updatedAt ON folders(updatedAt);
+
+        CREATE TABLE IF NOT EXISTS notes (
+            id        TEXT PRIMARY KEY,
+            folderId  TEXT,
+            title     TEXT NOT NULL,
+            bodyJson  TEXT NOT NULL,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            deletedAt INTEGER
+            -- kein FK auf folderId: Sync darf Notiz vor Ordner annehmen
+        );
+        CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId);
+        CREATE INDEX IF NOT EXISTS idx_notes_updatedAt ON notes(updatedAt);
         """
     )

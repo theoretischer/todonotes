@@ -4,9 +4,11 @@ import android.content.Context
 import android.util.Log
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.CadenceType
+import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
+import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.Todo
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -101,7 +103,16 @@ class SyncManager(context: Context) {
         val habits = db.habitDao().getAllHabitsForSync().map { it.toDTO() }
         val logs = db.habitDao().getAllLogsForSync().map { it.toDTO() }
         val history = db.habitDao().getAllHistoryForSync().map { it.toDTO() }
-        return ChangesBundle(todos = todos, habits = habits, habit_logs = logs, habit_history = history)
+        val folders = db.folderDao().getAllForSync().map { it.toDTO() }
+        val notes = db.noteDao().getAllForSync().map { it.toDTO() }
+        return ChangesBundle(
+            todos = todos,
+            habits = habits,
+            habit_logs = logs,
+            habit_history = history,
+            folders = folders,
+            notes = notes
+        )
     }
 
     // --- DTO → lokal (Server gewinnt bei Konflikt) ---
@@ -111,6 +122,8 @@ class SyncManager(context: Context) {
         if (bundle.habits.isNotEmpty()) db.habitDao().upsertAllHabits(bundle.habits.map { it.toEntity() })
         if (bundle.habit_logs.isNotEmpty()) db.habitDao().upsertAllLogs(bundle.habit_logs.map { it.toEntity() })
         if (bundle.habit_history.isNotEmpty()) db.habitDao().upsertAllHistory(bundle.habit_history.map { it.toEntity() })
+        if (bundle.folders.isNotEmpty()) db.folderDao().upsertAll(bundle.folders.map { it.toEntity() })
+        if (bundle.notes.isNotEmpty()) db.noteDao().upsertAll(bundle.notes.map { it.toEntity() })
     }
 
     companion object {
@@ -150,5 +163,13 @@ class SyncManager(context: Context) {
         fun HabitHistoryEntryDTO.toEntity() = HabitHistoryEntry(
             id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt
         )
+
+        // --- Mapper Folder <-> DTO ---
+        fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)
+        fun FolderDTO.toEntity() = Folder(id, parentId, name, createdAt, updatedAt, deletedAt)
+
+        // --- Mapper Note <-> DTO ---
+        fun Note.toDTO() = NoteDTO(id, folderId, title, bodyJson, createdAt, updatedAt, deletedAt)
+        fun NoteDTO.toEntity() = Note(id, folderId, title, bodyJson, createdAt, updatedAt, deletedAt)
     }
 }

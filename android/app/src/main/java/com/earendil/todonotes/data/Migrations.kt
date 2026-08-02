@@ -17,6 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *  - v3: + `habit_history` (Block B10) — siehe HabitHistoryEntry
  *  - v4: entity-Set unverändert, aber Schema-Bereinigung
  *  - v5: `habits.byWeekdays` Spalte entfernt (Bugfix NOT-NULL-Crash)
+ *  - v6: `notes` + `folders` Tabellen angelegt (Block F1, Notiz-App)
  *
  * Weil bisher destructive migriert wurde, stehen alle Live-Geräte praktisch auf
  * einem frisch angelegten v5-Schema. Die Migrationen 1→5 laufen daher in der
@@ -166,12 +167,59 @@ object Migrations {
         }
     }
 
+    /** v5 → v6: notes + folders Tabellen angelegt (Block F1, Notiz-App).
+     *
+     *  notes: id, folderId (null = Wurzel), title (erste Body-Zeile),
+     *         bodyJson (serialisierter Rich-Text-Baum, F3), createdAt,
+     *         updatedAt, deletedAt (Soft-Delete für Sync).
+     *         Bilder werden NICHT als Base64 hierin gespeichert, sondern
+     *         als Dateien + Referenz im bodyJson (F7/F9).
+     *
+     *  folders: id, parentId (null = Wurzel, sonst Unterordner), name,
+     *           createdAt, updatedAt, deletedAt.
+     *           Note.folderId referenziert Folder.id ohne harten FK,
+     *           damit Sync ohne Reihenfolgen-Probleme funktioniert. */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `notes` (
+                    `id` TEXT NOT NULL,
+                    `folderId` TEXT,
+                    `title` TEXT NOT NULL,
+                    `bodyJson` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `deletedAt` INTEGER,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_folderId` ON `notes` (`folderId`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `folders` (
+                    `id` TEXT NOT NULL,
+                    `parentId` TEXT,
+                    `name` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `deletedAt` INTEGER,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_folders_parentId` ON `folders` (`parentId`)")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. Reihenfolge ist egal — Room
      *  baut sich den Pfad von der alten zur neuen Version selbst zusammen. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
-        MIGRATION_4_5
+        MIGRATION_4_5,
+        MIGRATION_5_6
     )
 }

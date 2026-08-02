@@ -15,9 +15,11 @@ from __future__ import annotations
 from . import db
 from .models import (
     ChangesBundle,
+    FolderDTO,
     HabitDTO,
     HabitHistoryEntryDTO,
     HabitLogDTO,
+    NoteDTO,
     TodoDTO,
 )
 
@@ -31,6 +33,8 @@ _SYNC_TABLES = [
     ("habits",        HabitDTO,              "id", "updatedAt",         "updatedAt"),
     ("habit_logs",    HabitLogDTO,           "id", "timestamp",         "timestamp"),
     ("habit_history", HabitHistoryEntryDTO,  "id", "loggedAt",          "loggedAt"),
+    ("folders",       FolderDTO,             "id", "updatedAt",         "updatedAt"),
+    ("notes",         NoteDTO,               "id", "updatedAt",         "updatedAt"),
 ]
 
 
@@ -50,6 +54,8 @@ def _apply_changes(changes: ChangesBundle) -> None:
         "habits":        changes.habits,
         "habit_logs":    changes.habit_logs,
         "habit_history": changes.habit_history,
+        "folders":       changes.folders,
+        "notes":         changes.notes,
     }
     with db.db() as conn:
         for table, dto_cls, _pk, change_field, _change_col in _SYNC_TABLES:
@@ -140,4 +146,6 @@ def _bundle_field_for(table: str) -> str:
         "habits": "habits",
         "habit_logs": "habit_logs",
         "habit_history": "habit_history",
+        "folders": "folders",
+        "notes": "notes",
     }[table]
