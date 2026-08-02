@@ -1,0 +1,177 @@
+package com.earendil.todonotes.data
+
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+/**
+ * Room-Migrationen für TodoNotes.
+ *
+ * ## Warum das hier wichtig ist
+ * Frühe Dev-Phase: `fallbackToDestructiveMigration()` — bei jeder Schema-Änderung
+ * wurde die DB gelöscht. Ab v5 ist das ABgeschafft: jede Schema-Änderung bekommt
+ * eine echte Migration (ALTER TABLE / CREATE TABLE), Daten bleiben erhalten.
+ *
+ * ## Schema-Historie (wie wir hierhin kamen)
+ *  - v1: nur `todos`
+ *  - v2: + `habits`, `habit_logs` (Block B1)
+ *  - v3: + `habit_history` (Block B10) — siehe HabitHistoryEntry
+ *  - v4: entity-Set unverändert, aber Schema-Bereinigung
+ *  - v5: `habits.byWeekdays` Spalte entfernt (Bugfix NOT-NULL-Crash)
+ *
+ * Weil bisher destructive migriert wurde, stehen alle Live-Geräte praktisch auf
+ * einem frisch angelegten v5-Schema. Die Migrationen 1→5 laufen daher in der
+ * Praxis selten — sie dokumentieren die Historie und fangen alte Installs ab.
+ *
+ * ## Wie eine NEUE Migration ab v6 geschrieben wird
+ * Wenn du ein Entity-Feld/Tabelle änderst:
+ *   1. @Database(version = N+1) hochzählen
+ *   2. Hier eine `val MIGRATION_N_Nplus1 = object : Migration(N, N+1) { ... }`
+ *      mit den nötigen ALTER/CREATE-Statements anlegen
+ *   3. In TodoNotesDatabase.get() bei addMigrations(...) registrieren
+ *   4. schemas/{N+1}.json wird vom KSP-Plugin automatisch erzeugt → committen
+ *
+ * Beispiel:
+ * ```
+ * val MIGRATION_5_6 = object : Migration(5, 6) {
+ *     override fun migrate(db: SupportSQLiteDatabase) {
+ *         db.execSQL("ALTER TABLE habits ADD COLUMN color INTEGER NOT NULL DEFAULT 0")
+ *     }
+ * }
+ * ```
+ *
+ * NEVER use fallbackToDestructiveMigration() again — das löscht Nutzerdaten.
+ */
+object Migrations {
+
+    /** v1 → v2: habits + habit_logs Tabellen angelegt. */
+    val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Schema wie von Room für die Entities v2 erzeugt.
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `habits` (
+                    `id` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    `cadenceType` TEXT NOT NULL,
+                    `interval` INTEGER NOT NULL,
+                    `byWeekdays` TEXT,
+                    `resetWeekday` INTEGER,
+                    `resetAnchorDay` INTEGER,
+                    `resetAnchorMonth` INTEGER,
+                    `goalCount` INTEGER NOT NULL,
+                    `startDate` INTEGER NOT NULL,
+                    `logToHistory` INTEGER NOT NULL,
+                    `lastLoggedPeriodStart` INTEGER,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `deletedAt` INTEGER,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `habit_logs` (
+                    `id` TEXT NOT NULL,
+                    `habitId` TEXT NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `note` TEXT NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`habitId`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_logs_habitId` ON `habit_logs` (`habitId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_logs_timestamp` ON `habit_logs` (`timestamp`)")
+        }
+    }
+
+    /** v2 → v3: habit_history Tabelle angelegt. */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `habit_history` (
+                    `id` TEXT NOT NULL,
+                    `habitId` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `cadenceLabel` TEXT NOT NULL,
+                    `periodStart` INTEGER NOT NULL,
+                    `count` INTEGER NOT NULL,
+                    `goal` INTEGER NOT NULL,
+                    `loggedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`habitId`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_history_habitId` ON `habit_history` (`habitId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_history_loggedAt` ON `habit_history` (`loggedAt`)")
+        }
+    }
+
+    /** v3 → v4: entity-Set unverändert (Schema-Bereinigung, kein struktureller Wandel). */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Keine Änderung an den Tabellen.
+        }
+    }
+
+    /** v4 → v5: habits.byWeekdays Spalte entfernt (Bugfix NOT-NULL-Crash beim Insert). */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // SQLite kann DROP COLUMN erst ab 3.35. Room emuliert es via
+            // Tabellen-Umkopierung, damit wir minSdk-kompatibel bleiben.
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `habits_new` (
+                    `id` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    `cadenceType` TEXT NOT NULL,
+                    `interval` INTEGER NOT NULL,
+                    `resetWeekday` INTEGER,
+                    `resetAnchorDay` INTEGER,
+                    `resetAnchorMonth` INTEGER,
+                    `goalCount` INTEGER NOT NULL,
+                    `startDate` INTEGER NOT NULL,
+                    `logToHistory` INTEGER NOT NULL,
+                    `lastLoggedPeriodStart` INTEGER,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `deletedAt` INTEGER,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO `habits_new` (
+                    `id`,`title`,`notes`,`cadenceType`,`interval`,
+                    `resetWeekday`,`resetAnchorDay`,`resetAnchorMonth`,
+                    `goalCount`,`startDate`,`logToHistory`,`lastLoggedPeriodStart`,
+                    `createdAt`,`updatedAt`,`deletedAt`
+                )
+                SELECT
+                    `id`,`title`,`notes`,`cadenceType`,`interval`,
+                    `resetWeekday`,`resetAnchorDay`,`resetAnchorMonth`,
+                    `goalCount`,`startDate`,`logToHistory`,`lastLoggedPeriodStart`,
+                    `createdAt`,`updatedAt`,`deletedAt`
+                FROM `habits`
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE IF EXISTS `habits`")
+            db.execSQL("ALTER TABLE `habits_new` RENAME TO `habits`")
+        }
+    }
+
+    /** Alle Migrationen, die Room ausführen darf. Reihenfolge ist egal — Room
+     *  baut sich den Pfad von der alten zur neuen Version selbst zusammen. */
+    val ALL: Array<Migration> = arrayOf(
+        MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5
+    )
+}

@@ -1,0 +1,48 @@
+# --- Android / Gradle ---
+android/.gradle/
+android/build/
+android/app/build/
+android/**/build/
+android/captures/
+android/local.properties
+android/*.iml
+android/**/*.iml
+.android/
+# Keystore (falls später Signing dazu kommt)
+android/**/*.keystore
+android/**/*.jks
+
+# --- Kotlin / KSP ---
+# Room-Schema-JSON wird committet (app/schemas/) — das wollen wir versioniert!
+
+# --- Node / sonstige Tooling-Harnesses (nicht von uns) ---
+node_modules/
+.crush/
+package-lock.json
+
+# --- Backend (folgt) ---
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+backend/.env
+backend/*.log
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*~
+
+# --- Pi/Crush Agent-Metadaten (sollen nicht ins Repo) ---
+.crush/
+.pi/
