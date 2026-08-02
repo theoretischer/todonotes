@@ -134,6 +134,9 @@ class NotesViewModel(
         viewModelScope.launch { noteRepo.moveNote(id, newFolderId) }
     }
 
+    /** Alle Ordner flach (fuer Verschieben-Picker). */
+    suspend fun getAllFoldersForMove() = folderRepo.getAllFolders()
+
     fun deleteNote(id: String) {
         viewModelScope.launch { noteRepo.deleteNote(id) }
     }

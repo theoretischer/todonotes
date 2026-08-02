@@ -167,6 +167,8 @@ private fun TodoNotesApp(
                 completedTodos = completedTodos,
                 habitHistory = habitHistory,
                 onReopenTodo = vm::reopenTodo,
+                onDeleteTodo = vm::deleteTodo,
+                onDeleteHistoryEntry = habitVm::deleteHistoryEntry,
                 modifier = Modifier.padding(padding)
             )
         }

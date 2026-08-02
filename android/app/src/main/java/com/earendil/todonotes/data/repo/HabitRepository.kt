@@ -32,6 +32,11 @@ class HabitRepository(context: Context) {
         dao.softDelete(id, System.currentTimeMillis())
     }
 
+    /** Verlaufseintrag loeschen (Swipe-to-delete im Verlauf-Tab). */
+    suspend fun deleteHistoryEntry(id: String) {
+        dao.deleteHistoryEntry(id)
+    }
+
     /** +1: neuen Log-Eintrag für jetzt anlegen. */
     suspend fun logHabit(habitId: String, now: Long = System.currentTimeMillis()) {
         dao.insertLog(

@@ -130,6 +130,14 @@ class HabitViewModel(
         }
     }
 
+    /** Verlaufseintrag loeschen (Swipe im Verlauf-Tab). */
+    fun deleteHistoryEntry(id: String) {
+        viewModelScope.launch {
+            repo.deleteHistoryEntry(id)
+            refreshTick.value = System.nanoTime()
+        }
+    }
+
     /** Schließt die aktuelle Periode EINES Habits ab → Verlauf + Counter reset. */
     fun finishCurrentPeriod(id: String) {
         viewModelScope.launch {

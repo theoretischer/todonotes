@@ -74,6 +74,10 @@ interface HabitDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(entry: HabitHistoryEntry)
 
+    /** Verlaufseintrag per id loeschen (fuer Swipe-to-delete im Verlauf-Tab). */
+    @Query("DELETE FROM habit_history WHERE id = :id")
+    suspend fun deleteHistoryEntry(id: String)
+
     // ---- Sync ----
 
     /** Alle Habits einmalig (inkl. soft-deleted, für Sync-Upstream). */

@@ -20,6 +20,15 @@ interface FolderDao {
     @Query("SELECT * FROM folders WHERE id = :id")
     suspend fun getById(id: String): Folder?
 
+    /** Alle nicht-geloeschten Ordner (flach) — fuer den Verschieben-Picker (F6).
+     *  Der Aufrufer filtert den aktuellen Ordner + seine Nachfahren heraus. */
+    @Query("SELECT * FROM folders WHERE deletedAt IS NULL ORDER BY name COLLATE NOCASE ASC")
+    suspend fun getAllOnce(): List<Folder>
+
+    /** Wurzel-Ordner als Flow (fuer Drag auf Wurzel). */
+    @Query("SELECT * FROM folders WHERE parentId IS NULL AND deletedAt IS NULL ORDER BY name COLLATE NOCASE ASC")
+    fun observeRoots(): Flow<List<Folder>>
+
     /** Prüft, ob `candidate` ein direkter/indirekter Nachfahre von `folderId` ist
      *  (für Zyklen-Erkennung beim Verschieben, F6). Liefert >0, falls
      *  `folderId` ein Vorfahre von `candidate` ist — dann darf `candidate`

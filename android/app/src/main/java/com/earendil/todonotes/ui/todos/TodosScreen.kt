@@ -5,15 +5,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.Todo
+import com.earendil.todonotes.ui.components.SwipeToDeleteRow
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,44 +78,58 @@ fun TodosScreen(
                 if (groups.overdue.isNotEmpty()) {
                     item { SectionHeader("Überfällig", color = MaterialTheme.colorScheme.error) }
                     items(groups.overdue, key = { it.id }) { todo ->
-                        TodoRow(
-                            todo = todo,
-                            dateFmt = dateFmt,
-                            overdue = true,
-                            onComplete = onCompleteTodo,
-                            onEdit = { editingTodo = todo },
-                            onDelete = onDeleteTodo
-                        )
+                        SwipeToDeleteRow(
+                            onDelete = { onDeleteTodo(todo.id) },
+                            onClick = { editingTodo = todo }
+                        ) {
+                            TodoRow(
+                                todo = todo,
+                                dateFmt = dateFmt,
+                                overdue = true,
+                                onComplete = onCompleteTodo,
+                                onEdit = { editingTodo = todo }
+                            )
+                        }
                     }
                 }
                 if (groups.today.isNotEmpty()) {
                     item { SectionHeader("Heute") }
                     items(groups.today, key = { it.id }) { todo ->
-                        TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, onDelete = onDeleteTodo)
+                        SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
+                            TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                        }
                     }
                 }
                 if (groups.tomorrow.isNotEmpty()) {
                     item { SectionHeader("Morgen") }
                     items(groups.tomorrow, key = { it.id }) { todo ->
-                        TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, onDelete = onDeleteTodo)
+                        SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
+                            TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                        }
                     }
                 }
                 if (groups.thisWeek.isNotEmpty()) {
                     item { SectionHeader("Diese Woche") }
                     items(groups.thisWeek, key = { it.id }) { todo ->
-                        TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, onDelete = onDeleteTodo)
+                        SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
+                            TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                        }
                     }
                 }
                 if (groups.later.isNotEmpty()) {
                     item { SectionHeader("Später") }
                     items(groups.later, key = { it.id }) { todo ->
-                        TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, onDelete = onDeleteTodo)
+                        SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
+                            TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                        }
                     }
                 }
                 if (groups.noDate.isNotEmpty()) {
                     item { SectionHeader("Kein Datum") }
                     items(groups.noDate, key = { it.id }) { todo ->
-                        TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, onDelete = onDeleteTodo)
+                        SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
+                            TodoRow(todo, dateFmt, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -165,8 +177,7 @@ private fun TodoRow(
     dateFmt: SimpleDateFormat,
     overdue: Boolean = false,
     onComplete: (String) -> Unit,
-    onEdit: () -> Unit,
-    onDelete: (String) -> Unit
+    onEdit: () -> Unit
 ) {
     var completing by remember { mutableStateOf(false) }
     val strikeProgress by animateFloatAsState(
@@ -175,63 +186,14 @@ private fun TodoRow(
         label = "strike"
     )
 
-    // Swipe-to-delete State
-    var offsetX by remember { mutableStateOf(0f) }
-    var dismissed by remember { mutableStateOf(false) }
-
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min)
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onEdit() }
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Roter Hintergrund (Delete) hinter der Row
-        if (offsetX != 0f || dismissed) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(horizontal = 20.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Löschen",
-                    tint = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-        }
-
-        // Die eigentliche Row, verschiebbar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { androidx.compose.ui.unit.IntOffset(offsetX.roundToInt(), 0) }
-                .background(MaterialTheme.colorScheme.surface)
-                .pointerInput(todo.id) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            // Schwellwert: > 40% der Breite → Löschen
-                            val threshold = size.width * 0.4f
-                            if (offsetX < -threshold) {
-                                dismissed = true
-                                // Kleines Delay für Animation, dann echte Löschung auslösen
-                            } else if (offsetX > threshold) {
-                                // Nach rechts wischen = nix (oder später: snooze)
-                            }
-                            // Reset, falls nicht dismissed
-                            if (!dismissed) offsetX = 0f
-                        }
-                    ) { _, dragAmount ->
-                        if (!dismissed) {
-                            // Nur nach links erlauben (negativer Offset)
-                            offsetX = (offsetX + dragAmount).coerceIn(-size.width.toFloat(), 0f)
-                        }
-                    }
-                }
-                .clickable { onEdit() }
-                .padding(vertical = 8.dp, horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             IconButton(onClick = {
                 if (!completing) completing = true
             }) {
@@ -289,7 +251,6 @@ private fun TodoRow(
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
-        }
     }
 
     // Nach Abschluss-Animation: echtes Complete auslösen
@@ -297,14 +258,6 @@ private fun TodoRow(
         if (completing) {
             delay(400)
             onComplete(todo.id)
-        }
-    }
-
-    // Nach Swipe-Dismiss: echte Löschung auslösen
-    LaunchedEffect(dismissed) {
-        if (dismissed) {
-            delay(200)
-            onDelete(todo.id)
         }
     }
 }
@@ -327,4 +280,3 @@ private fun StrikeThroughOverlay(
     }
 }
 
-private fun Float.roundToInt(): Int = kotlin.math.round(this).toInt()

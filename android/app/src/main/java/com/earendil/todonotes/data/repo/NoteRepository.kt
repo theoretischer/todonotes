@@ -28,8 +28,9 @@ class NoteRepository(context: Context) {
 
     suspend fun getById(id: String): Note? = dao.getById(id)
 
-    /** Leere Notiz anlegen (im Editor wird dann weitergearbeitet). */
-    suspend fun createNote(folderId: String? = null, title: String = "", bodyJson: String = "[]"): Note {
+    /** Leere Notiz anlegen (im Editor wird dann weitergearbeitet).
+     *  Default-Titel: "Neue Notiz vom dd.MM.yyyy". */
+    suspend fun createNote(folderId: String? = null, title: String = defaultNoteTitle(), bodyJson: String = "[]"): Note {
         val now = System.currentTimeMillis()
         val note = Note(
             id = UUID.randomUUID().toString(),
@@ -58,4 +59,10 @@ class NoteRepository(context: Context) {
     suspend fun deleteNote(id: String) {
         dao.softDelete(id, System.currentTimeMillis())
     }
+}
+
+/** Default-Titel fuer neue Notizen: "Neue Notiz vom dd.MM.yyyy". */
+private fun defaultNoteTitle(): String {
+    val fmt = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.GERMAN)
+    return "Neue Notiz vom ${fmt.format(java.util.Date())}"
 }

@@ -45,6 +45,9 @@ class FolderRepository(context: Context) {
         dao.update(folder.copy(name = newName, updatedAt = System.currentTimeMillis()))
     }
 
+    /** Alle nicht-geloeschten Ordner flach (fuer Verschieben-Picker). */
+    suspend fun getAllFolders(): List<Folder> = dao.getAllOnce()
+
     /**
      * Verschiebt [id] unter [newParentId] (null = Wurzel).
      * Verweigert die Aktion, wenn [newParentId] ein Nachfahre von [id] ist

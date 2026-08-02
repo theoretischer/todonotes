@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.richtext.NoteBodyJson
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
+import com.earendil.todonotes.ui.components.SwipeToDeleteRow
 
 /**
  * Notizen-Tab (Block F4): Ordner- & Notiz-Übersicht.
@@ -87,7 +89,7 @@ fun NotesScreen(
 
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Folder?>(null) }
-    var deleteTarget by remember { mutableStateOf<Any?>(null) }
+    var moveTarget by remember { mutableStateOf<Note?>(null) }
     var showNewMenu by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -111,23 +113,30 @@ fun NotesScreen(
             ) {
                 // Ordner zuerst
                 items(state.folders, key = { it.id }) { folder ->
-                    FolderRow(
-                        folder = folder,
-                        onOpen = { notesVm.openFolder(folder) },
-                        onRename = { renameTarget = folder },
-                        onDelete = { deleteTarget = folder }
-                    )
+                    SwipeToDeleteRow(
+                        onDelete = { notesVm.deleteFolder(folder.id) },
+                        onClick = { notesVm.openFolder(folder) }
+                    ) {
+                        FolderRow(
+                            folder = folder,
+                            onRename = { renameTarget = folder }
+                        )
+                    }
                 }
                 if (state.folders.isNotEmpty() && state.notes.isNotEmpty()) {
                     item { Spacer(Modifier.height(4.dp)) }
                 }
                 // dann Notizen
                 items(state.notes, key = { it.id }) { note ->
-                    NoteRow(
-                        note = note,
-                        onOpen = { onOpenNote(note.id) },
-                        onDelete = { deleteTarget = note }
-                    )
+                    SwipeToDeleteRow(
+                        onDelete = { notesVm.deleteNote(note.id) },
+                        onClick = { onOpenNote(note.id) }
+                    ) {
+                        NoteRow(
+                            note = note,
+                            onMove = { moveTarget = note }
+                        )
+                    }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
@@ -191,33 +200,16 @@ fun NotesScreen(
         )
     }
 
-    deleteTarget?.let { target ->
-        val name = when (target) {
-            is Folder -> target.name
-            is Note -> target.title.ifBlank { "Notiz" }
-            else -> ""
-        }
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            confirmButton = {
-                TextButton(onClick = {
-                    when (target) {
-                        is Folder -> notesVm.deleteFolder(target.id)
-                        is Note -> notesVm.deleteNote(target.id)
-                    }
-                    deleteTarget = null
-                }) { Text("Löschen") }
+    moveTarget?.let { note ->
+        MoveNoteSheet(
+            note = note,
+            currentFolderId = state.currentFolderId,
+            onMove = { targetFolderId ->
+                notesVm.moveNote(note.id, targetFolderId)
+                moveTarget = null
             },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Abbrechen") }
-            },
-            title = { Text("Löschen?") },
-            text = {
-                val extra = if (target is Folder)
-                    " Der Ordner \"$name\" und alle enthaltenen Notizen/Unterordner werden als gelöscht markiert."
-                else ""
-                Text("„$name\" wird gelöscht.$extra")
-            }
+            onDismiss = { moveTarget = null },
+            loadFolders = { notesVm.getAllFoldersForMove() }
         )
     }
 }
@@ -288,15 +280,13 @@ private fun NewMenuItem(
 @Composable
 private fun FolderRow(
     folder: Folder,
-    onOpen: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit
+    onRename: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onOpen, onLongClick = { menuExpanded = true }),
+            .combinedClickable(onClick = {}, onLongClick = { menuExpanded = true }),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -332,11 +322,6 @@ private fun FolderRow(
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                         onClick = { menuExpanded = false; onRename() }
                     )
-                    DropdownMenuItem(
-                        text = { Text("Löschen") },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                        onClick = { menuExpanded = false; onDelete() }
-                    )
                 }
             }
         }
@@ -348,14 +333,13 @@ private fun FolderRow(
 @Composable
 private fun NoteRow(
     note: Note,
-    onOpen: () -> Unit,
-    onDelete: () -> Unit
+    onMove: () -> Unit
 ) {
     val preview = remember(note.bodyJson) { notePreview(note) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onOpen, onLongClick = onDelete),
+            .combinedClickable(onClick = {}, onLongClick = onMove),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -460,4 +444,74 @@ private fun notePreview(note: Note): String {
     val firstPara = body.blocks.firstOrNull() as? com.earendil.todonotes.data.richtext.Block.Paragraph
         ?: return ""
     return firstPara.segments.joinToString("") { it.text }.trim()
+}
+
+// ---- Verschieben-Dialog (Notiz in Ordner schieben) ----
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveNoteSheet(
+    note: Note,
+    currentFolderId: String?,
+    onMove: (String?) -> Unit,
+    onDismiss: () -> Unit,
+    loadFolders: suspend () -> List<Folder>
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
+    LaunchedEffect(Unit) { folders = loadFolders() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Text(
+            "Notiz verschieben",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 8.dp)
+        )
+        // Auf Wurzel-Ebene Option (nur sinnvoll wenn aktuelle Notiz in einem Ordner ist)
+        if (currentFolderId != null) {
+            MoveTargetRow(
+                icon = { Icon(Icons.Default.TextSnippet, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                name = "Notizen (Hauptebene)",
+                onClick = { onMove(null) }
+            )
+            HorizontalDivider()
+        }
+        if (folders.isEmpty() && currentFolderId == null) {
+            Text(
+                "Keine Ordner vorhanden.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(24.dp)
+            )
+        } else {
+            folders.filter { it.id != currentFolderId }.forEach { folder ->
+                MoveTargetRow(
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    name = folder.name,
+                    onClick = { onMove(folder.id) }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun MoveTargetRow(
+    icon: @Composable () -> Unit,
+    name: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon()
+        Spacer(Modifier.width(16.dp))
+        Text(name, style = MaterialTheme.typography.bodyLarge)
+    }
 }

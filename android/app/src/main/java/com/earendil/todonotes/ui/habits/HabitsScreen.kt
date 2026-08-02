@@ -1,13 +1,11 @@
 package com.earendil.todonotes.ui.habits
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.ui.HabitWithProgress
+import com.earendil.todonotes.ui.components.SwipeToDeleteRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,13 +65,17 @@ fun HabitsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(habits, key = { it.habit.id }) { hwp ->
-                    HabitCard(
-                        hwp = hwp,
-                        onLog = { onLogHabit(hwp.habit.id) },
-                        onEdit = { editingHabit = hwp.habit },
+                    SwipeToDeleteRow(
                         onDelete = { onDeleteHabit(hwp.habit.id) },
-                        onFinishPeriod = { finishConfirmHabit = hwp.habit }
-                    )
+                        onClick = { editingHabit = hwp.habit }
+                    ) {
+                        HabitCard(
+                            hwp = hwp,
+                            onLog = { onLogHabit(hwp.habit.id) },
+                            onEdit = { editingHabit = hwp.habit },
+                            onFinishPeriod = { finishConfirmHabit = hwp.habit }
+                        )
+                    }
                 }
                 item { Spacer(Modifier.height(80.dp)) }
             }
@@ -129,7 +132,6 @@ private fun HabitCard(
     hwp: HabitWithProgress,
     onLog: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
     onFinishPeriod: () -> Unit
 ) {
     val habit = hwp.habit
@@ -137,9 +139,7 @@ private fun HabitCard(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onEdit() },
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -185,10 +185,6 @@ private fun HabitCard(
                         DropdownMenuItem(
                             text = { Text("Periode abschließen") },
                             onClick = { menuExpanded = false; onFinishPeriod() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Löschen") },
-                            onClick = { menuExpanded = false; onDelete() }
                         )
                     }
                 }
