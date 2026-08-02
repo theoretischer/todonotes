@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only Manifest-Override: erlaubt cleartext HTTP für lokale Dev-Tests
+  gegen den Backend-Container auf http://192.168.x.x:8000.
+
+  Greift NUR im Debug-Build (src/debug/). Der Release-Build (src/main/)
+  erbt diesen Override nicht → cleartext bleibt dort verboten, HTTPS-only.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:usesCleartextTraffic="true"
+        tools:targetApi="36"
+        xmlns:tools="http://schemas.android.com/tools" />
+</manifest>
