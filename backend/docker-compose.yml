@@ -1,0 +1,21 @@
+services:
+  todonotes-backend:
+    build: .
+    container_name: todonotes-backend
+    restart: unless-stopped
+    ports:
+      # Lokal: Port 8000 auf dem Host. Mit Reverse-Proxy (Caddy/Nginx)
+      # davor, diesen Port NICHT nach außen freigeben — stattdessen nur
+      # der Reverse-Proxy lauscht auf 443/80 und leitet hierher weiter.
+      # Für lokales Testen reicht "8000:8000".
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # SQLite-Datei persistent im Named-Volume (überlebt Rebuilds).
+      - todonotes-data:/app/data
+    environment:
+      # Token aus .env. Nie in Git committen!
+      SYNC_TOKEN: ${SYNC_TOKEN:?SYNC_TOKEN muss in .env gesetzt sein}
+      DB_PATH: /app/data/todonotes.db
+
+volumes:
+  todonotes-data:
