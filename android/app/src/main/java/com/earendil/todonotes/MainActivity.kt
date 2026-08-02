@@ -34,9 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.earendil.todonotes.data.repo.FolderRepository
 import com.earendil.todonotes.data.repo.HabitRepository
+import com.earendil.todonotes.data.repo.NoteRepository
 import com.earendil.todonotes.data.repo.TodoRepository
 import com.earendil.todonotes.ui.HabitViewModel
+import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.SyncViewModel
 import com.earendil.todonotes.ui.TodoViewModel
 import com.earendil.todonotes.ui.habits.HabitsScreen
@@ -66,10 +69,12 @@ class MainActivity : ComponentActivity() {
 
         val repo = TodoRepository(applicationContext)
         val habitRepo = HabitRepository(applicationContext)
+        val folderRepo = FolderRepository(applicationContext)
+        val noteRepo = NoteRepository(applicationContext)
 
         setContent {
             TodoNotesTheme {
-                TodoNotesApp(repo, habitRepo)
+                TodoNotesApp(repo, habitRepo, folderRepo, noteRepo)
             }
         }
     }
@@ -84,9 +89,15 @@ private enum class Tab(val label: String, val selected: ImageVector, val unselec
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TodoNotesApp(repo: TodoRepository, habitRepo: HabitRepository) {
+private fun TodoNotesApp(
+    repo: TodoRepository,
+    habitRepo: HabitRepository,
+    folderRepo: FolderRepository,
+    noteRepo: NoteRepository
+) {
     val vm: TodoViewModel = viewModel(factory = TodoViewModel.Factory(repo))
     val habitVm: HabitViewModel = viewModel(factory = HabitViewModel.Factory(habitRepo))
+    val notesVm: NotesViewModel = viewModel(factory = NotesViewModel.Factory(folderRepo, noteRepo))
     val syncVm: SyncViewModel = viewModel()
     var currentTab by remember { mutableStateOf(Tab.Todos) }
     var showProfile by remember { mutableStateOf(false) }
@@ -144,7 +155,10 @@ private fun TodoNotesApp(repo: TodoRepository, habitRepo: HabitRepository) {
                 onFinishPeriod = habitVm::finishCurrentPeriod,
                 modifier = Modifier.padding(padding)
             )
-            Tab.Notes -> NotesScreen(modifier = Modifier.padding(padding))
+            Tab.Notes -> NotesScreen(
+                notesVm = notesVm,
+                modifier = Modifier.padding(padding)
+            )
             Tab.History -> HistoryScreen(
                 completedTodos = completedTodos,
                 habitHistory = habitHistory,
