@@ -17,6 +17,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
@@ -112,16 +116,6 @@ private fun TodoNotesApp(
     val habitHistory by habitVm.habitHistory.collectAsState()
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("TodoNotes") },
-                actions = {
-                    IconButton(onClick = { showProfile = true }) {
-                        Icon(Icons.Filled.AccountCircle, contentDescription = "Profil")
-                    }
-                }
-            )
-        },
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { tab ->
@@ -140,7 +134,19 @@ private fun TodoNotesApp(
             }
         }
     ) { padding ->
-        when (currentTab) {
+        Box(Modifier.fillMaxSize()) {
+            // Rechte obere Ecke: User-Icon als unabhaengiger Kreis
+            // (ohne TopAppBar / TodoNotes-Schriftzug), ueber dem Inhalt
+            // schwebend, mit StatusBars-Abstand.
+            UserCircleIcon(
+                onClick = { showProfile = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 12.dp, top = 8.dp)
+            )
+
+            when (currentTab) {
             Tab.Todos -> TodosScreen(
                 todos = openTodos,
                 onCreateTodo = vm::createTodo,
@@ -174,6 +180,7 @@ private fun TodoNotesApp(
                 onDeleteHistoryEntry = habitVm::deleteHistoryEntry,
                 modifier = Modifier.padding(padding)
             )
+            }
         }
     }
 
@@ -202,6 +209,30 @@ private fun TodoNotesApp(
             SettingsScreen(
                 syncVm = syncVm,
                 onBack = { showSettings = false }
+            )
+        }
+    }
+}
+
+/** User-Icon als unabhaengiger Kreis oben rechts (ohne TopAppBar). */
+@Composable
+private fun UserCircleIcon(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    androidx.compose.material3.Surface(
+        onClick = onClick,
+        modifier = modifier.size(40.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shadowElevation = 2.dp
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Filled.AccountCircle,
+                contentDescription = "Profil",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
