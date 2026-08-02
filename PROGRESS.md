@@ -54,6 +54,7 @@
     - Datenmodell: neue Spalte `position` in `notes` + `folders` (DB v7, `MIGRATION_6_7`). Sortierung in Room jetzt `ORDER BY position ASC` (statt bisher `updatedAt DESC` / `name ASC`).
     - Beim Tausch wird die komplette Ordner-Liste neu normalisiert (Indizes × 10), damit der Reorder auch bei Alt-Daten (alle `position` 0) greift und über App-Neustart persistent bleibt.
     - Gesten-Platzierung: Long-Press-Drag sitzt am innersten Content (`contentModifier` von `SwipeToDeleteRow`), damit er gegen das horizontale Swipe-Delete gewinnt. Schwellwert = halbe Zeilenhöhe für natürliches Ziehen.
+    - **In-Ordner-Verschieben:** Eine Notiz, die man beim Ziehen über einem Ordner loslässt, wird in diesen Ordner verschoben (Hit-Test gegen die globalen Ordner-Bounds beim Drop). Hoch/runter in der Leere bleibt reines Reorder.
     - Reine Reorder-Logik in `ReorderLogic.kt` (`reorderStep`), Unit-getestet.
     - FAB-Fix: MainActivity–Content wird jetzt unten mit Scaffold-Padding belegt, damit die FABs aller Tabs nicht mehr hinter der Navigationsleiste verschwinden.
   - **F7 – Bilder einfügen**

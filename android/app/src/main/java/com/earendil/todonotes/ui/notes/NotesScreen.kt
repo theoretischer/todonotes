@@ -47,8 +47,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,15 +91,20 @@ fun NotesScreen(
     var moveTarget by remember { mutableStateOf<Note?>(null) }
     var showNewMenu by rememberSaveable { mutableStateOf(false) }
 
-    // ---- 1D-Drag-Reorder (Block F6) ----
+    // ---- 1D-Drag-Reorder + In-Ordner-Verschieben (Block F6) ----
     // Long-Press auf eine Zeile und dann hoch/runter: tauscht die gezogene
-    // Zeile per Schwellwert (Zeilenhöhe) mit dem Nachbarn. Die Reihenfolge
-    // wird LIVE in der DB festgehalten (position-Spalte) — Room recomponiert,
-    // sodass die anderen Zeilen "zur Seite geschoben" werden, ohne dass ein
-    // losgelassener Ghost nötig ist. Beim Loslassen bleibt der finale Stand.
-    // Ordner sortieren sich nur unter Ordnern, Notizen nur unter Notizen.
+    // Zeile per Schwellwert (halbe Zeilenhöhe) mit dem Nachbarn. Die Reihen-
+    // folge wird LIVE in der DB festgehalten (position-Spalte) — Room recom-
+    // poniert, sodass die anderen Zeilen "zur Seite geschoben" werden, ganz
+    // ohne Ghost-Overlay. Ordner sortieren sich nur unter Ordnern, Notizen
+    // nur unter Notizen.
+    //
+    // Zusätzlich: Lässt man eine NOTIZ beim Ziehen über einem Ordner los,
+    // wird sie in diesen Ordner verschoben (Drop-Target = globale Bounds).
+    // Hoch/runter in der Leere = reines Reorder.
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
     var reorder by remember { mutableStateOf<ReorderSession?>(null) }
+    val folderBounds = remember { mutableStateMapOf<String, Rect>() }
 
     Box(modifier = modifier.fillMaxSize()) {
 
@@ -123,7 +133,8 @@ fun NotesScreen(
                     val isDragged = reorder?.draggedId == folder.id && reorder?.kind == ReorderKind.FOLDER
                     RowReorder(
                         isDragged = isDragged,
-                        onSizeChanged = { rowHeights[folder.id] = it }
+                        onSizeChanged = { rowHeights[folder.id] = it },
+                        onGloballyPositioned = { pos -> folderBounds[folder.id] = pos.boundsInRoot() }
                     ) {
                         val dragModifier = Modifier.reorderDragGesture(
                             itemId = folder.id,
@@ -152,7 +163,8 @@ fun NotesScreen(
                     val isDragged = reorder?.draggedId == note.id && reorder?.kind == ReorderKind.NOTE
                     RowReorder(
                         isDragged = isDragged,
-                        onSizeChanged = { rowHeights[note.id] = it }
+                        onSizeChanged = { rowHeights[note.id] = it },
+                        onGloballyPositioned = {}
                     ) {
                         val dragModifier = Modifier.reorderDragGesture(
                             itemId = note.id,
@@ -161,7 +173,9 @@ fun NotesScreen(
                             heightPx = rowHeights[note.id] ?: 0,
                             reorder = reorder,
                             setReorder = { reorder = it },
-                            onSwap = { a, b -> notesVm.reorderNotes(a, b) }
+                            onSwap = { a, b -> notesVm.reorderNotes(a, b) },
+                            folderBounds = folderBounds,
+                            onDropOnFolder = notesVm::moveNote
                         )
                         SwipeToDeleteRow(
                             onDelete = { notesVm.deleteNote(note.id) },
@@ -280,6 +294,7 @@ fun NotesScreen(
 private fun RowReorder(
     isDragged: Boolean,
     onSizeChanged: (Int) -> Unit,
+    onGloballyPositioned: (androidx.compose.ui.layout.LayoutCoordinates) -> Unit,
     content: @Composable () -> Unit
 ) {
     Box(
@@ -287,6 +302,7 @@ private fun RowReorder(
             .fillMaxWidth()
             .zIndex(if (isDragged) 2f else 0f)
             .onSizeChanged { onSizeChanged(it.height) }
+            .onGloballyPositioned(onGloballyPositioned)
     ) {
         content()
     }
@@ -306,7 +322,9 @@ fun Modifier.reorderDragGesture(
     heightPx: Int,
     reorder: ReorderSession?,
     setReorder: (ReorderSession?) -> Unit,
-    onSwap: (String, String) -> Unit
+    onSwap: (String, String) -> Unit,
+    folderBounds: Map<String, Rect> = emptyMap(),
+    onDropOnFolder: (id: String, folderId: String) -> Unit = { _, _ -> }
 ): Modifier {
     // Geste darf nicht an änderbaren Werten hängen (swaps bauen die Liste
     // um → neue repositories). Deshalb key nur auf itemId und die aktuellen
@@ -316,8 +334,25 @@ fun Modifier.reorderDragGesture(
     val currentHeight by androidx.compose.runtime.rememberUpdatedState(heightPx)
     val currentSetReorder by androidx.compose.runtime.rememberUpdatedState(setReorder)
     val currentOnSwap by androidx.compose.runtime.rememberUpdatedState(onSwap)
-    return this.pointerInput(itemId) {
+    val currentBounds by androidx.compose.runtime.rememberUpdatedState(folderBounds)
+    val currentDropFolder by androidx.compose.runtime.rememberUpdatedState(onDropOnFolder)
+    var nodeRoot = Offset.Zero
+    return this
+        .onGloballyPositioned { nodeRoot = it.positionInRoot() }
+        .pointerInput(itemId) {
         var session = reorder?.takeIf { it.draggedId == itemId }
+        var lastGlobal = Offset.Zero
+        fun hit(): String? {
+            if (currentBounds.isEmpty()) return null
+            var best: String? = null
+            var bestArea = Float.MAX_VALUE
+            for ((id, rect) in currentBounds) {
+                if (!rect.contains(lastGlobal)) continue
+                val area = rect.width * rect.height
+                if (area < bestArea) { best = id; bestArea = area }
+            }
+            return best
+        }
         detectDragGesturesAfterLongPress(
             onDragStart = {
                 val idx = currentRepos.indexOf(itemId)
@@ -327,6 +362,8 @@ fun Modifier.reorderDragGesture(
             },
             onDrag = { change, dragAmount ->
                 change.consume()
+                // globaler Fingerpunkt: lokaler Punkt im Node + Node-Anfang in Root
+                lastGlobal = nodeRoot + change.position
                 val s = session ?: return@detectDragGesturesAfterLongPress
                 // nur vertikale Bewegung zählt (swipe-delete bleibt horizontal)
                 val step = reorderStep(
@@ -339,7 +376,13 @@ fun Modifier.reorderDragGesture(
                 session = ReorderSession(itemId, currentKind, step.newIndex, step.newAccumPx)
                 currentSetReorder(session)
             },
-            onDragEnd = { currentSetReorder(null) },
+            onDragEnd = {
+                // Notiz auf einem Ordner losgelassen → in den Ordner verschieben
+                if (currentKind == ReorderKind.NOTE) {
+                    hit()?.let { currentDropFolder(itemId, it) }
+                }
+                currentSetReorder(null)
+            },
             onDragCancel = { currentSetReorder(null) }
         )
     }
