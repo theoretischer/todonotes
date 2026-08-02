@@ -6,9 +6,7 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,20 +15,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.ToggleOff
-import androidx.compose.material.icons.filled.ToggleOn
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,7 +32,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -56,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -63,31 +57,17 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.earendil.todonotes.data.repo.NoteRepository
-import com.earendil.todonotes.data.richtext.Block
-import com.earendil.todonotes.data.richtext.ListItem
+import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.data.richtext.ListType
-import com.earendil.todonotes.data.richtext.NoteBody
-import com.earendil.todonotes.data.richtext.NoteBodyJson
-import com.earendil.todonotes.data.richtext.Segment
 import com.earendil.todonotes.ui.NoteEditorViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
- * Vollbild-Notiz-Editor (Block F5).
+ * Vollbild-Notiz-Editor (Block F5) — kontinuierlicher Textfluss wie Word.
  *
- * Aufbau (Samsung-Notes-Style):
- *  - TopAppBar mit Zurück-Pfeil (auto-save bei Back)
- *  - Titel-Feld (groß, fett); bei neuer Notiz beim ersten Fokussieren
- *    wird der Default-Titel ("Neue Notiz vom …") komplett markiert, damit
- *    der Nutzer sofort drüberschreiben kann.
- *  - Body: Block-Liste (Paragraph / ListBlock). Jeder Block editierbar.
- *  - BottomAppBar: neuer Paragraph, Bullet-Liste, Nummerierte Liste,
- *    Checkbox-Liste, Pfeil-Liste.
- *
- * Inline-Formatierung (bold/italic/underline) folgt als Verfeinerung –
- * das Block-Modell in [NoteBody] unterstützt es bereits (Segment.style).
+ * Der gesamte Body ist ein einziges Textfeld. Listen-Formatierung
+ * passiert über Zeilen-Präfixe (-, 1., [ ], →), die über die Toolbar
+ * auf der aktuellen Cursor-Zeile umgeschaltet werden. Enter auto-
+ * continue: eine neue Zeile in einer Liste übernimmt den Prefix.
  */
 @Composable
 fun NoteEditorScreen(
@@ -99,21 +79,21 @@ fun NoteEditorScreen(
     val vm: NoteEditorViewModel = viewModel(factory = NoteEditorViewModel.Factory(noteRepo))
     val state by vm.state.collectAsState()
 
-    // --- Lokaler Editierzustand (UI ist Source of Truth während Editor offen) ---
-    var body by remember { mutableStateOf<NoteBody?>(null) }
+    // --- Lokaler Editierzustand (UI ist Source of Truth) ---
+    var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var titleSelectedOnce by remember { mutableStateOf(false) }
     val titleFocusRequester = remember { FocusRequester() }
+    val bodyFocusRequester = remember { FocusRequester() }
 
     // Einmalig laden, sobald das VM-State bereit ist.
     LaunchedEffect(state.loaded) {
-        if (state.loaded && body == null) {
-            body = NoteBodyJson.decodeOrNew(state.bodyJson)
+        if (state.loaded && bodyValue == null) {
+            bodyValue = TextFieldValue(state.body)
             titleValue = TextFieldValue(state.title)
         }
     }
 
-    // Notiz laden anstoßen
     LaunchedEffect(noteId) {
         vm.load(noteId, isNew)
     }
@@ -124,82 +104,20 @@ fun NoteEditorScreen(
         onBack()
     }
 
-    // --- Hilfsfunktionen: Body manipulieren + VM benachrichtigen ---
-    fun commit(newBody: NoteBody) {
-        body = newBody
-        vm.updateBody(NoteBodyJson.encode(newBody))
-    }
-
-    fun updateBlock(index: Int, newBlock: Block) {
-        val b = body ?: return
-        commit(b.copy(blocks = b.blocks.toMutableList().also { it[index] = newBlock }))
-    }
-
-    fun deleteBlock(index: Int) {
-        val b = body ?: return
-        commit(b.copy(blocks = b.blocks.toMutableList().also { it.removeAt(index) }))
-    }
-
-    fun addParagraph() {
-        val b = body ?: return
-        commit(b.copy(blocks = b.blocks + Block.Paragraph(listOf(Segment("")))))
-    }
-
-    fun addList(type: ListType) {
-        val b = body ?: return
-        commit(b.copy(blocks = b.blocks + Block.ListBlock(items = listOf(ListItem(listOf(Segment("")))), type = type)))
-    }
-
-    fun addListItem(blockIndex: Int) {
-        val b = body ?: return
-        val block = b.blocks.getOrNull(blockIndex) as? Block.ListBlock ?: return
-        val newItems = block.items + ListItem(listOf(Segment("")))
-        updateBlock(blockIndex, block.copy(items = newItems))
-    }
-
-    fun updateListItem(blockIndex: Int, itemIndex: Int, text: String) {
-        val b = body ?: return
-        val block = b.blocks.getOrNull(blockIndex) as? Block.ListBlock ?: return
-        val newItems = block.items.toMutableList()
-        newItems[itemIndex] = newItems[itemIndex].copy(segments = listOf(Segment(text)))
-        updateBlock(blockIndex, block.copy(items = newItems))
-    }
-
-    fun deleteListItem(blockIndex: Int, itemIndex: Int) {
-        val b = body ?: return
-        val block = b.blocks.getOrNull(blockIndex) as? Block.ListBlock ?: return
-        if (block.items.size <= 1) {
-            deleteBlock(blockIndex)
-            return
-        }
-        val newItems = block.items.toMutableList()
-        newItems.removeAt(itemIndex)
-        updateBlock(blockIndex, block.copy(items = newItems))
-    }
-
-    fun toggleCheckbox(blockIndex: Int, itemIndex: Int) {
-        val b = body ?: return
-        val block = b.blocks.getOrNull(blockIndex) as? Block.ListBlock ?: return
-        val newItems = block.items.toMutableList()
-        newItems[itemIndex] = newItems[itemIndex].copy(checked = !newItems[itemIndex].checked)
-        updateBlock(blockIndex, block.copy(items = newItems))
-    }
+    // --- Hilfsfunktionen: Listen-Prefix auf Cursor-Zeile umschalten ---
+    // (als top-level Funktionen weiter unten definiert)
 
     // --- UI ---
 
-    if (!state.loaded || body == null || titleValue == null) {
+    if (!state.loaded || bodyValue == null || titleValue == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
     }
 
-    val currentBody = body!!
+    val currentBodyValue = bodyValue!!
     val currentTitleValue = titleValue!!
-    val dateFmt = remember { SimpleDateFormat("dd.MM.yyyy", Locale.GERMAN) }
-    val defaultTitle = remember(state.loaded) {
-        "Neue Notiz vom ${dateFmt.format(Date())}"
-    }
 
     Scaffold(
         topBar = {
@@ -217,275 +135,235 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             BottomAppBar {
-                IconButton(onClick = { addParagraph() }) {
-                    Icon(Icons.Filled.TextFields, contentDescription = "Text")
-                }
-                IconButton(onClick = { addList(ListType.BULLET) }) {
+                // Bullet-Liste
+                IconButton(onClick = { toggleListPrefix(ListType.BULLET, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
                     Icon(Icons.Filled.FormatListBulleted, contentDescription = "Aufzählung")
                 }
-                IconButton(onClick = { addList(ListType.ORDERED) }) {
+                // Nummerierte Liste
+                IconButton(onClick = { toggleListPrefix(ListType.ORDERED, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
                     Icon(Icons.Filled.FormatListNumbered, contentDescription = "Nummerierung")
                 }
-                IconButton(onClick = { addList(ListType.CHECKBOX) }) {
-                    Icon(Icons.Filled.Check, contentDescription = "Checkbox-Liste")
+                // Checkbox-Liste
+                IconButton(onClick = { toggleListPrefix(ListType.CHECKBOX, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                    Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "Checkbox")
                 }
-                IconButton(onClick = { addList(ListType.ARROW) }) {
+                // Checkbox toggeln (an/aus)
+                IconButton(onClick = { toggleCheckboxAtCursor(bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
+                    Icon(Icons.Filled.Check, contentDescription = "Checkbox umschalten")
+                }
+                // Pfeil-Liste
+                IconButton(onClick = { toggleListPrefix(ListType.ARROW, bodyValue, vm, bodyValueSetter = { bodyValue = it }) }) {
                     Icon(Icons.Filled.FormatQuote, contentDescription = "Pfeil-Liste")
                 }
             }
         }
     ) { padding ->
-        LazyColumn(
+        // Ein Scrollbares Column mit Titel + Body-Textfeld
+        androidx.compose.foundation.layout.Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             // --- Titel ---
-            item {
-                val tv = currentTitleValue
-                TextField(
-                    value = tv,
-                    onValueChange = { newVal ->
-                        titleValue = newVal
-                        vm.updateTitle(newVal.text)
+            TextField(
+                value = currentTitleValue,
+                onValueChange = { newVal ->
+                    titleValue = newVal
+                    vm.updateTitle(newVal.text)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(titleFocusRequester)
+                    .onFocusChanged { focusState ->
+                        // Auto-select: bei neuer Notiz + erster Fokus →
+                        // gesamten Text markieren, damit Nutzer sofort
+                        // drüberschreiben kann.
+                        if (focusState.isFocused && state.isNewNote && !titleSelectedOnce) {
+                            titleSelectedOnce = true
+                            titleValue = currentTitleValue.copy(
+                                selection = TextRange(0, currentTitleValue.text.length)
+                            )
+                        }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(titleFocusRequester)
-                        .onFocusChanged { focusState ->
-                            // Auto-select: bei neuer Notiz + Default-Titel + erster Fokus
-                            // → gesamten Text markieren, damit Nutzer sofort tippen kann.
-                            if (focusState.isFocused && state.isNewNote && !titleSelectedOnce) {
-                                titleSelectedOnce = true
-                                titleValue = tv.copy(
-                                    selection = TextRange(0, tv.text.length)
-                                )
+                placeholder = { Text("Titel") },
+                textStyle = MaterialTheme.typography.titleLarge,
+                singleLine = true,
+                colors = transparentTextFieldColors(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Next
+                )
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // --- Body (ein einziges Textfeld, kontinuierlich) ---
+            TextField(
+                value = currentBodyValue,
+                onValueChange = { newVal ->
+                    // Enter auto-continue erkennen: wenn der neue Text
+                    // einen Zeilenumbruch an der Cursor-Position hat,
+                    // der im alten Text nicht war.
+                    val oldText = currentBodyValue.text
+                    val newText = newVal.text
+                    if (newText.length == oldText.length + 1 &&
+                        newText.substring(0, newVal.selection.min - 1) == oldText.substring(0, newVal.selection.min - 1) &&
+                        newText[newVal.selection.min - 1] == '\n'
+                    ) {
+                        // Enter wurde gedrückt → auto-continue
+                        // Aber nur, wenn die vorherige Zeile einen
+                        // Listen-Prefix hat.
+                        val beforeEnter = oldText.substring(0, newVal.selection.min - 1)
+                        val cursor = newVal.selection.min - 1
+                        val ls = run {
+                            var i = cursor - 1
+                            while (i >= 0 && beforeEnter[i] != '\n') i--
+                            i + 1
+                        }
+                        val le = run {
+                            var i = cursor
+                            while (i < beforeEnter.length && beforeEnter[i] != '\n') i++
+                            i
+                        }
+                        val line = beforeEnter.substring(ls, le)
+                        if (NoteTextBody.detectListType(line) != null) {
+                            // Den vom TextField bereits eingefügten \n
+                            // nehmen und Prefix dahinter setzen.
+                            val type = NoteTextBody.detectListType(line)!!
+                            val content = NoteTextBody.stripPrefix(line).trim()
+                            if (content.isEmpty()) {
+                                // Leerzeile → Liste beenden, \n bleibt
+                                val prefixLen = line.length - NoteTextBody.stripPrefix(line).length
+                                val newLineText = NoteTextBody.stripPrefix(line)
+                                val fixed = oldText.substring(0, ls) + newLineText + oldText.substring(le)
+                                bodyValue = TextFieldValue(fixed, TextRange(ls + newLineText.length))
+                                vm.updateBody(fixed)
+                                return@TextField
                             }
-                        },
-                    placeholder = { Text("Titel") },
-                    textStyle = MaterialTheme.typography.titleLarge,
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Next
-                    )
+                            val prefix = when (type) {
+                                ListType.BULLET -> NoteTextBody.BULLET_PREFIX
+                                ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
+                                ListType.ARROW -> NoteTextBody.ARROW_PREFIX
+                                ListType.ORDERED -> {
+                                    var count = 0
+                                    var i = 0
+                                    while (i < ls) {
+                                        val end = oldText.indexOf('\n', i).let { if (it < 0) oldText.length else it }
+                                        val l = oldText.substring(i, end)
+                                        if (NoteTextBody.detectListType(l) == ListType.ORDERED) count++
+                                        i = end + 1
+                                    }
+                                    "$count. "
+                                }
+                            }
+                            val withPrefix = newText.substring(0, newVal.selection.min) + prefix + newText.substring(newVal.selection.min)
+                            val newCursor = newVal.selection.min + prefix.length
+                            bodyValue = TextFieldValue(withPrefix, TextRange(newCursor))
+                            vm.updateBody(withPrefix)
+                            return@TextField
+                        }
+                    }
+                    bodyValue = newVal
+                    vm.updateBody(newText)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(bodyFocusRequester),
+                placeholder = { Text("Notiz …", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                colors = transparentTextFieldColors(),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Default
                 )
-            }
-
-            // --- Blöcke ---
-            itemsIndexed(currentBody.blocks, key = { idx, _ -> idx }) { index, block ->
-                when (block) {
-                    is Block.Paragraph -> ParagraphBlockEditor(
-                        block = block,
-                        onChange = { newText ->
-                            updateBlock(index, Block.Paragraph(listOf(Segment(newText))))
-                        },
-                        onDelete = { deleteBlock(index) }
-                    )
-                    is Block.ListBlock -> ListBlockEditor(
-                        block = block,
-                        onItemChange = { itemIndex, text -> updateListItem(index, itemIndex, text) },
-                        onItemDelete = { itemIndex -> deleteListItem(index, itemIndex) },
-                        onToggleCheckbox = { itemIndex -> toggleCheckbox(index, itemIndex) },
-                        onAddItem = { addListItem(index) },
-                        onDelete = { deleteBlock(index) }
-                    )
-                    is Block.ImageBlock -> ImageBlockPlaceholder(
-                        block = block,
-                        onDelete = { deleteBlock(index) }
-                    )
-                }
-            }
-
-            // --- Footer-Spacer (damit Keyboard nicht Content überdeckt) ---
-            item { Spacer(Modifier.height(80.dp)) }
-        }
-    }
-}
-
-// ---- Block-Editoren ----
-
-@Composable
-private fun ParagraphBlockEditor(
-    block: Block.Paragraph,
-    onChange: (String) -> Unit,
-    onDelete: () -> Unit
-) {
-    val text = block.segments.joinToString("") { it.text }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        TextField(
-            value = text,
-            onValueChange = onChange,
-            modifier = Modifier.weight(1f),
-            textStyle = MaterialTheme.typography.bodyLarge,
-            placeholder = { Text("Text …", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-            ),
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Sentences
             )
-        )
-        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = "Block löschen",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
+
+            Spacer(Modifier.height(80.dp))
         }
     }
 }
 
 @Composable
-private fun ListBlockEditor(
-    block: Block.ListBlock,
-    onItemChange: (Int, String) -> Unit,
-    onItemDelete: (Int) -> Unit,
-    onToggleCheckbox: (Int) -> Unit,
-    onAddItem: () -> Unit,
-    onDelete: () -> Unit
+private fun transparentTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent
+)
+
+// ---- Hilfsfunktionen für Listen-Prefixe (top-level) ----
+
+/** Findet den Start-Index der Zeile, in der der Cursor steht. */
+private fun lineStart(text: String, cursor: Int): Int {
+    var i = cursor - 1
+    while (i >= 0 && text[i] != '\n') i--
+    return i + 1
+}
+
+/** Findet das Ende der Zeile (exklusive \n). */
+private fun lineEnd(text: String, cursor: Int): Int {
+    var i = cursor
+    while (i < text.length && text[i] != '\n') i++
+    return i
+}
+
+/** Zählt wie viele nummerierte Zeilen vor [ls] stehen (für fortlaufende Nummerierung). */
+private fun countOrderedBefore(text: String, ls: Int): Int {
+    var count = 0
+    var i = 0
+    while (i < ls) {
+        val end = text.indexOf('\n', i).let { if (it < 0) text.length else it }
+        val line = text.substring(i, end)
+        if (NoteTextBody.detectListType(line) == ListType.ORDERED) count++
+        i = end + 1
+    }
+    return count
+}
+
+/** Schaltet die Cursor-Zeile auf einen Listen-Typ um.
+ *  Hat sie schon diesen Prefix, wird er entfernt (Toggle). */
+private fun toggleListPrefix(
+    type: ListType,
+    bodyValue: TextFieldValue?,
+    vm: NoteEditorViewModel,
+    bodyValueSetter: (TextFieldValue) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        block.items.forEachIndexed { itemIndex, item ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Präfix je ListType
-                when (block.type) {
-                    ListType.ORDERED -> Text(
-                        "${itemIndex + 1}.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(28.dp)
-                    )
-                    ListType.BULLET -> Text(
-                        "•",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(28.dp)
-                    )
-                    ListType.ARROW -> Text(
-                        "→",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(28.dp)
-                    )
-                    ListType.CHECKBOX -> Checkbox(
-                        checked = item.checked,
-                        onCheckedChange = { onToggleCheckbox(itemIndex) },
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-                TextField(
-                    value = item.segments.joinToString("") { it.text },
-                    onValueChange = { onItemChange(itemIndex, it) },
-                    modifier = Modifier.weight(1f),
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    placeholder = { Text("Eintrag …", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences,
-                        imeAction = ImeAction.Done
-                    )
-                )
-                IconButton(onClick = { onItemDelete(itemIndex) }, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Eintrag löschen",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-        // Neuer Eintrag
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 28.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onAddItem, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "Eintrag hinzufügen",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Text(
-                "Eintrag hinzufügen",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        // Block löschen
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Liste löschen",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
+    val tv = bodyValue ?: return
+    val text = tv.text
+    val cursor = tv.selection.min
+    val ls = lineStart(text, cursor)
+    val le = lineEnd(text, cursor)
+    val line = text.substring(ls, le)
+
+    val currentType = NoteTextBody.detectListType(line)
+    if (currentType == type) {
+        // Toggle aus → Prefix entfernen
+        val newLine = NoteTextBody.stripPrefix(line)
+        val newText = text.substring(0, ls) + newLine + text.substring(le)
+        bodyValueSetter(TextFieldValue(newText, TextRange(ls + newLine.length)))
+        vm.updateBody(newText)
+    } else {
+        val number = countOrderedBefore(text, ls) + 1
+        val newText = NoteTextBody.setListPrefix(text, ls, type, number)
+        val newLineEnd = newText.indexOf('\n', ls).let { if (it < 0) newText.length else it }
+        bodyValueSetter(TextFieldValue(newText, TextRange(newLineEnd)))
+        vm.updateBody(newText)
     }
 }
 
-@Composable
-private fun ImageBlockPlaceholder(
-    block: Block.ImageBlock,
-    onDelete: () -> Unit
+/** Toggelt die Checkbox auf der Cursor-Zeile. */
+private fun toggleCheckboxAtCursor(
+    bodyValue: TextFieldValue?,
+    vm: NoteEditorViewModel,
+    bodyValueSetter: (TextFieldValue) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(120.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "🖼 Bild (F7)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = "Block löschen",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
+    val tv = bodyValue ?: return
+    val text = tv.text
+    val cursor = tv.selection.min
+    val ls = lineStart(text, cursor)
+    val newText = NoteTextBody.toggleCheckbox(text, ls)
+    bodyValueSetter(TextFieldValue(newText, tv.selection))
+    vm.updateBody(newText)
 }

@@ -62,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
-import com.earendil.todonotes.data.richtext.NoteBodyJson
+import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
@@ -414,10 +414,13 @@ private fun CreateFolderDialog(
 
 /** Extrahiert reinen Text aus dem ersten Paragraph als Listen-Vorschau. */
 private fun notePreview(note: Note): String {
-    val body = NoteBodyJson.decode(note.bodyJson)
-    val firstPara = body.blocks.firstOrNull() as? com.earendil.todonotes.data.richtext.Block.Paragraph
-        ?: return ""
-    return firstPara.segments.joinToString("") { it.text }.trim()
+    // Body kann noch altes Block-JSON sein → migrieren, sonst Plain Text
+    val text = NoteTextBody.migrateFromBlocks(note.bodyJson)
+    return text.lineSequence()
+        .firstOrNull { it.isNotBlank() }
+        ?.trim()
+        ?.let { NoteTextBody.stripPrefix(it).trim() }
+        ?: ""
 }
 
 // ---- Verschieben-Dialog (Notiz in Ordner schieben) ----
