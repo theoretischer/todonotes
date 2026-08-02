@@ -3,6 +3,7 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,15 +40,19 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
@@ -81,7 +86,18 @@ fun NotesScreen(
     var moveTarget by remember { mutableStateOf<Note?>(null) }
     var showNewMenu by rememberSaveable { mutableStateOf(false) }
 
+    // ---- 1D-Drag-Reorder (Block F6) ----
+    // Long-Press auf eine Zeile und dann hoch/runter: tauscht die gezogene
+    // Zeile per Schwellwert (Zeilenhöhe) mit dem Nachbarn. Die Reihenfolge
+    // wird LIVE in der DB festgehalten (position-Spalte) — Room recomponiert,
+    // sodass die anderen Zeilen "zur Seite geschoben" werden, ohne dass ein
+    // losgelassener Ghost nötig ist. Beim Loslassen bleibt der finale Stand.
+    // Ordner sortieren sich nur unter Ordnern, Notizen nur unter Notizen.
+    val rowHeights = remember { mutableStateMapOf<String, Int>() }
+    var reorder by remember { mutableStateOf<ReorderSession?>(null) }
+
     Box(modifier = modifier.fillMaxSize()) {
+
         // Breadcrumb nur zeigen, wenn nicht auf der Wurzel-Ebene ("Notizen").
         if (state.breadcrumbs.size > 1) {
             NotesBreadcrumb(
@@ -90,8 +106,10 @@ fun NotesScreen(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
+                    .zIndex(5f) // über der Liste, damit der Tap immer ankommt
             )
         }
+
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
             EmptyNotesHint()
         } else {
@@ -102,25 +120,57 @@ fun NotesScreen(
             ) {
                 // Ordner zuerst
                 items(state.folders, key = { it.id }) { folder ->
-                    SwipeToDeleteRow(
-                        onDelete = { notesVm.deleteFolder(folder.id) },
-                        onClick = { notesVm.openFolder(folder) },
-                        onLongClick = { renameTarget = folder }
+                    val isDragged = reorder?.draggedId == folder.id && reorder?.kind == ReorderKind.FOLDER
+                    RowReorder(
+                        isDragged = isDragged,
+                        onSizeChanged = { rowHeights[folder.id] = it }
                     ) {
-                        FolderRow(folder = folder)
+                        val dragModifier = Modifier.reorderDragGesture(
+                            itemId = folder.id,
+                            kind = ReorderKind.FOLDER,
+                            repositories = state.folders.map { it.id },
+                            heightPx = rowHeights[folder.id] ?: 0,
+                            reorder = reorder,
+                            setReorder = { reorder = it },
+                            onSwap = { a, b -> notesVm.reorderFolders(a, b) }
+                        )
+                        SwipeToDeleteRow(
+                            onDelete = { notesVm.deleteFolder(folder.id) },
+                            onClick = { notesVm.openFolder(folder) },
+                            onLongClick = null,
+                            contentModifier = dragModifier
+                        ) {
+                            FolderRow(folder = folder)
+                        }
                     }
                 }
                 if (state.folders.isNotEmpty() && state.notes.isNotEmpty()) {
                     item { Spacer(Modifier.height(4.dp)) }
                 }
-                // dann Notizen
+                // dann Notizen (Reorder nur unter Notizen)
                 items(state.notes, key = { it.id }) { note ->
-                    SwipeToDeleteRow(
-                        onDelete = { notesVm.deleteNote(note.id) },
-                        onClick = { onOpenNote(note.id, false) },
-                        onLongClick = { moveTarget = note }
+                    val isDragged = reorder?.draggedId == note.id && reorder?.kind == ReorderKind.NOTE
+                    RowReorder(
+                        isDragged = isDragged,
+                        onSizeChanged = { rowHeights[note.id] = it }
                     ) {
-                        NoteRow(note = note)
+                        val dragModifier = Modifier.reorderDragGesture(
+                            itemId = note.id,
+                            kind = ReorderKind.NOTE,
+                            repositories = state.notes.map { it.id },
+                            heightPx = rowHeights[note.id] ?: 0,
+                            reorder = reorder,
+                            setReorder = { reorder = it },
+                            onSwap = { a, b -> notesVm.reorderNotes(a, b) }
+                        )
+                        SwipeToDeleteRow(
+                            onDelete = { notesVm.deleteNote(note.id) },
+                            onClick = { onOpenNote(note.id, false) },
+                            onLongClick = null,
+                            contentModifier = dragModifier
+                        ) {
+                            NoteRow(note = note)
+                        }
                     }
                 }
             }
@@ -135,6 +185,7 @@ fun NotesScreen(
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
                 .navigationBarsPadding()
+                .zIndex(20f) // immer über Liste, klickbar
         )
     }
 
@@ -205,6 +256,91 @@ fun NotesScreen(
             },
             onDismiss = { moveTarget = null },
             loadFolders = { notesVm.getAllFoldersForMove() }
+        )
+    }
+}
+
+// ---- 1D-Drag-Reorder (Block F6) ----
+// ReorderKind / ReorderSession / reorderStep liegen in ReorderLogic.kt.
+
+/**
+ * Eine Zeile, die per Long-Press + vertikaler Geste neu sortiert werden kann.
+ *
+ * Die Zeile meldet ihre Höhe via [onSizeChanged] in einen gemeinsamen
+ * Registry-State. Beim Long-Press wird eine [ReorderSession] gestartet;
+ * jedes Überschreiten einer Zeilenhöhe [heightPx] tauscht [draggedId] mit
+ * dem Nachbarn über [onSwap] (persistiert `position` in der DB) und rückt
+ * den Session-Index weiter. Weil Room danach die Liste in neuer Reihenfolge
+ * liefert, öffnet sich die Lücke live an der neuen Stelle — die übrigen
+ * Zeilen werden "zur Seite geschoben", ganz ohne Ghost-Overlay.
+ *
+ * [repositories] = alle Ids der gleichen Art in der aktuellen Reihenfolge.
+ */
+@Composable
+private fun RowReorder(
+    isDragged: Boolean,
+    onSizeChanged: (Int) -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .zIndex(if (isDragged) 2f else 0f)
+            .onSizeChanged { onSizeChanged(it.height) }
+    ) {
+        content()
+    }
+}
+
+/**
+ * Erzeugt die Long-Press-Reordergeste als Modifier. Diese Geste MUSS am
+ * Content direkt sitzen (innergster Pointer-Knoten), damit sie gegen die
+ * horizontale Swipe-Delete-Geste von [com.earendil.todonotes.ui.components.SwipeToDeleteRow]
+ * gewinnt — ein weiter außen liegender pointerInput wäre unterlegen.
+ */
+@Composable
+fun Modifier.reorderDragGesture(
+    itemId: String,
+    kind: ReorderKind,
+    repositories: List<String>,
+    heightPx: Int,
+    reorder: ReorderSession?,
+    setReorder: (ReorderSession?) -> Unit,
+    onSwap: (String, String) -> Unit
+): Modifier {
+    // Geste darf nicht an änderbaren Werten hängen (swaps bauen die Liste
+    // um → neue repositories). Deshalb key nur auf itemId und die aktuellen
+    // Werte über rememberUpdatedState nachziehen.
+    val currentKind by androidx.compose.runtime.rememberUpdatedState(kind)
+    val currentRepos by androidx.compose.runtime.rememberUpdatedState(repositories)
+    val currentHeight by androidx.compose.runtime.rememberUpdatedState(heightPx)
+    val currentSetReorder by androidx.compose.runtime.rememberUpdatedState(setReorder)
+    val currentOnSwap by androidx.compose.runtime.rememberUpdatedState(onSwap)
+    return this.pointerInput(itemId) {
+        var session = reorder?.takeIf { it.draggedId == itemId }
+        detectDragGesturesAfterLongPress(
+            onDragStart = {
+                val idx = currentRepos.indexOf(itemId)
+                if (idx < 0) return@detectDragGesturesAfterLongPress
+                session = ReorderSession(itemId, currentKind, idx, 0f)
+                currentSetReorder(session)
+            },
+            onDrag = { change, dragAmount ->
+                change.consume()
+                val s = session ?: return@detectDragGesturesAfterLongPress
+                // nur vertikale Bewegung zählt (swipe-delete bleibt horizontal)
+                val step = reorderStep(
+                    session = s,
+                    repositories = currentRepos,
+                    heightPx = currentHeight,
+                    dragAmountPx = dragAmount.y,
+                    onSwap = currentOnSwap
+                )
+                session = ReorderSession(itemId, currentKind, step.newIndex, step.newAccumPx)
+                currentSetReorder(session)
+            },
+            onDragEnd = { currentSetReorder(null) },
+            onDragCancel = { currentSetReorder(null) }
         )
     }
 }

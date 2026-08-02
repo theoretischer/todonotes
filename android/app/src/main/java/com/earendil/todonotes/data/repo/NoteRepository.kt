@@ -38,10 +38,37 @@ class NoteRepository(context: Context) {
             title = title,
             bodyJson = bodyJson,
             createdAt = now,
-            updatedAt = now
+            updatedAt = now,
+            // Neue Notiz ans Ende der Liste: höchste Position im Ordner + 1.
+            position = (dao.getInFolder(folderId).maxOfOrNull { it.position } ?: 0L) + 1
         )
         dao.insert(note)
         return note
+    }
+
+    /** Reihenfolge zweier Notizen tauschen (1D-Drag&Drop, F6).
+     *
+     * Positionen sind NICHT zwangsläufig eindeutig (Alt-Daten können alle
+     * 0 sein). Daher normalisieren wir nach dem Tausch die komplette
+     * Ordner-Liste neu (Indizes × 10), damit die neue Reihenfolge garantiert
+     * eindeutig aufgeht und bei Room ORDER BY position ASC landet. */
+    suspend fun swapNoteOrder(idA: String, idB: String) {
+        if (idA == idB) return
+        val a = dao.getById(idA) ?: return
+        val b = dao.getById(idB) ?: return
+        if (a.folderId != b.folderId) return
+        val list = dao.getInFolder(a.folderId).toMutableList()
+        val ia = list.indexOfFirst { it.id == idA }
+        val ib = list.indexOfFirst { it.id == idB }
+        if (ia < 0 || ib < 0) return
+        // Reihenfolge der beiden Einträge tauschen
+        val tmp = list[ia]
+        list[ia] = list[ib]
+        list[ib] = tmp
+        val now = System.currentTimeMillis()
+        list.forEachIndexed { index, note ->
+            dao.setPosition(note.id, (index + 1).toLong() * 10, now)
+        }
     }
 
     /** Speichert Titel + Body (wird vom Editor bei Back/auto-save gerufen, F5). */
@@ -50,10 +77,12 @@ class NoteRepository(context: Context) {
         dao.update(note.copy(title = title, bodyJson = bodyJson, updatedAt = System.currentTimeMillis()))
     }
 
-    /** Notiz in einen anderen Ordner verschieben (Drag&Drop, F6). null = Wurzel. */
+    /** Notiz in einen anderen Ordner verschieben (F6). null = Wurzel.
+     *  Die Notiz landet am Ende der Ziel-Liste (höchste Position). */
     suspend fun moveNote(id: String, newFolderId: String?) {
         val note = dao.getById(id) ?: return
-        dao.update(note.copy(folderId = newFolderId, updatedAt = System.currentTimeMillis()))
+        val maxPos = (dao.getInFolder(newFolderId).maxOfOrNull { it.position } ?: 0L) + 1
+        dao.update(note.copy(folderId = newFolderId, updatedAt = System.currentTimeMillis(), position = maxPos))
     }
 
     suspend fun deleteNote(id: String) {

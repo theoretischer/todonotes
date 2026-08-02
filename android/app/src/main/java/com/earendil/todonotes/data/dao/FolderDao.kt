@@ -14,19 +14,27 @@ interface FolderDao {
     // ----- UI-Queries -----
 
     /** Alle Ordner im angegebenen Eltern-Ordner (null = Wurzel). Soft-deletes ausgeblendet. */
-    @Query("SELECT * FROM folders WHERE parentId IS :parentId AND deletedAt IS NULL ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM folders WHERE parentId IS :parentId AND deletedAt IS NULL ORDER BY position ASC")
     fun observeFoldersIn(parentId: String?): Flow<List<Folder>>
+
+    /** Nicht-gelöschte Ordner eines Eltern-Ordners, einmalig (für Reorder/Positions-Neuvergabe). */
+    @Query("SELECT * FROM folders WHERE parentId IS :parentId AND deletedAt IS NULL ORDER BY position ASC")
+    suspend fun getInFolder(parentId: String?): List<Folder>
+
+    /** Position eines Eintrags setzen (für das Reorder per Swaps). */
+    @Query("UPDATE folders SET position = :position, updatedAt = :now WHERE id = :id")
+    suspend fun setPosition(id: String, position: Long, now: Long)
 
     @Query("SELECT * FROM folders WHERE id = :id")
     suspend fun getById(id: String): Folder?
 
     /** Alle nicht-geloeschten Ordner (flach) — fuer den Verschieben-Picker (F6).
      *  Der Aufrufer filtert den aktuellen Ordner + seine Nachfahren heraus. */
-    @Query("SELECT * FROM folders WHERE deletedAt IS NULL ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM folders WHERE deletedAt IS NULL ORDER BY position ASC")
     suspend fun getAllOnce(): List<Folder>
 
     /** Wurzel-Ordner als Flow (fuer Drag auf Wurzel). */
-    @Query("SELECT * FROM folders WHERE parentId IS NULL AND deletedAt IS NULL ORDER BY name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM folders WHERE parentId IS NULL AND deletedAt IS NULL ORDER BY position ASC")
     fun observeRoots(): Flow<List<Folder>>
 
     /** Prüft, ob `candidate` ein direkter/indirekter Nachfahre von `folderId` ist

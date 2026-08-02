@@ -51,6 +51,7 @@ fun SwipeToDeleteRow(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     deleteWidth: Dp = 80.dp,
+    contentModifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -121,6 +122,7 @@ fun SwipeToDeleteRow(
                     },
                     onLongClick = onLongClick
                 )
+                .then(contentModifier)
         ) {
             content()
         }

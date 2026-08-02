@@ -149,7 +149,11 @@ private fun TodoNotesApp(
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize()) {
+        // Nur unten paddeln: hebt die Screens (und ihre FABs unten rechts)
+        // ueber die NavigationBar an, ohne den getunten Top-Abstand (96dp)
+        // zu veraendern. komplettes padding.padding wuerde den Top-Abstand
+        // der Screens um die Statusleisten-Hoehe verschieben.
+        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
             when (currentTab) {
             Tab.Todos -> TodosScreen(
                 todos = openTodos,

@@ -212,6 +212,14 @@ object Migrations {
         }
     }
 
+    /** v6 → v7: notes + folders um Spalte `position` erweitert (1D-Reorder, Block F6). */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE folders ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. Reihenfolge ist egal — Room
      *  baut sich den Pfad von der alten zur neuen Version selbst zusammen. */
     val ALL: Array<Migration> = arrayOf(
@@ -219,6 +227,7 @@ object Migrations {
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_5,
-        MIGRATION_5_6
+        MIGRATION_5_6,
+        MIGRATION_6_7
     )
 }

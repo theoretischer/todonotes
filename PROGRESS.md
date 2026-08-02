@@ -49,12 +49,13 @@
     - Format-Toolbar unten (kontextsensitiv bei Selektion): Bold, Italic, Underline, Schriftgröße (Spinner/Slider), Schriftfarbe (Color-Picker), Listentyp-Umschalter (geparst aus aktueller Zeile).
     - Listen: neue Zeile in einer Liste → automatisch nächstes Präfix (`1.`, `•`, `→`, `☐`); `☐` tappen toggelt `☑` und graut Zeile durch.
     - Speichern bei Back/Verlassen (auto-save, `updatedAt` aktualisieren).
-  - **F6 – Drag & Drop (Ordner ↔ Notizen ↔ Ordner)**
-    - Drag eine Notiz auf einen Ordner → Notiz in diesen Ordner verschieben (`folderId` ändern).
-    - Drag eine Notiz aus einem Ordner auf dieBreadcrumb / Wurzel → aus Ordner raus.
-    - Drag einen Ordner auf einen anderen Ordner → als Unterordner verschachteln (`parentId` ändern). Zyklen-Prüfung (Ordner kann nicht in sich selbst/eigenen Kind verschoben werden).
-    - Drag einen Ordner auf eine Notiz → nichts (ungültig, visuelles Feedback).
-    - Compose: `Modifier.pointerInput` + Drag-Visual (Elevation/Shadow), Drop-Target-Highlight.
+  - **F6 – Reihenfolge sortieren (1D-Drag)**
+    - Umsetzung als **eindimensionales Reorder** statt 2D-Drag&Drop: Long-Press auf eine Zeile und dann hoch/runter ziehen tauscht die Reihenfolge von Notizen (unter Notizen) bzw. Ordnern (unter Ordnern). Die anderen Zeilen werden dabei live „zur Seite geschoben" — ohne Ghost-Overlay.
+    - Datenmodell: neue Spalte `position` in `notes` + `folders` (DB v7, `MIGRATION_6_7`). Sortierung in Room jetzt `ORDER BY position ASC` (statt bisher `updatedAt DESC` / `name ASC`).
+    - Beim Tausch wird die komplette Ordner-Liste neu normalisiert (Indizes × 10), damit der Reorder auch bei Alt-Daten (alle `position` 0) greift und über App-Neustart persistent bleibt.
+    - Gesten-Platzierung: Long-Press-Drag sitzt am innersten Content (`contentModifier` von `SwipeToDeleteRow`), damit er gegen das horizontale Swipe-Delete gewinnt. Schwellwert = halbe Zeilenhöhe für natürliches Ziehen.
+    - Reine Reorder-Logik in `ReorderLogic.kt` (`reorderStep`), Unit-getestet.
+    - FAB-Fix: MainActivity–Content wird jetzt unten mit Scaffold-Padding belegt, damit die FABs aller Tabs nicht mehr hinter der Navigationsleiste verschwinden.
   - **F7 – Bilder einfügen**
     - Im Editor: Toolbar-Button „Bild" → Photo-Picker (Android `PickVisualMedia`) oder Kamera (optional später).
     - Bild wird dekodiert, ggf. downgesampelt (max ~1600px Kantenlänge), PNG gespeichert unter `files/notes/<noteId>/<uuid>.png`, `ImageBlock` im Body eingefügt.

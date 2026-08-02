@@ -30,5 +30,6 @@ data class Folder(
     val name: String,
     val createdAt: Long,
     val updatedAt: Long,
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+    val position: Long = 0L
 )

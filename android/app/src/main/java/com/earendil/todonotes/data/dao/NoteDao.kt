@@ -14,8 +14,16 @@ interface NoteDao {
     // ----- UI-Queries (nicht gelöschte) -----
 
     /** Alle Notizen im angegebenen Ordner (null = Wurzel). Soft-deletes ausgeblendet. */
-    @Query("SELECT * FROM notes WHERE folderId IS :folderId AND deletedAt IS NULL ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM notes WHERE folderId IS :folderId AND deletedAt IS NULL ORDER BY position ASC")
     fun observeNotesInFolder(folderId: String?): Flow<List<Note>>
+
+    /** Nicht-gelöschte Notizen eines Ordners, einmalig (für Reorder/Positions-Neuvergabe). */
+    @Query("SELECT * FROM notes WHERE folderId IS :folderId AND deletedAt IS NULL ORDER BY position ASC")
+    suspend fun getInFolder(folderId: String?): List<Note>
+
+    /** Position eines Eintrags setzen (für das Reorder per Swaps). */
+    @Query("UPDATE notes SET position = :position, updatedAt = :now WHERE id = :id")
+    suspend fun setPosition(id: String, position: Long, now: Long)
 
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun getById(id: String): Note?

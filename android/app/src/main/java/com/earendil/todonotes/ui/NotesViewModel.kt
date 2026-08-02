@@ -134,6 +134,16 @@ class NotesViewModel(
         viewModelScope.launch { noteRepo.moveNote(id, newFolderId) }
     }
 
+    /** Reihenfolge zweier Notizen tauschen (1D-Drag&Drop, F6). */
+    fun reorderNotes(idA: String, idB: String) {
+        viewModelScope.launch { noteRepo.swapNoteOrder(idA, idB) }
+    }
+
+    /** Reihenfolge zweier Ordner tauschen (1D-Drag&Drop, F6). */
+    fun reorderFolders(idA: String, idB: String) {
+        viewModelScope.launch { folderRepo.swapFolderOrder(idA, idB) }
+    }
+
     /** Alle Ordner flach (fuer Verschieben-Picker). */
     suspend fun getAllFoldersForMove() = folderRepo.getAllFolders()
 
