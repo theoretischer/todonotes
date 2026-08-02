@@ -48,4 +48,14 @@ interface TodoDao {
 
     @Query("UPDATE todos SET completedAt = :completedAt, updatedAt = :completedAt WHERE id = :id")
     suspend fun markCompleted(id: String, completedAt: Long)
+
+    // --- Sync ---
+
+    /** Alle Todos einmalig (für Sync-Upstream). */
+    @Query("SELECT * FROM todos")
+    suspend fun getAllOnce(): List<Todo>
+
+    /** Server-Änderungen einspielen (REPLACE — Server ist Quelle der Wahrheit). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(todos: List<Todo>)
 }

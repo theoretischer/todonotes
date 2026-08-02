@@ -5,6 +5,10 @@
     <!-- Benachrichtigungen anzeigen (ab Android 13 Runtime-Permission) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Sync: Server-Erreichbarkeit -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Fullscreen-Intent über Sperrbildschirm (ab Android 14 nicht automatisch gewährt) -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 

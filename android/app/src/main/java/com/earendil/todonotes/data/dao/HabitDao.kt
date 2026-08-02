@@ -74,6 +74,32 @@ interface HabitDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(entry: HabitHistoryEntry)
 
+    // ---- Sync ----
+
+    /** Alle Habits einmalig (inkl. soft-deleted, für Sync-Upstream). */
+    @Query("SELECT * FROM habits")
+    suspend fun getAllHabitsForSync(): List<Habit>
+
+    /** Server-Änderungen einspielen. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllHabits(habits: List<Habit>)
+
+    /** Alle Logs einmalig (für Sync-Upstream). */
+    @Query("SELECT * FROM habit_logs")
+    suspend fun getAllLogsForSync(): List<HabitLog>
+
+    /** Server-Logs einspielen (REPLACE — id-PK). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllLogs(logs: List<HabitLog>)
+
+    /** Alle History-Einträge einmalig. */
+    @Query("SELECT * FROM habit_history")
+    suspend fun getAllHistoryForSync(): List<HabitHistoryEntry>
+
+    /** Server-History einspielen. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllHistory(entries: List<HabitHistoryEntry>)
+
     /** Alle aktiven Habits einmalig (nicht reaktiv). */
     @Query("SELECT * FROM habits WHERE deletedAt IS NULL ORDER BY createdAt ASC")
     suspend fun getAllHabitsOnce(): List<Habit>

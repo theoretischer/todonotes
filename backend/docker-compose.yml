@@ -4,11 +4,9 @@ services:
     container_name: todonotes-backend
     restart: unless-stopped
     ports:
-      # Lokal: Port 8000 auf dem Host. Mit Reverse-Proxy (Caddy/Nginx)
-      # davor, diesen Port NICHT nach außen freigeben — stattdessen nur
-      # der Reverse-Proxy lauscht auf 443/80 und leitet hierher weiter.
-      # Für lokales Testen reicht "8000:8000".
-      - "127.0.0.1:8000:8000"
+      # Lokaler Dev: 0.0.0.0 → vom Handy im WLAN erreichbar (http://<server-ip>:8000).
+      # Produktiv: auf 127.0.0.1 lassen + Reverse-Proxy davor.
+      - "0.0.0.0:8000:8000"
     volumes:
       # SQLite-Datei persistent im Named-Volume (überlebt Rebuilds).
       - todonotes-data:/app/data
