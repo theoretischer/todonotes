@@ -155,3 +155,22 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_chat_messages_updatedAt ON chat_messages(updatedAt);
         """
     )
+    _migrate_schema(conn)
+
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Idempotente Spalten-Migrationen für bereits bestehende Tabellen.
+
+    CREATE TABLE IF NOT EXISTS überspringt Tabellen, die schon da sind — neu
+    hinzugefügte Spalten müssen per ALTER TABLE nachgezogen werden. Wir prüfen
+    per PRAGMA table_info, ob die Spalte fehlt, und legen sie dann an.
+    Sicher bei mehreren Starts (idempotent)."""
+    def _has_column(table: str, col: str) -> bool:
+        return any(r[1] == col for r in conn.execute(f"PRAGMA table_info({table})"))
+
+    def _add_column(table: str, col: str, ddl: str) -> None:
+        if not _has_column(table, col):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+    # Block H: notes.type (NOTE/CHAT, default NOTE für bestehende Notizen).
+    _add_column("notes", "type", "type TEXT NOT NULL DEFAULT 'NOTE'")
