@@ -55,7 +55,7 @@
     - Notizen-FAB: „Neu"-Text entfernen → nur Plus-Icon (wie die anderen 3 Tabs, `FloatingActionButton` statt `ExtendedFloatingActionButton`).
     - FAB-Abstand vereinheitlichen: aktuell ist der Abstand FAB→BottomNavigationBar viel zu groß (doppeltes Padding: `Box.padding(bottom=…)` hebt bereits über die NavBar, plus `navigationBarsPadding()` auf dem FAB = doppelt). Fix: `navigationBarsPadding()` von allen 3 FABs (Todos/Habits/Notes) entfernen → FAB sitzt 16dp über der NavBar = 16dp vom rechten Rand (symmetrisch).
 - [ ] **Block G – Design-Politur**: Samsung-Reminder-Look-and-Feel
-- [ ] **Block H – Chat-Dateien (WhatsApp-Style Tracking-Notizen)** — neue Notiz-Art neben „Notiz" und „Ordner". Praktisch für Tracking/Logbuch: man schreibt eine Nachricht, sendet sie ab, sie wird mit Uhrzeit+Datum versehen. Älteste oben, neueste unten, Standard-Cursor ganz unten bei den neuesten. Bearbeiten ändert NICHT Datum/Uhrzeit. Löschen per Swipe-to-Delete wie überall.
+- [x] **Block H – Chat-Dateien (WhatsApp-Style Tracking-Notizen)** ✅ FERTIG — H1-H5 + H-Quote + IME-Inset-Fix. Siehe Commits 930d909, 27af5b1, 5ef0228.
   - **H1 – Datenmodell & Migration (DB v8)**
     - Neue Entität `ChatMessage` (id, noteId, text, createdAt, updatedAt, deletedAt, position) — eigene Tabelle, NICHT im note.bodyJson. Grund: jede Nachricht braucht ihr eigenes unveränderliches `createdAt` (bleibt beim Bearbeiten gleich), `updatedAt` für LWW-Sync.
     - `Note` um Spalte `type` erweitern (`"NOTE"` default vs `"CHAT"`) — steuert, ob beim Tap der Text-Editor (F5) oder der Chat-Screen (H3) öffnet.
@@ -94,9 +94,14 @@
 - **Git**: Monorepo auf GitHub (private), Account `theoretischer`, Commit-Email `75859777+theoretischer@users.noreply.github.com` (für Contribution-Graph)
 
 ## Nächster Schritt
-**F12 – FAB-Polish** (klein, schnell) und **H1 – Chat-Dateien: Datenmodell & Migration (DB v8)** sind als Nächstes angesetzt.
+**Block H ist fertig!** Alle H1–H5 + H-Quote + IME-Inset-Fix sind auf dem Gerät validiert.
 
-- F12: Notizen-FAB „Neu"-Text weg → nur Plus-Icon; `navigationBarsPadding()` von allen 3 FABs entfernen (doppeltes Padding fixen) → symmetrischer Abstand zu NavBar und rechtem Rand.
-- H1: `ChatMessage`-Entität + `notes.type`-Spalte, Migration v7→v8, Migrationstest.
-- Danach Stufe für Stufe: H2 (Backend/Sync) → H3 (ChatScreen UI) → H4 (Integration Notizen-Tab) → H5 (Bearbeiten/Löschen).
-- F7–F11 (Bilder/Stylus/Bild-Sync/Sync/Polish) ruhen weiter, bis H durch ist.
+Was als Nächstes ansteht (nach Priorität):
+
+1. **D2b – Sync-Trigger verbessern** — Sync sofort nach Datenänderung (Speichern/Loggen/Senden), beim App-Start, Pull-to-Refresh. Aktuell nur 15min WorkManager + manuell. Macht Sync für Chat-Nachrichten + Notizen brauchbar im Alltag.
+2. **D3 – Deploy finalisieren** — Caddy-Reverse-Proxy für `todo.christopherh.de` + HTTPS, App auf HTTPS-URL umstellen. Aktuell nur LAN-HTTP.
+3. **F7–F11 – Bilder/Stylus/Bild-Sync** — Bilder in Notizen (Base64-Referenz im bodyJson, Dateien unter files/notes/), Suffix-Sync. Aufgeschoben, kann später.
+4. **Block G – Design-Politur** — Samsung-Reminder-Look-and-Feel verfeinern.
+5. **Block E – Linux-Client** — GTK4, synchronisiert gegen denselben Server.
+
+Empfehlung: **D2b** als Nächstes (Sync-Trigger), damit die Chat-Notizen + Quotes richtig syncen — aktuell syncen sie nur alle 15min oder manuell.
