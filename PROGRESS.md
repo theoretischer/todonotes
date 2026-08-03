@@ -28,7 +28,7 @@
 ## Offen
 - [ ] **Block D2b – Sync-Trigger verbessern**: Sync bei Datenänderung (sofort nach Speichern/Loggen), beim App-Start, Pull-to-Refresh — damit nicht manuell oder 15min-WM getriggert werden muss
 - [ ] **Block D3 – Deploy finalisieren**: Reverse-Proxy (Caddy) für `todo.christopherh.de` + HTTPS, dann App auf HTTPS-URL umstellen
-- [ ] **Block E – Linux-Client**: GTK4, synchronisiert gegen denselben Server (Tower + Laptop)
+- [~] **Block E – Linux-Client** (in Arbeit): GTK4 + libadwaita, synchronisiert gegen denselben Server (Tower + Laptop)
 - [ ] **Block F – Notizen** (Samsung-Notes-Style, eigener Tab mit echter Notiz-App, keine Todo-Sonderform):
   - ✅ **erledigt – F1–F6**: Datenmodell/Migration (DB v6/v7), DAOs/Repo/VM, Rich-Text-Modell, Notes-Tab (Ordner/Breadcrumb/FAB), Editor (Inline-Formatierung + Listen), 1D-Reorder + in-Ordner-Verschieben. Details siehe „Erledigte Blöcke" oben.
   - **F7 – Bilder einfügen**
@@ -94,14 +94,14 @@
 - **Git**: Monorepo auf GitHub (private), Account `theoretischer`, Commit-Email `75859777+theoretischer@users.noreply.github.com` (für Contribution-Graph)
 
 ## Nächster Schritt
-**Block H ist fertig!** Alle H1–H5 + H-Quote + IME-Inset-Fix sind auf dem Gerät validiert.
+**Block E – Linux-Client** ist im Gange. E1 (Skeleton) ist fertig:
 
-Was als Nächstes ansteht (nach Priorität):
+- **E1 ✅** — Projekt-Skeleton: DB-Schema (7 Tabellen, identisch zum Backend), Config, Sync-Client (SyncManager), Repositories (Todos/Habits/Notes/Chat), HabitEngine, Recurrence, GTK4-App mit 4 Tabs + Settings. App startet sauber.
+- **E2** — Sync testen: Erstmal echten Sync mit laufendem Backend durchführen (Server-URL + Token in Settings, Sync klicken). Prüfen ob Daten zwischen Android ↔ Linux fließen.
+- **E3** — Todos UI verfeinern: Edit-Dialog (Titel/Notizen/DueAt/Recurrence/LogToHistory), Swipe-to-Delete, Gruppierung (zeitgesteuert vs. zeitlos).
+- **E4** — Habits UI verfeinern: Edit-Dialog (Cadence-Picker, GoalCount), Undo-Button, Periode-abschließen.
+- **E5** — Notes UI verfeinern: Notiz-Editor (Rich-Text mit Markdown), Ordner erstellen/umbenennen/löschen, Notiz verschieben.
+- **E6** — Chat UI: Chat-Notiz öffnen, Nachrichtenliste, senden, Zitate.
+- **E7** — Sync-Trigger: Sync nach Datenänderung, beim App-Start, Auto-Sync.
 
-1. **D2b – Sync-Trigger verbessern** — Sync sofort nach Datenänderung (Speichern/Loggen/Senden), beim App-Start, Pull-to-Refresh. Aktuell nur 15min WorkManager + manuell. Macht Sync für Chat-Nachrichten + Notizen brauchbar im Alltag.
-2. **D3 – Deploy finalisieren** — Caddy-Reverse-Proxy für `todo.christopherh.de` + HTTPS, App auf HTTPS-URL umstellen. Aktuell nur LAN-HTTP.
-3. **F7–F11 – Bilder/Stylus/Bild-Sync** — Bilder in Notizen (Base64-Referenz im bodyJson, Dateien unter files/notes/), Suffix-Sync. Aufgeschoben, kann später.
-4. **Block G – Design-Politur** — Samsung-Reminder-Look-and-Feel verfeinern.
-5. **Block E – Linux-Client** — GTK4, synchronisiert gegen denselben Server.
-
-Empfehlung: **D2b** als Nächstes (Sync-Trigger), damit die Chat-Notizen + Quotes richtig syncen — aktuell syncen sie nur alle 15min oder manuell.
+Empfehlung: **E2** als Nächstes — echten Sync testen, bevor wir mehr UI bauen. So sehen wir ob die Datenstruktur kompatibel ist.
