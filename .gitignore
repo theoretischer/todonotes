@@ -23,6 +23,7 @@ package-lock.json
 # --- Backend (folgt) ---
 backend/__pycache__/
 backend/**/__pycache__/
+linux/**/__pycache__/
 backend/.venv/
 backend/venv/
 backend/.pytest_cache/
