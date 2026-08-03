@@ -96,6 +96,55 @@ def is_checkbox_checked(line: str) -> bool:
     return line.startswith(CHECKBOX_DONE)
 
 
+def make_prefix(lt: ListType, number: int = 1, checked: bool = False) -> str:
+    """Erzeugt den Präfix-String für einen Listen-Typ."""
+    if lt == ListType.BULLET:
+        return BULLET_PREFIX
+    if lt == ListType.ORDERED:
+        return f"{number}. "
+    if lt == ListType.CHECKBOX:
+        return CHECKBOX_DONE if checked else CHECKBOX_OPEN
+    if lt == ListType.ARROW:
+        return ARROW_PREFIX
+    return ""
+
+
+def set_line_prefix(line: str, lt: ListType | None, number: int = 1) -> str:
+    """Setzt den Präfix einer Zeile auf lt (oder entfernt ihn bei None).
+    Bei Checkbox bleibt der checked-Zustand erhalten."""
+    if lt is None:
+        return strip_prefix(line)
+    content = strip_prefix(line)
+    # Bei Checkbox: bestehenden checked-Zustand beibehalten
+    if lt == ListType.CHECKBOX:
+        was_checked = is_checkbox_checked(line) if detect_list_type(line) == ListType.CHECKBOX else False
+        return make_prefix(lt, number, was_checked) + content
+    return make_prefix(lt, number) + content
+
+
+def normalize_ordered_numbers(text: str) -> str:
+    """Numeriert alle ORDERED-Listen-Blöcke fortlaufend neu (1. 2. 3. ...).
+
+    Ein Block = aufeinanderfolgende ORDERED-Zeilen. Bei jeder Unterbrechung
+    (andere Zeile, Leerzeile) beginnt die Zählung neu.
+    """
+    if not text:
+        return text
+    lines = text.split("\n")
+    counter = 0
+    result: list[str] = []
+    for line in lines:
+        lt = detect_list_type(line)
+        if lt == ListType.ORDERED:
+            counter += 1
+            content = strip_prefix(line)
+            result.append(f"{counter}. " + content)
+        else:
+            counter = 0
+            result.append(line)
+    return "\n".join(result)
+
+
 # ── Zeilen-Splitting ────────────────────────────────────────────
 
 def to_lines(text: str) -> list[NoteLine]:
