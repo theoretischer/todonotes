@@ -15,7 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -149,6 +153,7 @@ private class MarkdownVisualTransformation : VisualTransformation {
 /** Kompakte Format-Leiste (kleiner als BottomAppBar, sitzt über der Tastatur). */
 @Composable
 private fun CompactFormatBar(
+    modifier: Modifier = Modifier,
     onBullet: () -> Unit,
     onOrdered: () -> Unit,
     onCheckbox: () -> Unit,
@@ -159,6 +164,7 @@ private fun CompactFormatBar(
 ) {
     // Eigene kleine Surface statt BottomAppBar: weniger Höhe (48dp statt 80dp).
     androidx.compose.material3.Surface(
+        modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 2.dp,
         shadowElevation = 2.dp
@@ -356,9 +362,8 @@ fun NoteEditorScreen(
     val currentTitleValue = titleValue!!
 
     Scaffold(
-        // imePadding: bei geöffneter Tastatur rutscht der gesamte Inhalt
-        // (inkl. unterer Toolbar) nach oben, statt verdeckt zu werden.
-        modifier = Modifier.fillMaxSize().imePadding(),
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {},
@@ -374,6 +379,9 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             CompactFormatBar(
+                modifier = Modifier.windowInsetsPadding(
+                    WindowInsets.ime.union(WindowInsets.navigationBars)
+                ),
                 onBullet = { toolbarToggleType(ListType.BULLET) },
                 onOrdered = { toolbarToggleType(ListType.ORDERED) },
                 onCheckbox = { toolbarToggleType(ListType.CHECKBOX) },

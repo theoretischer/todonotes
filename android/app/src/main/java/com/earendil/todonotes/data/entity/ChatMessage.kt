@@ -33,5 +33,7 @@ data class ChatMessage(
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null,
-    val position: Long = 0L
+    val position: Long = 0L,
+    /** Id der zitierten Nachricht (optional, Block H-Quote). null = keine Zitat. */
+    val quotedMessageId: String? = null
 )

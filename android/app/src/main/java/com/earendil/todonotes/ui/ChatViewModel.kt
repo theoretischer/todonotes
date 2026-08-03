@@ -70,9 +70,9 @@ class ChatViewModel(
         }
     }
 
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, quotedMessageId: String? = null) {
         val id = _state.value.noteId ?: return
-        viewModelScope.launch { chatRepo.sendMessage(id, text) }
+        viewModelScope.launch { chatRepo.sendMessage(id, text, quotedMessageId) }
     }
 
     fun editMessage(messageId: String, newText: String) {

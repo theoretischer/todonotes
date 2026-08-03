@@ -85,13 +85,26 @@ data class NoteDTO(
 )
 
 @Serializable
+data class ChatMessageDTO(
+    val id: String,
+    val noteId: String,
+    val text: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null,
+    val position: Long = 0L,
+    val quotedMessageId: String? = null
+)
+
+@Serializable
 data class ChangesBundle(
     val todos: List<TodoDTO> = emptyList(),
     val habits: List<HabitDTO> = emptyList(),
     val habit_logs: List<HabitLogDTO> = emptyList(),
     val habit_history: List<HabitHistoryEntryDTO> = emptyList(),
     val folders: List<FolderDTO> = emptyList(),
-    val notes: List<NoteDTO> = emptyList()
+    val notes: List<NoteDTO> = emptyList(),
+    val chat_messages: List<ChatMessageDTO> = emptyList()
 )
 
 @Serializable

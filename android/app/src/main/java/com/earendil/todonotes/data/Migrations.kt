@@ -246,6 +246,13 @@ object Migrations {
         }
     }
 
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
+            db.execSQL("ALTER TABLE chat_messages ADD COLUMN quotedMessageId TEXT")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. Reihenfolge ist egal — Room
      *  baut sich den Pfad von der alten zur neuen Version selbst zusammen. */
     val ALL: Array<Migration> = arrayOf(
@@ -255,6 +262,7 @@ object Migrations {
         MIGRATION_4_5,
         MIGRATION_5_6,
         MIGRATION_6_7,
-        MIGRATION_7_8
+        MIGRATION_7_8,
+        MIGRATION_8_9
     )
 }

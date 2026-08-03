@@ -143,13 +143,14 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         -- Eigene Tabelle, damit jede Nachricht ihr unveränderliches createdAt
         -- behält (bleibt beim Bearbeiten gleich — nur text/updatedAt ändern).
         CREATE TABLE IF NOT EXISTS chat_messages (
-            id        TEXT PRIMARY KEY,
-            noteId    TEXT NOT NULL,
-            text      TEXT NOT NULL,
-            createdAt INTEGER NOT NULL,
-            updatedAt INTEGER NOT NULL,
-            deletedAt INTEGER,
-            position  INTEGER NOT NULL
+            id                TEXT PRIMARY KEY,
+            noteId            TEXT NOT NULL,
+            text              TEXT NOT NULL,
+            createdAt         INTEGER NOT NULL,
+            updatedAt         INTEGER NOT NULL,
+            deletedAt         INTEGER,
+            position          INTEGER NOT NULL,
+            quotedMessageId   TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_chat_messages_noteId ON chat_messages(noteId);
         CREATE INDEX IF NOT EXISTS idx_chat_messages_updatedAt ON chat_messages(updatedAt);
@@ -174,3 +175,6 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     # Block H: notes.type (NOTE/CHAT, default NOTE für bestehende Notizen).
     _add_column("notes", "type", "type TEXT NOT NULL DEFAULT 'NOTE'")
+
+    # Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
+    _add_column("chat_messages", "quotedMessageId", "quotedMessageId TEXT")

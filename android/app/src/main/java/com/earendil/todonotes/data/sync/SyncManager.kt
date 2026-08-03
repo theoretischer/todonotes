@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.CadenceType
+import com.earendil.todonotes.data.entity.ChatMessage
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
@@ -106,13 +107,15 @@ class SyncManager(context: Context) {
         val history = db.habitDao().getAllHistoryForSync().map { it.toDTO() }
         val folders = db.folderDao().getAllForSync().map { it.toDTO() }
         val notes = db.noteDao().getAllForSync().map { it.toDTO() }
+        val chatMessages = db.chatMessageDao().getAllForSync().map { it.toDTO() }
         return ChangesBundle(
             todos = todos,
             habits = habits,
             habit_logs = logs,
             habit_history = history,
             folders = folders,
-            notes = notes
+            notes = notes,
+            chat_messages = chatMessages
         )
     }
 
@@ -125,6 +128,7 @@ class SyncManager(context: Context) {
         if (bundle.habit_history.isNotEmpty()) db.habitDao().upsertAllHistory(bundle.habit_history.map { it.toEntity() })
         if (bundle.folders.isNotEmpty()) db.folderDao().upsertAll(bundle.folders.map { it.toEntity() })
         if (bundle.notes.isNotEmpty()) db.noteDao().upsertAll(bundle.notes.map { it.toEntity() })
+        if (bundle.chat_messages.isNotEmpty()) db.chatMessageDao().upsertAll(bundle.chat_messages.map { it.toEntity() })
     }
 
     companion object {
@@ -175,6 +179,14 @@ class SyncManager(context: Context) {
             id, folderId,
             runCatching { NoteType.valueOf(type) }.getOrDefault(NoteType.NOTE),
             title, bodyJson, createdAt, updatedAt, deletedAt
+        )
+
+        // --- Mapper ChatMessage <-> DTO ---
+        fun ChatMessage.toDTO() = ChatMessageDTO(
+            id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId
+        )
+        fun ChatMessageDTO.toEntity() = ChatMessage(
+            id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId
         )
     }
 }

@@ -21,7 +21,7 @@ import com.earendil.todonotes.data.entity.Todo
 @Database(
     entities = [Todo::class, Habit::class, HabitLog::class, HabitHistoryEntry::class,
         Folder::class, Note::class, ChatMessage::class],
-    version = 8,
+    version = 9,
     // Schema-JSON pro Version nach app/schemas/ schreiben (via KSP room.schemaLocation).
     // Wird committet → Nachvollziehbarkeit + Basis für Migrations-Tests.
     exportSchema = true
@@ -45,7 +45,7 @@ abstract class TodoNotesDatabase : RoomDatabase() {
                     // wegkopieren (todonotes.db -> todonotes.db.bak-v<version>).
                     // Falls eine Migration später mal fehlschlägt, kann man das
                     // Backup manuell zurückspielen statt Daten zu verlieren.
-                    backupDatabaseFile(context.applicationContext, 8)
+                    backupDatabaseFile(context.applicationContext, 9)
                     Room.databaseBuilder(
                         context.applicationContext,
                         TodoNotesDatabase::class.java,

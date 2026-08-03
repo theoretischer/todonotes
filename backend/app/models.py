@@ -100,6 +100,7 @@ class ChatMessageDTO(BaseModel):
     updatedAt: int
     deletedAt: int | None = None
     position: int = 0
+    quotedMessageId: str | None = None
 
 
 class ChangesBundle(BaseModel):

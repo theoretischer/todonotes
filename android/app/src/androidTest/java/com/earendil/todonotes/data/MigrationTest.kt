@@ -230,4 +230,67 @@ class MigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate8To9_schemaIsValid() {
+        // 1. v8-DB mit chat_messages-Tabelle (ohne quotedMessageId) anlegen.
+        helper.createDatabase(dbName, 8).apply {
+            execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `chat_messages` (
+                    `id` TEXT NOT NULL PRIMARY KEY, `noteId` TEXT NOT NULL,
+                    `text` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL, `deletedAt` INTEGER,
+                    `position` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            // Bestehende Nachricht ohne quotedMessageId.
+            execSQL(
+                "INSERT INTO chat_messages (id,noteId,text,createdAt,updatedAt,deletedAt,position) " +
+                    "VALUES ('m1','n1','Hallo',100,100,NULL,10)"
+            )
+            close()
+        }
+
+        // 2. Migration + Schema-Validierung gegen 9.json.
+        val db = helper.runMigrationsAndValidate(
+            dbName, 9, true, Migrations.MIGRATION_8_9
+        )
+
+        // 3. quotedMessageId-Spalte existiert und ist NULL für alte Nachrichten.
+        db.query("SELECT quotedMessageId FROM chat_messages WHERE id = 'm1'").use { c ->
+            assertTrue(c.moveToFirst()); assertNull(c.getString(0))
+        }
+        db.close()
+    }
+
+    @Test
+    fun migrate8To9_quoteRoundtrip() {
+        helper.createDatabase(dbName, 8).apply {
+            execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `chat_messages` (
+                    `id` TEXT NOT NULL PRIMARY KEY, `noteId` TEXT NOT NULL,
+                    `text` TEXT NOT NULL, `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL, `deletedAt` INTEGER,
+                    `position` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(
+            dbName, 9, true, Migrations.MIGRATION_8_9
+        )
+        // Nachricht mit Zitat einfügen + lesen.
+        db.execSQL(
+            "INSERT INTO chat_messages (id,noteId,text,createdAt,updatedAt,deletedAt,position,quotedMessageId) " +
+                "VALUES ('m2','n1','Antwort',200,200,NULL,20,'m1')"
+        )
+        db.query("SELECT quotedMessageId FROM chat_messages WHERE id = 'm2'").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals("m1", c.getString(0))
+        }
+        db.close()
+    }
 }

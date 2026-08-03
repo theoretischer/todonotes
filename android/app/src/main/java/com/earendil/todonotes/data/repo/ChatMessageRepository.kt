@@ -25,8 +25,8 @@ class ChatMessageRepository(context: Context) {
     fun observeMessages(noteId: String): Flow<List<ChatMessage>> =
         chatDao.observeMessages(noteId)
 
-    /** Neue Nachricht ans Ende anhängen. */
-    suspend fun sendMessage(noteId: String, text: String) {
+    /** Neue Nachricht ans Ende anhängen. quotedMessageId optional für Zitate. */
+    suspend fun sendMessage(noteId: String, text: String, quotedMessageId: String? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         val now = System.currentTimeMillis()
@@ -38,7 +38,8 @@ class ChatMessageRepository(context: Context) {
             text = trimmed,
             createdAt = now,
             updatedAt = now,
-            position = maxPos + 1
+            position = maxPos + 1,
+            quotedMessageId = quotedMessageId
         )
         chatDao.insert(message)
         // Notiz-updatedAt anheben, damit Sync merkt, dass sich etwas geändert hat.

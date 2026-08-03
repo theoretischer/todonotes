@@ -6,19 +6,31 @@
 package com.earendil.todonotes.ui.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +40,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,20 +56,28 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.earendil.todonotes.data.entity.ChatMessage
 import com.earendil.todonotes.data.repo.ChatMessageRepository
 import com.earendil.todonotes.data.repo.NoteRepository
 import com.earendil.todonotes.ui.ChatViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -65,11 +87,13 @@ import java.util.Locale
  * Chat-Bildschirm (Block H3) — WhatsApp-Style Nachrichten-Verlauf.
  *
  * - LazyColumn: älteste oben, neueste unten
- * - Datum-Trennzeile immer wenn der Tag wechselt (dd.MM.yyyy)
+ * - Datum-Trennzeile bei Tageswechsel (dd.MM.yyyy)
  * - Auto-Scroll nach unten bei neuen Nachrichten
- * - Tap auf Nachricht → Edit-Dialog (H5: text ändern, createdAt bleibt)
- * - Eingabefeld + Senden-Button unten, `imePadding()` für Tastatur
- * - Nachrichten rechts ausgerichtet (single-user tracking)
+ * - Swipe-nach-rechts auf Nachricht → Zitat-Modus (Quote-Preview-Bar über Eingabe)
+ * - Quote-Box in Blase (vertikaler Streifen, erste Zeilen der zitierten Nachricht)
+ * - Tap auf Quote-Box → scroll zur zitierten Nachricht + Blink-Animation
+ * - Tap auf Nachricht → Edit-Dialog (H5)
+ * - Eingabefeld + Senden-Button, `imePadding()` für Tastatur
  */
 @Composable
 fun ChatScreen(
@@ -92,9 +116,28 @@ fun ChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var quotingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+
+    // Map id → Message für Zitat-Auflösung + Scroll-Ziel-Suche.
+    val messageMap = remember(messages) { messages.associateBy { it.id } }
+    val listItems = remember(messages) { buildChatListItems(messages) }
+
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    // Blink-Highlight: Id der Nachricht, die gerade blinken soll.
+    var blinkId by remember { mutableStateOf<String?>(null) }
+
+    // Auto-Scroll nach unten, wenn neue Nachrichten dazu kommen.
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(listItems.lastIndex)
+        }
+    }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize().imePadding(),
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
@@ -111,16 +154,30 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            ChatInputBar(
-                text = inputText,
-                onTextChange = { inputText = it },
-                onSend = {
-                    if (inputText.isNotBlank()) {
-                        vm.sendMessage(inputText)
-                        inputText = ""
-                    }
+            Column(
+                modifier = Modifier.windowInsetsPadding(
+                    WindowInsets.ime.union(WindowInsets.navigationBars)
+                )
+            ) {
+                // Quote-Preview-Bar (wenn eine Nachricht zitiert wird)
+                quotingMessage?.let { quote ->
+                    QuotePreviewBar(
+                        text = quote.text,
+                        onCancel = { quotingMessage = null }
+                    )
                 }
-            )
+                ChatInputBar(
+                    text = inputText,
+                    onTextChange = { inputText = it },
+                    onSend = {
+                        if (inputText.isNotBlank()) {
+                            vm.sendMessage(inputText, quotingMessage?.id)
+                            inputText = ""
+                            quotingMessage = null
+                        }
+                    }
+                )
+            }
         }
     ) { padding ->
         if (!state.loaded) {
@@ -130,24 +187,11 @@ fun ChatScreen(
             return@Scaffold
         }
 
-        // Liste mit Datum-Trennzeilen aufbauen.
-        val listItems = remember(messages) { buildChatListItems(messages) }
-
-        val listState = rememberLazyListState()
-
-        // Auto-Scroll nach unten, wenn neue Nachrichten dazu kommen.
-        LaunchedEffect(messages.size) {
-            if (messages.isNotEmpty()) {
-                listState.animateScrollToItem(listItems.lastIndex)
-            }
-        }
-
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .consumeWindowInsets(padding),
+                .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
                 start = 12.dp,
                 end = 12.dp,
@@ -161,7 +205,25 @@ fun ChatScreen(
                     is ChatListItem.DateSeparator -> DateDivider(item.label)
                     is ChatListItem.Bubble -> ChatBubble(
                         message = item.message,
-                        onTap = { editingMessage = item.message }
+                        quotedMessage = item.message.quotedMessageId?.let { messageMap[it] },
+                        isBlinking = blinkId == item.message.id,
+                        onTap = { editingMessage = item.message },
+                        onSwipeRight = { quotingMessage = item.message },
+                        onQuoteTap = { quotedId ->
+                            // Index der zitierten Nachricht in listItems finden + scrollen.
+                            val targetIndex = listItems.indexOfFirst {
+                                it is ChatListItem.Bubble && it.message.id == quotedId
+                            }
+                            if (targetIndex >= 0) {
+                                scope.launch {
+                                    listState.animateScrollToItem(targetIndex)
+                                    // Blink-Animation auslösen.
+                                    blinkId = quotedId
+                                    kotlinx.coroutines.delay(1500)
+                                    blinkId = null
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -240,17 +302,70 @@ private fun DateDivider(label: String) {
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
-    onTap: () -> Unit
+    quotedMessage: ChatMessage?,
+    isBlinking: Boolean,
+    onTap: () -> Unit,
+    onSwipeRight: () -> Unit,
+    onQuoteTap: (String) -> Unit
 ) {
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.GERMAN) }
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 60.dp.toPx() }
+
+    // Swipe-Offset: roher Wert während drag, animiert zurück auf 0 nach Loslassen.
+    var rawSwipe by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    val swipeOffset by animateFloatAsState(
+        targetValue = if (isDragging) rawSwipe else 0f,
+        animationSpec = if (isDragging) snap() else tween(200),
+        label = "swipe"
+    )
+    val scope = rememberCoroutineScope()
+
+    // Blink-Hintergrundfarbe (3x pulse, getriggert durch isBlinking).
+    val blinkColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+    var blinkPhase by remember { mutableStateOf(false) }
+    LaunchedEffect(isBlinking) {
+        if (isBlinking) {
+            repeat(3) {
+                blinkPhase = true
+                kotlinx.coroutines.delay(200)
+                blinkPhase = false
+                kotlinx.coroutines.delay(200)
+            }
+        }
+    }
+    val blinkBg by animateColorAsState(
+        targetValue = if (blinkPhase) blinkColor else Color.Transparent,
+        animationSpec = tween(200),
+        label = "blink"
+    )
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            // Swipe-Geste auf volle Zeilenbreite (auch bei kurzen Nachrichten)
+            .pointerInput(message.id) {
+                detectHorizontalDragGestures(
+                    onDragStart = { isDragging = true },
+                    onDragEnd = {
+                        if (rawSwipe > swipeThresholdPx) {
+                            onSwipeRight()
+                        }
+                        isDragging = false
+                        rawSwipe = 0f
+                    }
+                ) { _, dragAmount ->
+                    // Nur nach rechts (positiv), nicht nach links
+                    rawSwipe = (rawSwipe + dragAmount).coerceAtLeast(0f)
+                }
+            },
         horizontalArrangement = Arrangement.End
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 280.dp)
+                .graphicsLayer { translationX = swipeOffset }
                 .clip(
                     RoundedCornerShape(
                         topStart = 16.dp,
@@ -259,10 +374,21 @@ private fun ChatBubble(
                         bottomEnd = 4.dp
                     )
                 )
-                .background(MaterialTheme.colorScheme.primaryContainer)
+                .background(
+                    if (isBlinking) blinkBg
+                    else MaterialTheme.colorScheme.primaryContainer
+                )
                 .combinedClickable(onClick = onTap)
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
+            // Quote-Box (vertikaler Streifen + Text der zitierten Nachricht)
+            if (quotedMessage != null) {
+                QuoteBox(
+                    text = quotedMessage.text,
+                    onTap = { onQuoteTap(quotedMessage.id) }
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             Text(
                 text = message.text,
                 style = MaterialTheme.typography.bodyMedium,
@@ -274,6 +400,88 @@ private fun ChatBubble(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
                 modifier = Modifier.align(Alignment.End)
+            )
+        }
+    }
+}
+
+// ---- Quote-Box (in Blase, über dem Nachrichtentext) ----
+
+@Composable
+private fun QuoteBox(
+    text: String,
+    onTap: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+            .combinedClickable(onClick = onTap)
+            .padding(start = 0.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)
+    ) {
+        // Vertikaler Streifen links
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(36.dp)
+                .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f))
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(start = 8.dp, end = 4.dp)
+                .align(Alignment.CenterVertically)
+        )
+    }
+}
+
+// ---- Quote-Preview-Bar (über Eingabefeld, zeigt was zitiert wird) ----
+
+@Composable
+private fun QuotePreviewBar(
+    text: String,
+    onCancel: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Default.FormatQuote,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(28.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp, end = 4.dp)
+        )
+        IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Zitat abbrechen",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
