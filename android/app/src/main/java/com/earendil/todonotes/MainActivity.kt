@@ -40,14 +40,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.earendil.todonotes.data.repo.ChatMessageRepository
 import com.earendil.todonotes.data.repo.FolderRepository
 import com.earendil.todonotes.data.repo.HabitRepository
 import com.earendil.todonotes.data.repo.NoteRepository
 import com.earendil.todonotes.data.repo.TodoRepository
+import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.ui.HabitViewModel
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.SyncViewModel
 import com.earendil.todonotes.ui.TodoViewModel
+import com.earendil.todonotes.ui.chat.ChatScreen
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.notes.NoteEditorScreen
@@ -92,10 +95,11 @@ class MainActivity : ComponentActivity() {
         val habitRepo = HabitRepository(applicationContext)
         val folderRepo = FolderRepository(applicationContext)
         val noteRepo = NoteRepository(applicationContext)
+        val chatRepo = ChatMessageRepository(applicationContext)
 
         setContent {
             TodoNotesTheme {
-                TodoNotesApp(repo, habitRepo, folderRepo, noteRepo)
+                TodoNotesApp(repo, habitRepo, folderRepo, noteRepo, chatRepo)
             }
         }
     }
@@ -114,7 +118,8 @@ private fun TodoNotesApp(
     repo: TodoRepository,
     habitRepo: HabitRepository,
     folderRepo: FolderRepository,
-    noteRepo: NoteRepository
+    noteRepo: NoteRepository,
+    chatRepo: ChatMessageRepository
 ) {
     val vm: TodoViewModel = viewModel(factory = TodoViewModel.Factory(repo))
     val habitVm: HabitViewModel = viewModel(factory = HabitViewModel.Factory(habitRepo))
@@ -124,6 +129,7 @@ private fun TodoNotesApp(
     var showSettings by remember { mutableStateOf(false) }
     var openNoteId by remember { mutableStateOf<String?>(null) }
     var openNoteIsNew by remember { mutableStateOf(false) }
+    var openNoteType by remember { mutableStateOf<NoteType>(NoteType.NOTE) }
 
     val openTodos by vm.openTodos.collectAsState()
     val completedTodos by vm.completedTodos.collectAsState()
@@ -174,9 +180,15 @@ private fun TodoNotesApp(
             )
             Tab.Notes -> NotesScreen(
                 notesVm = notesVm,
-                onOpenNote = { noteId, isNew ->
+                onOpenNote = { noteId, isNew, type ->
                     openNoteId = noteId
                     openNoteIsNew = isNew
+                    openNoteType = type
+                },
+                onOpenChat = { noteId, isNew ->
+                    openNoteId = noteId
+                    openNoteIsNew = isNew
+                    openNoteType = NoteType.CHAT
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -204,14 +216,23 @@ private fun TodoNotesApp(
         }
     }
 
-    // Notiz-Editor (Vollbild, über alles gelegt)
+    // Notiz-Editor oder Chat (Vollbild, über alles gelegt)
     openNoteId?.let { id ->
-        NoteEditorScreen(
-            noteId = id,
-            isNew = openNoteIsNew,
-            noteRepo = noteRepo,
-            onBack = { openNoteId = null }
-        )
+        if (openNoteType == NoteType.CHAT) {
+            ChatScreen(
+                noteId = id,
+                chatRepo = chatRepo,
+                noteRepo = noteRepo,
+                onBack = { openNoteId = null }
+            )
+        } else {
+            NoteEditorScreen(
+                noteId = id,
+                isNew = openNoteIsNew,
+                noteRepo = noteRepo,
+                onBack = { openNoteId = null }
+            )
+        }
     }
 
     // Vollbild-Einstellungen (über alles gelegt)

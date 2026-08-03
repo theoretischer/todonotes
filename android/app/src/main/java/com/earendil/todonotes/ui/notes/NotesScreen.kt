@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
@@ -62,6 +63,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
+import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
@@ -90,7 +92,8 @@ internal const val ROOT_DROP_KEY = "__root__"
 @Composable
 fun NotesScreen(
     notesVm: NotesViewModel,
-    onOpenNote: (noteId: String, isNew: Boolean) -> Unit,
+    onOpenNote: (noteId: String, isNew: Boolean, type: NoteType) -> Unit,
+    onOpenChat: (noteId: String, isNew: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by notesVm.browserState.collectAsStateWithLifecycle()
@@ -200,7 +203,7 @@ fun NotesScreen(
                         )
                         SwipeToDeleteRow(
                             onDelete = { notesVm.deleteNote(note.id) },
-                            onClick = { onOpenNote(note.id, false) },
+                            onClick = { onOpenNote(note.id, false, note.type) },
                             onLongClick = null,
                             contentModifier = dragModifier
                         ) {
@@ -243,7 +246,15 @@ fun NotesScreen(
                 text = "Neue Notiz",
                 onClick = {
                     showNewMenu = false
-                    notesVm.createNote(onCreated = { id -> onOpenNote(id, true) })
+                    notesVm.createNote(onCreated = { id -> onOpenNote(id, true, NoteType.NOTE) })
+                }
+            )
+            NewMenuItem(
+                icon = { Icon(Icons.Default.Chat, contentDescription = null) },
+                text = "Neuer Chat",
+                onClick = {
+                    showNewMenu = false
+                    notesVm.createChatNote(onCreated = { id -> onOpenChat(id, true) })
                 }
             )
             NewMenuItem(
@@ -522,7 +533,7 @@ private fun NoteRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Default.TextSnippet,
+                if (note.type == NoteType.CHAT) Icons.Default.Chat else Icons.Default.TextSnippet,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
@@ -614,6 +625,7 @@ private fun CreateFolderDialog(
 
 /** Extrahiert reinen Text aus dem ersten Paragraph als Listen-Vorschau. */
 private fun notePreview(note: Note): String {
+    if (note.type == NoteType.CHAT) return "Chat-Notiz"
     // Body kann noch altes Block-JSON sein → migrieren, sonst Plain Text
     val text = NoteTextBody.migrateFromBlocks(note.bodyJson)
     return text.lineSequence()

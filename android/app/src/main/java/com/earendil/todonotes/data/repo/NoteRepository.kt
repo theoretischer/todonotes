@@ -3,6 +3,7 @@ package com.earendil.todonotes.data.repo
 import android.content.Context
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Note
+import com.earendil.todonotes.data.entity.NoteType
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
@@ -31,10 +32,22 @@ class NoteRepository(context: Context) {
     /** Leere Notiz anlegen (im Editor wird dann weitergearbeitet).
      *  Default-Titel: "Neue Notiz vom dd.MM.yyyy". */
     suspend fun createNote(folderId: String? = null, title: String = defaultNoteTitle(), bodyJson: String = "[]"): Note {
+        return createNote(folderId, title, bodyJson, NoteType.NOTE)
+    }
+
+    /** Neue Chat-Notiz anlegen (Block H — WhatsApp-Style Tracking-Notiz).
+     *  Default-Titel: "Neuer Chat vom dd.MM.yyyy". */
+    suspend fun createChatNote(folderId: String? = null): Note {
+        val fmt = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.GERMAN)
+        return createNote(folderId, "Neuer Chat vom ${fmt.format(java.util.Date())}", "[]", NoteType.CHAT)
+    }
+
+    private suspend fun createNote(folderId: String?, title: String, bodyJson: String, type: NoteType): Note {
         val now = System.currentTimeMillis()
         val note = Note(
             id = UUID.randomUUID().toString(),
             folderId = folderId,
+            type = type,
             title = title,
             bodyJson = bodyJson,
             createdAt = now,

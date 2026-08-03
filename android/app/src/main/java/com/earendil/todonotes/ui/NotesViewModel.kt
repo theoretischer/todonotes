@@ -126,6 +126,14 @@ class NotesViewModel(
         }
     }
 
+    /** Neue Chat-Notiz anlegen (Block H). Liefert die neue Id via Callback. */
+    fun createChatNote(onCreated: (String) -> Unit) {
+        viewModelScope.launch {
+            val note = noteRepo.createChatNote(folderId = currentFolderId.value)
+            onCreated(note.id)
+        }
+    }
+
     fun updateNote(id: String, title: String, bodyJson: String) {
         viewModelScope.launch { noteRepo.updateNote(id, title, bodyJson) }
     }
