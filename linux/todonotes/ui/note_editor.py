@@ -180,46 +180,41 @@ class NoteEditorWindow(Adw.ApplicationWindow):
         Die Marker bleiben im Buffer (fürs Speichern/Sync), sind aber
         für den Nutzer nicht sichtbar.
 
-        Nutzt ntb._build_visible für überlappungsfreie Match-Erkennung
-        (wie im Kotlin _build_visible: bold schlägt italic bei ** etc.).
+        WICHTIG: get_text(..., True) — include_hidden_chars=True, damit
+        die unsichtbaren Marker im Text enthalten sind (für Regex-Matching).
         """
         if self._saving:
             return
         self._saving = True
+        try:
+            buf = self._buffer
+            # Alle Tags entfernen
+            start, end = buf.get_bounds()
+            buf.remove_all_tags(start, end)
 
-        buf = self._buffer
-        # Alle Tags entfernen
-        start, end = buf.get_bounds()
-        buf.remove_all_tags(start, end)
+            # include_hidden_chars=True: unsichtbare Marker mit auslesen!
+            full_text = buf.get_text(start, end, True)
+            if not full_text:
+                return
 
-        full_text = buf.get_text(start, end, False)
-        if not full_text:
+            matches = ntb._collect_matches(full_text)
+
+            for m in matches:
+                style_name = m.style
+                open_len = len(ntb._marker(m.style))
+                # Öffnende Marker verstecken
+                self._apply_tag_range(_TAG_HIDDEN, m.start, m.start + open_len)
+                # Schließende Marker verstecken
+                self._apply_tag_range(_TAG_HIDDEN, m.end - open_len, m.end)
+                # Inhalt = Style-Tag
+                if style_name == InlineStyle.BOLD:
+                    self._apply_tag_range(_TAG_BOLD, m.start + open_len, m.end - open_len)
+                elif style_name == InlineStyle.ITALIC:
+                    self._apply_tag_range(_TAG_ITALIC, m.start + open_len, m.end - open_len)
+                elif style_name == InlineStyle.UNDERLINE:
+                    self._apply_tag_range(_TAG_UNDERLINE, m.start + open_len, m.end - open_len)
+        finally:
             self._saving = False
-            return
-
-        # _build_visible liefert überlappungsfreie Matches mit
-        # removed_raw (Marker-Positionen) + styles (Inhalt-Positionen
-        # im sichtbaren Text). Wir brauchen aber Raw-Positionen.
-        # → Wir replizieren die Match-Sammlung aus _build_visible hier,
-        # um Raw-Offsets für TextTags zu haben.
-        matches = ntb._collect_matches(full_text)
-
-        for m in matches:
-            style_name = m.style
-            open_len = len(ntb._marker(m.style))
-            # Öffnende Marker verstecken
-            self._apply_tag_range(_TAG_HIDDEN, m.start, m.start + open_len)
-            # Schließende Marker verstecken
-            self._apply_tag_range(_TAG_HIDDEN, m.end - open_len, m.end)
-            # Inhalt = Style-Tag
-            if style_name == InlineStyle.BOLD:
-                self._apply_tag_range(_TAG_BOLD, m.start + open_len, m.end - open_len)
-            elif style_name == InlineStyle.ITALIC:
-                self._apply_tag_range(_TAG_ITALIC, m.start + open_len, m.end - open_len)
-            elif style_name == InlineStyle.UNDERLINE:
-                self._apply_tag_range(_TAG_UNDERLINE, m.start + open_len, m.end - open_len)
-
-        self._saving = False
 
     def _apply_tag_range(self, tag_name: str, start_offset: int, end_offset: int):
         """Wendet einen TextTag auf den Offset-Bereich an."""
@@ -241,10 +236,13 @@ class NoteEditorWindow(Adw.ApplicationWindow):
             return
         title = self._title_entry.get_text().strip()
         start, end = self._buffer.get_bounds()
-        body = self._buffer.get_text(start, end, False)
+        # include_hidden_chars=True: Marker müssen gespeichert werden (Sync!)!
+        body = self._buffer.get_text(start, end, True)
         self._saving = True
-        note_repo.update_note(self._note_id, title=title, bodyJson=body)
-        self._saving = False
+        try:
+            note_repo.update_note(self._note_id, title=title, bodyJson=body)
+        finally:
+            self._saving = False
 
     def _on_back(self, button):
         self._save()
@@ -263,20 +261,23 @@ class NoteEditorWindow(Adw.ApplicationWindow):
         start = start_iter.get_offset()
         end = end_iter.get_offset()
 
-        full_text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+        full_text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), True)
         new_text, new_start, new_end = ntb.toggle_inline_style(
             full_text, start, end, style
         )
 
         # Buffer aktualisieren
         self._saving = True
-        buf.set_text(new_text)
-        # Selektion neu setzen
-        new_sel_start = buf.get_iter_at_offset(new_start)
-        new_sel_end = buf.get_iter_at_offset(new_end)
-        buf.select_range(new_sel_start, new_sel_end)
-        self._saving = False
+        try:
+            buf.set_text(new_text)
+            # Selektion neu setzen
+            new_sel_start = buf.get_iter_at_offset(new_start)
+            new_sel_end = buf.get_iter_at_offset(new_end)
+            buf.select_range(new_sel_start, new_sel_end)
+        finally:
+            self._saving = False
         self._save()
+        self._apply_tags()
 
     # ── Listen-Typ auf aktuelle Zeile setzen ───────────────────
 
@@ -290,7 +291,7 @@ class NoteEditorWindow(Adw.ApplicationWindow):
         if not line_end.ends_line():
             line_end.forward_to_line_end()
 
-        line_text = buf.get_text(line_start, line_end, False)
+        line_text = buf.get_text(line_start, line_end, True)
         current_type = ntb.detect_list_type(line_text)
 
         # Toggle: gleicher Typ → Prefix entfernen
@@ -311,12 +312,15 @@ class NoteEditorWindow(Adw.ApplicationWindow):
 
         # Zeile im Buffer ersetzen
         self._saving = True
-        buf.begin_user_action()
-        buf.delete(line_start, line_end)
-        buf.insert(line_start, new_content)
-        buf.end_user_action()
-        self._saving = False
+        try:
+            buf.begin_user_action()
+            buf.delete(line_start, line_end)
+            buf.insert(line_start, new_content)
+            buf.end_user_action()
+        finally:
+            self._saving = False
         self._save()
+        self._apply_tags()
 
     def _on_toggle_checkbox(self, button):
         """Toggelt [ ] ↔ [x] auf der aktuellen Zeile."""
@@ -328,15 +332,18 @@ class NoteEditorWindow(Adw.ApplicationWindow):
         # Offset der Zeile im gesamten Buffer
         line_offset = line_start.get_offset()
         full_text = buf.get_text(
-            buf.get_start_iter(), buf.get_end_iter(), False
+            buf.get_start_iter(), buf.get_end_iter(), True
         )
 
         new_text = ntb.toggle_checkbox(full_text, line_offset)
         if new_text != full_text:
             self._saving = True
-            buf.set_text(new_text)
-            self._saving = False
+            try:
+                buf.set_text(new_text)
+            finally:
+                self._saving = False
             self._save()
+            self._apply_tags()
 
 
 def migrate_if_needed(body_json: str) -> str:
