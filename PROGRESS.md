@@ -1,6 +1,6 @@
 # TodoNotes – Progress
 
-**Phase: Backend/Sync (Block D) – Server steht, Android-Client folgt**
+**Phase: Notizen-App (Block F) – F1–F6 erledigt, F7 (Bilder) als nächstes**
 
 ## Builds
 - **0.1.0** (Debug): MVP – Todos erstellen/erledigen, einfache Liste.
@@ -11,6 +11,7 @@
 - **0.5.0** (Debug): Block B8–B11. Zeitraum-Labels ("n mal pro X"), Header "Zeitraum", Wochentag-Auswahl entfernt (Reset-Tag = Startdatum). Habit-Verlauf pro Periode: HabitHistoryEntry (DB v5), automatischer History-Eintrag bei Periodenwechsel, Haken "In Verlauf eintragen". "Periode abschließen" pro Gewohnheit im ⋮-Menü. Verlauf-Tab mit Sektionen Gewohnheiten + Aufgaben. Bugfixes: byWeekdays NOT-NULL (Feld entfernt), CASCADE beim upsert (→ @Update). TopAppBar bei Gewohnheiten entfernt.
 - **0.5.1** (Debug): **Migrations-Framework** — `fallbackToDestructiveMigration()` ENTFERNT, echte Room-Migrationen (`Migrations.kt`, v1→v5 dokumentiert) registriert. `exportSchema=true`, Schema-JSON nach `app/schemas/` (5.json committet). Backup-Sicherheitsnetz: vor jedem Öffnen `todonotes.db` → `todonotes.db.bak-v<version>` kopieren (Best-Effort). Ab v6 aufwärts: jede Schema-Änderung bekommt eine echte `Migration(N,N+1)` — KEIN Datenverlust mehr.
 - **0.6.1** (Debug): **Block D2 — Android-Sync-Client + Profil/Settings-UI.** Retrofit 2.11 + OkHttp 4.12 + kotlinx.serialization. SyncManager (sammelt alle lokalen Zeilen → POST /sync → spielt Server-Änderungen ein, REPLACE). SyncWorker (WorkManager periodisch 15min, nur mit Netzwerk). SyncPrefs (serverUrl/token/lastSyncedAt/clientId in SharedPreferences). TopAppBar mit Profil-Icon → ProfileSheet (ModalBottomSheet) → SettingsScreen mit 4 Sektionen: Verbindung (Server-URL, Token mit zeigen/verbergen, Speichern/Testen/Sync, Status), Benachrichtigungen (POST_NOTIFICATIONS, Akku-Ausnahme, exakte Alarme), Erscheinungsbild (Design-Stub), Info. Cleartext-HTTP im Debug-Build (`src/debug/AndroidManifest.xml usesCleartextTraffic=true`) für LAN-Tests gegen 192.168.x.x. Repo auf GitHub **public** (Account `theoretischer`). **Live validiert**: App sync-ed 5 habits + 1 todo + 3 habit_history (inkl. soft-deletes) erfolgreich gegen echten Server.
+- **0.7.0** (Debug): **Block F1–F6 — Notiz-App (Datenmodell bis Drag/Reorder).** F1: `notes` + `folders` Tabellen (DB v6, `MIGRATION_5_6`, `6.json`), Backend um beide Tabellen erweitert. F2: `NoteDao`/`FolderDao`, Repositories, `NotesViewModel` (Ordner-Traversal + Breadcrumb). F3: Rich-Text-Modell (`NoteTextBody`, JSON-Blöcke: Paragraph/ListBlock/Checkbox). F4: Notes-Tab mit Ordner- & Notiz-Übersicht, Breadcrumb, FAB `+`-Menü (Neue Notiz/Ordner). F5: Vollbild-Editor mit Inline-Formatierung (Fett/Kursiv/Unterstrichen) + Listen (Überfällige, Checkbox-Toggle). F6: **1D-Reorder** (Long-Press + vertikal ziehen sortiert Notizen/Ordner, Live-Vorschau ohne Ghost) + **Draufziehen verschiebt in Ordner** + `position`-Spalte (DB v7, `MIGRATION_6_7`, `7.json`). FAB-Fix über alle Tabs. Unit-getestet, auf Gerät validiert.
 
 ## Erledigte Blöcke
 - [x] **Block A – Todos**: erstellen/erledigen/bearbeiten/swipe-delete, Recurrence (RFC 5545), Option-C-Bugfix
@@ -18,45 +19,18 @@
 - [x] **Migrations-Framework**: echte Room-Migrationen statt destructive, Schema-JSON, Backup-Sicherheitsnetz
 - [x] **Block D1 – Sync-Server**: Docker + FastAPI + SQLite, `/sync` mit Last-Write-Wins, Token-Auth, alle 4 Tabellen, lokal validiert
 - [x] **Block D2 – Android-Sync-Client**: Retrofit + OkHttp + kotlinx.serialization, SyncManager (sammelt lokal → POST → merged server), SyncWorker (WorkManager alle 15min), SyncPrefs (URL/Token/last_synced_at/clientId), Profil-Icon oben rechts + ProfileSheet + SettingsScreen (Verbindung, Benachrichtigungen, Erscheinungsbild, Info). Cleartext-HTTP im Debug-Build für LAN-Tests. **Live validiert**: App hat 5 habits + 1 todo + 3 habit_history (inkl. soft-deletes) gegen echten Server synchronisiert. Repo auf GitHub public.
+- [x] **Block F1–F2 – Notizen: Datenmodell/DAO/Repo/VM**
+- [x] **Block F3 – Rich-Text-Modell** (`NoteTextBody`, JSON-Blöcke, Listen/Checkbox)
+- [x] **Block F4 – Notes-Tab**: Ordner- & Notiz-Übersicht, Breadcrumb, FAB `+`-Menü
+- [x] **Block F5 – Notiz-Editor**: Vollbild, Inline-Formatierung (Fett/Kursiv/Unterstrichen), Listen (Präfix-Autovervoll, Checkbox-Toggle)
+- [x] **Block F6 – Reihenfolge sortieren + in-Ordner-Verschieben**: 1D-Reorder per Long-Press-Drag (Live-Vorschau ohne Ghost, `position`-Spalte DB v7), Notiz auf Ordner ziehen = verschieben, FAB-Fix über alle Tabs
 
 ## Offen
 - [ ] **Block D2b – Sync-Trigger verbessern**: Sync bei Datenänderung (sofort nach Speichern/Loggen), beim App-Start, Pull-to-Refresh — damit nicht manuell oder 15min-WM getriggert werden muss
 - [ ] **Block D3 – Deploy finalisieren**: Reverse-Proxy (Caddy) für `todo.christopherh.de` + HTTPS, dann App auf HTTPS-URL umstellen
 - [ ] **Block E – Linux-Client**: GTK4, synchronisiert gegen denselben Server (Tower + Laptop)
 - [ ] **Block F – Notizen** (Samsung-Notes-Style, eigener Tab mit echter Notiz-App, keine Todo-Sonderform):
-  - **F1 – Datenmodell & Migration (DB v6)**
-    - Neue Tabelle `notes`: `id (UUID)`, `folderId (UUID nullable)`, `title (string)`, `bodyJson (TEXT — serialisierter Rich-Text-Baum, siehe F3)`, `createdAt`, `updatedAt`, `deletedAt (soft delete für Sync)`.
-    - Neue Tabelle `folders`: `id (UUID)`, `parentId (UUID nullable — für Ordner-in-Ordner)`, `name (string)`, `createdAt`, `updatedAt`, `deletedAt`.
-    - Bilder werden **nicht** als Base64 in `bodyJson` gespeichert (bläht DB/Sync auf), sondern als Dateien im App-Internal-Storage (`files/notes/<noteId>/<imageId>.png`) und im `bodyJson` nur als Referenz `{type:image, imageId, width, height}`. Sync transportiert Bilder separat (später F9).
-    - Migration `MIGRATION_5_6` (echte Room-Migration, Schema `6.json`).
-    - Backend: `notes` + `folders` Tabellen + DTOs + `/sync` erweitern (LWW wie bisher).
-  - **F2 – DAOs, Repository, ViewModel**
-    - `NoteDao` (CRUD, observe by folder, observeAll für Sync), `FolderDao` (CRUD, observe tree).
-    - `NoteRepository`, `FolderRepository`, `NotesViewModel` (State: aktuelle Ordner-Hierarchie + Notiz-Liste im aktuellen Ordner, Traversal-State).
-  - **F3 – Rich-Text-Modell (eigenes kleines Format, kein externer Editor)**
-    - Datenmodell: Notiz-Body = geordnete Liste von `Block`-Elementen, jeder Block einer von:
-      - `Paragraph(segments: List<Segment>)` — Segment = `{text, style}` mit style = bold/italic/underline/none, fontSize (pt), color (argb).
-      - `ListBlock(items: List<ListItem>, listType)` — listType = `ORDERED (1. 2. 3.)` | `BULLET (•)` | `ARROW (→)` | `CHECKBOX (☐/☑)`. ListItem = `{segments, checked: bool}`.
-      - `ImageBlock(imageId, width, height, caption?)`.
-    - Serialisierung als JSON via kotlinx.serialization (kompakt, sync-freundlich).
-  - **F4 – Notes-Tab: Ordner- & Notiz-Übersicht**
-    - Hauptansicht: Liste der Ordner + Notizen im aktuellen Ordner. Breadcrumb-Pfad oben (Wurzel › Ordner › Unterordner).
-    - FAB `+`: Menü „Neue Notiz" / „Neuer Ordner" (Ordner-Name per Dialog).
-    - Tippen auf Ordner → navigiert rein. Tippen auf Notiz → öffnet Editor (F5).
-    - Long-press auf Ordner/Notiz → Multi-Select + Drag (F6) + Löschen + Verschieben.
-  - **F5 – Notiz-Editor (Text + Formatierung)**
-    - Vollbild-Editor. Erste Zeile = Titel (auto, groß fett), Rest = Body.
-    - Format-Toolbar unten (kontextsensitiv bei Selektion): Bold, Italic, Underline, Schriftgröße (Spinner/Slider), Schriftfarbe (Color-Picker), Listentyp-Umschalter (geparst aus aktueller Zeile).
-    - Listen: neue Zeile in einer Liste → automatisch nächstes Präfix (`1.`, `•`, `→`, `☐`); `☐` tappen toggelt `☑` und graut Zeile durch.
-    - Speichern bei Back/Verlassen (auto-save, `updatedAt` aktualisieren).
-  - **F6 – Reihenfolge sortieren (1D-Drag)**
-    - Umsetzung als **eindimensionales Reorder** statt 2D-Drag&Drop: Long-Press auf eine Zeile und dann hoch/runter ziehen tauscht die Reihenfolge von Notizen (unter Notizen) bzw. Ordnern (unter Ordnern). Die anderen Zeilen werden dabei live „zur Seite geschoben" — ohne Ghost-Overlay.
-    - Datenmodell: neue Spalte `position` in `notes` + `folders` (DB v7, `MIGRATION_6_7`). Sortierung in Room jetzt `ORDER BY position ASC` (statt bisher `updatedAt DESC` / `name ASC`).
-    - Beim Tausch wird die komplette Ordner-Liste neu normalisiert (Indizes × 10), damit der Reorder auch bei Alt-Daten (alle `position` 0) greift und über App-Neustart persistent bleibt.
-    - Gesten-Platzierung: Long-Press-Drag sitzt am innersten Content (`contentModifier` von `SwipeToDeleteRow`), damit er gegen das horizontale Swipe-Delete gewinnt. Schwellwert = halbe Zeilenhöhe für natürliches Ziehen.
-    - **In-Ordner-Verschieben:** Eine Notiz, die man beim Ziehen über einem Ordner loslässt, wird in diesen Ordner verschoben (Hit-Test gegen die globalen Ordner-Bounds beim Drop). Hoch/runter in der Leere bleibt reines Reorder.
-    - Reine Reorder-Logik in `ReorderLogic.kt` (`reorderStep`), Unit-getestet.
-    - FAB-Fix: MainActivity–Content wird jetzt unten mit Scaffold-Padding belegt, damit die FABs aller Tabs nicht mehr hinter der Navigationsleiste verschwinden.
+  - ✅ **erledigt – F1–F6**: Datenmodell/Migration (DB v6/v7), DAOs/Repo/VM, Rich-Text-Modell, Notes-Tab (Ordner/Breadcrumb/FAB), Editor (Inline-Formatierung + Listen), 1D-Reorder + in-Ordner-Verschieben. Details siehe „Erledigte Blöcke" oben.
   - **F7 – Bilder einfügen**
     - Im Editor: Toolbar-Button „Bild" → Photo-Picker (Android `PickVisualMedia`) oder Kamera (optional später).
     - Bild wird dekodiert, ggf. downgesampelt (max ~1600px Kantenlänge), PNG gespeichert unter `files/notes/<noteId>/<uuid>.png`, `ImageBlock` im Body eingefügt.
@@ -77,7 +51,37 @@
     - Samsung-Notes-Look: weiße „Papier"-Notiz-Liste, dezente Trennlinien, Titel-Fett, Vorschau-Zeilen (erste ~2 Body-Zeilen als Preview in der Listenkarte).
     - Leerer Zustand: „Keine Notizen — tippe + um eine zu erstellen".
     - Suche (optional, später): filtert Titel + Body-Text.
+  - **F12 – FAB-Polish** (klein, „while you're at it")
+    - Notizen-FAB: „Neu"-Text entfernen → nur Plus-Icon (wie die anderen 3 Tabs, `FloatingActionButton` statt `ExtendedFloatingActionButton`).
+    - FAB-Abstand vereinheitlichen: aktuell ist der Abstand FAB→BottomNavigationBar viel zu groß (doppeltes Padding: `Box.padding(bottom=…)` hebt bereits über die NavBar, plus `navigationBarsPadding()` auf dem FAB = doppelt). Fix: `navigationBarsPadding()` von allen 3 FABs (Todos/Habits/Notes) entfernen → FAB sitzt 16dp über der NavBar = 16dp vom rechten Rand (symmetrisch).
 - [ ] **Block G – Design-Politur**: Samsung-Reminder-Look-and-Feel
+- [ ] **Block H – Chat-Dateien (WhatsApp-Style Tracking-Notizen)** — neue Notiz-Art neben „Notiz" und „Ordner". Praktisch für Tracking/Logbuch: man schreibt eine Nachricht, sendet sie ab, sie wird mit Uhrzeit+Datum versehen. Älteste oben, neueste unten, Standard-Cursor ganz unten bei den neuesten. Bearbeiten ändert NICHT Datum/Uhrzeit. Löschen per Swipe-to-Delete wie überall.
+  - **H1 – Datenmodell & Migration (DB v8)**
+    - Neue Entität `ChatMessage` (id, noteId, text, createdAt, updatedAt, deletedAt, position) — eigene Tabelle, NICHT im note.bodyJson. Grund: jede Nachricht braucht ihr eigenes unveränderliches `createdAt` (bleibt beim Bearbeiten gleich), `updatedAt` für LWW-Sync.
+    - `Note` um Spalte `type` erweitern (`"NOTE"` default vs `"CHAT"`) — steuert, ob beim Tap der Text-Editor (F5) oder der Chat-Screen (H3) öffnet.
+    - Echte Room-Migration `MIGRATION_7_8`: `chat_messages`-Tabelle + `notes.type`-Spalte, `8.json` Schema exportieren.
+    - Migrationstest (`MigrationTest.kt`) ergänzen.
+  - **H2 – Backend & Sync für Chat-Nachrichten**
+    - `chat_messages`-Tabelle im Backend-Schema (`db.py`).
+    - `ChatMessageDTO` (Kotlin + Python), in `ChangesBundle` aufnehmen.
+    - `_SYNC_TABLES`-Eintrag (change_field = `updatedAt`, LWW wie notes).
+    - SyncManager: `ChatMessage` sammeln → POST → merge (analog zu notes/folders).
+  - **H3 – ChatScreen UI (WhatsApp-Style)**
+    - Vollbild-Screen (`ChatScreen.kt`), eigenes ViewModel (`ChatViewModel`).
+    - `LazyColumn` mit Nachrichten: älteste oben, neueste unten.
+    - Beim Öffnen + nach Senden auto-scroll ganz nach unten (bei den neuesten).
+    - Jede Nachricht: Text + Datum/Uhrzeit-Label (z.B. „14:32 · 02.08.").
+    - Eingabefeld unten + Senden-Button (PaperPlane-Icon). Enter/Tippen → Nachricht absetzen → `ChatMessage(createdAt=now)` ans Ende, Feld leeren.
+    - `imePadding()` damit die Tastatur die Liste nicht verdeckt.
+  - **H4 – Integration in Notizen-Tab**
+    - FAB-Menü in NotesScreen: 3. Eintrag „Chat" (oder passender Name, z.B. „Tagebuch"/„Log") neben „Neue Notiz"/„Neuer Ordner".
+    - `NoteRow`: Chat-Notiz anderes Icon (z.B. `Icons.Filled.Chat`/`QuestionAnswer`) als normale Notiz.
+    - Tap auf Chat-Note → `ChatScreen` statt `NoteEditorScreen` (Routing in MainActivity via `note.type`).
+    - Reorder/Move/Swipe-Delete gelten für Chat-Notizen genauso (sie sind ja Notes mit `type=CHAT`).
+  - **H5 – Bearbeiten & Löschen von Nachrichten**
+    - Nachricht bearbeiten: Tap/Langdruck → Inline-Edit oder Dialog → nur `text` + `updatedAt` ändern, `createdAt` bleibt (Datum/Uhrzeit bleibt unverändert).
+    - Löschen: Swipe-to-Delete (`SwipeToDeleteRow` wie bei Notizen/Habits) → Soft-Delete (`deletedAt`), bleibt in der Liste bis Refresh, sync-fähig.
+    - Optional: eigene Nachricht löschen vs ganze Chat-Datei löschen (Letzteres läuft über die Notiz-Liste wie bei allen Notes).
 
 ## Wichtige Entscheidungen
 - **Option C**: nächstes Vorkommen ab `fromDue` (dueAt), nicht `now`
@@ -90,4 +94,9 @@
 - **Git**: Monorepo auf GitHub (private), Account `theoretischer`, Commit-Email `75859777+theoretischer@users.noreply.github.com` (für Contribution-Graph)
 
 ## Nächster Schritt
-**Block F1 – Notizen: Datenmodell & Migration (DB v6).** Neue Tabellen `notes` + `folders`, echte Room-Migration `MIGRATION_5_6`, Backend-Sync um die beiden Tabellen erweitern. Danach F2 (DAO/Repo/VM) → F3 (Rich-Text-Modell) → F4 (Tab-Übersicht) → F5 (Editor) → F6 (Drag&Drop) → F7 (Bilder) → F8 (Stylus) → F9 (Bild-Sync) → F10 (Sync) → F11 (Polish).
+**F12 – FAB-Polish** (klein, schnell) und **H1 – Chat-Dateien: Datenmodell & Migration (DB v8)** sind als Nächstes angesetzt.
+
+- F12: Notizen-FAB „Neu"-Text weg → nur Plus-Icon; `navigationBarsPadding()` von allen 3 FABs entfernen (doppeltes Padding fixen) → symmetrischer Abstand zu NavBar und rechtem Rand.
+- H1: `ChatMessage`-Entität + `notes.type`-Spalte, Migration v7→v8, Migrationstest.
+- Danach Stufe für Stufe: H2 (Backend/Sync) → H3 (ChatScreen UI) → H4 (Integration Notizen-Tab) → H5 (Bearbeiten/Löschen).
+- F7–F11 (Bilder/Stylus/Bild-Sync/Sync/Polish) ruhen weiter, bis H durch ist.

@@ -128,13 +128,14 @@ fun TodosScreen(
             }
         }
 
-        // FAB unten rechts (eigener Container, kein Scaffold nötig)
+        // FAB unten rechts (eigener Container, kein Scaffold nötig).
+        // Kein navigationBarsPadding: das umgebende Box hat bereits
+        // padding(bottom=NavBar) vom Scaffold, sonst doppelter Abstand.
         FloatingActionButton(
             onClick = { showCreateDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
-                .navigationBarsPadding()
         ) {
             Icon(Icons.Default.Add, contentDescription = "Neue Aufgabe")
         }

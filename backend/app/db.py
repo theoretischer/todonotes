@@ -128,6 +128,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS notes (
             id        TEXT PRIMARY KEY,
             folderId  TEXT,
+            type      TEXT NOT NULL DEFAULT 'NOTE',  -- 'NOTE' | 'CHAT' (Block H)
             title     TEXT NOT NULL,
             bodyJson  TEXT NOT NULL,
             createdAt INTEGER NOT NULL,
@@ -137,5 +138,20 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId);
         CREATE INDEX IF NOT EXISTS idx_notes_updatedAt ON notes(updatedAt);
+
+        -- Block H: Chat-Nachrichten (WhatsApp-Style Tracking-Notizen).
+        -- Eigene Tabelle, damit jede Nachricht ihr unveränderliches createdAt
+        -- behält (bleibt beim Bearbeiten gleich — nur text/updatedAt ändern).
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id        TEXT PRIMARY KEY,
+            noteId    TEXT NOT NULL,
+            text      TEXT NOT NULL,
+            createdAt INTEGER NOT NULL,
+            updatedAt INTEGER NOT NULL,
+            deletedAt INTEGER,
+            position  INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_noteId ON chat_messages(noteId);
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_updatedAt ON chat_messages(updatedAt);
         """
     )

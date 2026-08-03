@@ -4,11 +4,21 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 /**
+ * Art der Notiz (Block H). `NOTE` = klassische Rich-Text-Notiz (Editor F5),
+ * `CHAT` = WhatsApp-Style Nachrichten-Verlauf ([ChatMessage]-Tabelle, H3).
+ * Default `NOTE`, damit bestehende Notizen nach der Migration (v7→v8)
+ * normal weiter funktionieren.
+ */
+enum class NoteType { NOTE, CHAT }
+
+/**
  * Eine Notiz (Samsung-Notes-Style).
  *
  * - id: UUID, client-generiert (für Offline-Erstellung & Sync)
  * - folderId: null = Wurzel-Ebene; !=null = liegt im angegebenen Ordner
- * - title: erste Zeile des Body (beim Speichern auto extrahiert, F5)
+ * - type: NOTE = Rich-Text-Editor (F5), CHAT = Nachrichten-Verlauf (H3)
+ * - title: erste Zeile des Body (beim Speichern auto extrahiert, F5) bzw.
+ *   bei CHAT der Chat-Name
  * - bodyJson: serialisierter Rich-Text-Baum (F3): geordnete Liste von
  *   Blocks (Paragraph / ListBlock / ImageBlock / DrawingBlock).
  *   Bilder werden NICHT als Base64 hierin gespeichert — nur Referenzen
@@ -22,6 +32,7 @@ data class Note(
     @PrimaryKey
     val id: String,
     val folderId: String? = null,
+    val type: NoteType = NoteType.NOTE,
     val title: String = "",
     val bodyJson: String = "[]",
     val createdAt: Long,

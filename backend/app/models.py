@@ -82,11 +82,24 @@ class NoteDTO(BaseModel):
 
     id: str
     folderId: str | None = None
+    type: str = "NOTE"          # "NOTE" | "CHAT" (Block H)
     title: str = ""
     bodyJson: str = "[]"
     createdAt: int
     updatedAt: int
     deletedAt: int | None = None
+
+
+class ChatMessageDTO(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    noteId: str
+    text: str
+    createdAt: int
+    updatedAt: int
+    deletedAt: int | None = None
+    position: int = 0
 
 
 class ChangesBundle(BaseModel):
@@ -96,6 +109,7 @@ class ChangesBundle(BaseModel):
     habit_history: list[HabitHistoryEntryDTO] = []
     folders: list[FolderDTO] = []
     notes: list[NoteDTO] = []
+    chat_messages: list[ChatMessageDTO] = []
 
 
 class SyncRequest(BaseModel):

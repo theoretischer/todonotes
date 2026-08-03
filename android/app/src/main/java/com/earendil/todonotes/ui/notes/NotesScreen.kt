@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +66,14 @@ import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+
+/**
+ * Special-Key im [folderBounds]-Registry für die Wurzel-Breadcrumb. Beim
+ * Drag einer Notiz auf die Wurzel-Zeile wird statt einer echten Ordner-Id
+ * dieser Key geliefert und vom Caller in `folderId = null` (Hauptebene)
+ * übersetzt.
+ */
+internal const val ROOT_DROP_KEY = "__root__"
 
 /**
  * Notizen-Tab (Block F4): Ordner- & Notiz-Übersicht.
@@ -108,17 +117,22 @@ fun NotesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        // Breadcrumb nur zeigen, wenn nicht auf der Wurzel-Ebene ("Notizen").
-        if (state.breadcrumbs.size > 1) {
-            NotesBreadcrumb(
-                crumbs = state.breadcrumbs,
-                onCrumb = notesVm::navigateToCrumb,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .statusBarsPadding()
-                    .zIndex(5f) // über der Liste, damit der Tap immer ankommt
-            )
-        }
+        // Breadcrumb-Pfad oben (immer sichtbar, auch auf der Wurzel-Ebene,
+        // damit der Header "Notizen" überall steht und die Wurzel als
+        // Drop-Ziel beim Verschieben dient).
+        NotesBreadcrumb(
+            crumbs = state.breadcrumbs,
+            onCrumb = notesVm::navigateToCrumb,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .statusBarsPadding()
+                .zIndex(5f) // über der Liste, damit der Tap immer ankommt
+                .onGloballyPositioned { coords ->
+                    // Wurzel-Breadcrumb als Drop-Ziel für "Notiz auf Root
+                    // verschieben" registrieren (Special-Key __root__).
+                    folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
+                }
+        )
 
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
             EmptyNotesHint()
@@ -175,7 +189,14 @@ fun NotesScreen(
                             setReorder = { reorder = it },
                             onSwap = { a, b -> notesVm.reorderNotes(a, b) },
                             folderBounds = folderBounds,
-                            onDropOnFolder = notesVm::moveNote
+                            onDropOnFolder = { noteId, folderIdOrRoot ->
+                                // ROOT_DROP_KEY signalisiert "auf Hauptebene verschieben".
+                                val target = if (folderIdOrRoot == ROOT_DROP_KEY) null else folderIdOrRoot
+                                // "Auf den aktuellen Ordner" ist kein Verschieben — ignorieren.
+                                if (target != state.currentFolderId) {
+                                    notesVm.moveNote(noteId, target)
+                                }
+                            }
                         )
                         SwipeToDeleteRow(
                             onDelete = { notesVm.deleteNote(note.id) },
@@ -190,17 +211,17 @@ fun NotesScreen(
             }
         }
 
-        // FAB unten rechts (eigener Container, kein Scaffold nötig)
-        ExtendedFloatingActionButton(
+        // FAB unten rechts (nur Plus-Icon, kein Text — wie die anderen Tabs).
+        // Kein navigationBarsPadding: umgebendes Box hebt bereits über NavBar.
+        FloatingActionButton(
             onClick = { showNewMenu = true },
-            icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            text = { Text("Neu") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
-                .navigationBarsPadding()
                 .zIndex(20f) // immer über Liste, klickbar
-        )
+        ) {
+            Icon(Icons.Default.Add, contentDescription = "Neu")
+        }
     }
 
     // --- Dialoge ---

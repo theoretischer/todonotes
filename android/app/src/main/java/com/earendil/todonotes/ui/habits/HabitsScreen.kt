@@ -73,13 +73,13 @@ fun HabitsScreen(
             }
         }
 
-        // FAB unten rechts (eigener Container, kein Scaffold nötig)
+        // FAB unten rechts (kein Scaffold nötig, kein navigationBarsPadding
+        // — das umgebende Box hebt bereits über die NavBar).
         FloatingActionButton(
             onClick = { showCreateDialog = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
-                .navigationBarsPadding()
         ) {
             Icon(Icons.Default.Add, contentDescription = "Neue Gewohnheit")
         }

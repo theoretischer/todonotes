@@ -5,10 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.earendil.todonotes.data.dao.ChatMessageDao
 import com.earendil.todonotes.data.dao.FolderDao
 import com.earendil.todonotes.data.dao.HabitDao
 import com.earendil.todonotes.data.dao.NoteDao
 import com.earendil.todonotes.data.dao.TodoDao
+import com.earendil.todonotes.data.entity.ChatMessage
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
@@ -18,18 +20,19 @@ import com.earendil.todonotes.data.entity.Todo
 
 @Database(
     entities = [Todo::class, Habit::class, HabitLog::class, HabitHistoryEntry::class,
-        Folder::class, Note::class],
-    version = 7,
+        Folder::class, Note::class, ChatMessage::class],
+    version = 8,
     // Schema-JSON pro Version nach app/schemas/ schreiben (via KSP room.schemaLocation).
     // Wird committet → Nachvollziehbarkeit + Basis für Migrations-Tests.
     exportSchema = true
 )
-@TypeConverters(IntSetConverter::class)
+@TypeConverters(IntSetConverter::class, NoteTypeConverter::class)
 abstract class TodoNotesDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     abstract fun habitDao(): HabitDao
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
+    abstract fun chatMessageDao(): ChatMessageDao
 
     companion object {
         @Volatile
@@ -42,7 +45,7 @@ abstract class TodoNotesDatabase : RoomDatabase() {
                     // wegkopieren (todonotes.db -> todonotes.db.bak-v<version>).
                     // Falls eine Migration später mal fehlschlägt, kann man das
                     // Backup manuell zurückspielen statt Daten zu verlieren.
-                    backupDatabaseFile(context.applicationContext, 7)
+                    backupDatabaseFile(context.applicationContext, 8)
                     Room.databaseBuilder(
                         context.applicationContext,
                         TodoNotesDatabase::class.java,

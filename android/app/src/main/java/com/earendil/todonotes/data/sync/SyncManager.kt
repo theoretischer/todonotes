@@ -9,6 +9,7 @@ import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
 import com.earendil.todonotes.data.entity.Note
+import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.entity.Todo
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -169,7 +170,11 @@ class SyncManager(context: Context) {
         fun FolderDTO.toEntity() = Folder(id, parentId, name, createdAt, updatedAt, deletedAt)
 
         // --- Mapper Note <-> DTO ---
-        fun Note.toDTO() = NoteDTO(id, folderId, title, bodyJson, createdAt, updatedAt, deletedAt)
-        fun NoteDTO.toEntity() = Note(id, folderId, title, bodyJson, createdAt, updatedAt, deletedAt)
+        fun Note.toDTO() = NoteDTO(id, folderId, type.name, title, bodyJson, createdAt, updatedAt, deletedAt)
+        fun NoteDTO.toEntity() = Note(
+            id, folderId,
+            runCatching { NoteType.valueOf(type) }.getOrDefault(NoteType.NOTE),
+            title, bodyJson, createdAt, updatedAt, deletedAt
+        )
     }
 }

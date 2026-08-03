@@ -76,6 +76,7 @@ data class FolderDTO(
 data class NoteDTO(
     val id: String,
     val folderId: String? = null,
+    val type: String = "NOTE",
     val title: String = "",
     val bodyJson: String = "[]",
     val createdAt: Long,

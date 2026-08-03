@@ -220,6 +220,32 @@ object Migrations {
         }
     }
 
+    /** v7 → v8: Chat-Dateien (Block H). `notes.type`-Spalte (NOTE/CHAT,
+     *  default NOTE) + neue `chat_messages`-Tabelle (eigenes createdAt pro
+     *  Nachricht, bleibt beim Bearbeiten stabil). */
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Bestehende Notizen sind klassische Notizen → default 'NOTE'.
+            // SQLite hat kein ENUM; wir speichern den Namen als TEXT.
+            db.execSQL("ALTER TABLE notes ADD COLUMN type TEXT NOT NULL DEFAULT 'NOTE'")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `chat_messages` (
+                    `id` TEXT NOT NULL,
+                    `noteId` TEXT NOT NULL,
+                    `text` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    `deletedAt` INTEGER,
+                    `position` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_chat_messages_noteId` ON `chat_messages` (`noteId`)")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. Reihenfolge ist egal — Room
      *  baut sich den Pfad von der alten zur neuen Version selbst zusammen. */
     val ALL: Array<Migration> = arrayOf(
@@ -228,6 +254,7 @@ object Migrations {
         MIGRATION_3_4,
         MIGRATION_4_5,
         MIGRATION_5_6,
-        MIGRATION_6_7
+        MIGRATION_6_7,
+        MIGRATION_7_8
     )
 }

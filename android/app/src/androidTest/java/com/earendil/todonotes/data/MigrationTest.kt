@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
+import com.earendil.todonotes.data.entity.NoteType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -147,6 +148,85 @@ class MigrationTest {
         )
         db.query("SELECT title FROM notes WHERE folderId = '$roomId'").use { c ->
             assertTrue(c.moveToFirst()); assertEquals("Titel", c.getString(0))
+        }
+        db.close()
+    }
+
+    // ----- v7 → v8 (Block H: Chat-Dateien — notes.type + chat_messages) -----
+
+    @Test
+    fun migrate7To8_schemaIsValid() {
+        // 1. v7-DB anlegen (notes + folders MIT position, noch ohne type).
+        helper.createDatabase(dbName, 7).apply {
+            execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS notes (
+                    id TEXT NOT NULL PRIMARY KEY, folderId TEXT,
+                    title TEXT NOT NULL, bodyJson TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+                    deletedAt INTEGER, position INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS folders (
+                    id TEXT NOT NULL PRIMARY KEY, parentId TEXT,
+                    name TEXT NOT NULL, createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL, deletedAt INTEGER,
+                    position INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+            // Bestehende Notiz (klassisch) → muss nach Migration type='NOTE' haben.
+            execSQL(
+                "INSERT INTO notes (id,folderId,title,bodyJson,createdAt,updatedAt,deletedAt,position) " +
+                    "VALUES ('n1,NULL,'Klassisch','[]',1,2,NULL,10)"
+            )
+            close()
+        }
+
+        // 2. Migration + Schema-Validierung gegen 8.json.
+        val db = helper.runMigrationsAndValidate(
+            dbName, 8, true, Migrations.MIGRATION_7_8
+        )
+
+        // 3. Bestehende Notiz hat default type='NOTE'.
+        db.query("SELECT type FROM notes WHERE id = 'n1'").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals("NOTE", c.getString(0))
+        }
+        // 4. chat_messages-Tabelle existiert und ist leer.
+        db.query("SELECT COUNT(*) FROM chat_messages").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0))
+        }
+        db.close()
+    }
+
+    @Test
+    fun migrate7To8_chatMessageRoundtrip() {
+        helper.createDatabase(dbName, 7).apply {
+            execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS notes (
+                    id TEXT NOT NULL PRIMARY KEY, folderId TEXT,
+                    title TEXT NOT NULL, bodyJson TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL,
+                    deletedAt INTEGER, position INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(
+            dbName, 8, true, Migrations.MIGRATION_7_8
+        )
+        // Chat-Nachricht direkt in die neue Tabelle einfügen + lesen.
+        db.execSQL(
+            "INSERT INTO chat_messages (id,noteId,text,createdAt,updatedAt,deletedAt,position) " +
+                "VALUES ('m1','n1','Hallo',100,100,NULL,10)"
+        )
+        db.query("SELECT text FROM chat_messages WHERE id = 'm1'").use { c ->
+            assertTrue(c.moveToFirst()); assertEquals("Hallo", c.getString(0))
         }
         db.close()
     }
