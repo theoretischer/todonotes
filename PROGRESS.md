@@ -28,7 +28,7 @@
 ## Offen
 - [ ] **Block D2b – Sync-Trigger verbessern**: Sync bei Datenänderung (sofort nach Speichern/Loggen), beim App-Start, Pull-to-Refresh — damit nicht manuell oder 15min-WM getriggert werden muss
 - [ ] **Block D3 – Deploy finalisieren**: Reverse-Proxy (Caddy) für `todo.christopherh.de` + HTTPS, dann App auf HTTPS-URL umstellen
-- [~] **Block E – Linux-Client** (in Arbeit): GTK4 + libadwaita, synchronisiert gegen denselben Server (Tower + Laptop)
+- [~] **Block E – Linux-Client** (EINGEFROREN): GTK4-Prototyp läuft (E1 + E5a/E5b teilweise), aber Ansatz verworfen → CMP-Migration ersetzt ihn. Siehe `MIGRATION-CMP.md`.
 - [ ] **Block F – Notizen** (Samsung-Notes-Style, eigener Tab mit echter Notiz-App, keine Todo-Sonderform):
   - ✅ **erledigt – F1–F6**: Datenmodell/Migration (DB v6/v7), DAOs/Repo/VM, Rich-Text-Modell, Notes-Tab (Ordner/Breadcrumb/FAB), Editor (Inline-Formatierung + Listen), 1D-Reorder + in-Ordner-Verschieben. Details siehe „Erledigte Blöcke" oben.
   - **F7 – Bilder einfügen**
@@ -94,14 +94,18 @@
 - **Git**: Monorepo auf GitHub (private), Account `theoretischer`, Commit-Email `75859777+theoretischer@users.noreply.github.com` (für Contribution-Graph)
 
 ## Nächster Schritt
-**Block E – Linux-Client** ist im Gange. E1 (Skeleton) ist fertig:
 
-- **E1 ✅** — Projekt-Skeleton: DB-Schema (7 Tabellen, identisch zum Backend), Config, Sync-Client (SyncManager), Repositories (Todos/Habits/Notes/Chat), HabitEngine, Recurrence, GTK4-App mit 4 Tabs + Settings. App startet sauber.
-- **E2** — Sync testen: Erstmal echten Sync mit laufendem Backend durchführen (Server-URL + Token in Settings, Sync klicken). Prüfen ob Daten zwischen Android ↔ Linux fließen.
-- **E3** — Todos UI verfeinern: Edit-Dialog (Titel/Notizen/DueAt/Recurrence/LogToHistory), Swipe-to-Delete, Gruppierung (zeitgesteuert vs. zeitlos).
-- **E4** — Habits UI verfeinern: Edit-Dialog (Cadence-Picker, GoalCount), Undo-Button, Periode-abschließen.
-- **E5** — Notes UI verfeinern: Notiz-Editor (Rich-Text mit Markdown), Ordner erstellen/umbenennen/löschen, Notiz verschieben.
-- **E6** — Chat UI: Chat-Notiz öffnen, Nachrichtenliste, senden, Zitate.
-- **E7** — Sync-Trigger: Sync nach Datenänderung, beim App-Start, Auto-Sync.
+**🔔 RICHTUNGSWECHSEL: Compose Multiplatform (CMP) Migration**
 
-Empfehlung: **E2** als Nächstes — echten Sync testen, bevor wir mehr UI bauen. So sehen wir ob die Datenstruktur kompatibel ist.
+GTK4-Ansatz verworfen (zu komplex, nie hübsch, jedes Feature zweimal).
+Stattdessen: **eine Compose-Codebase** für Android + Web (+ optional Desktop).
+
+Plan steht in **`MIGRATION-CMP.md`** (Backup: Tag `backup-pre-cmp`).
+
+**Vor Implementierung müssen Key-Decisions bestätigt werden:**
+1. Auth-Modell: Single-User vs Multi-User?
+2. Linux/GTK4: Einfrieren oder löschen?
+3. Migration in-place oder neues compose-app/?
+4. Übergangs-Auth (Static + DB-Token parallel)?
+
+Sobald bestätigt: Phase M1 (Backend Auth) → M2 (KMP-Setup) → … → Schritt für Schritt mit Test nach jedem Schritt.
