@@ -33,9 +33,11 @@ kotlin {
             implementation(libs.compose.ui.tooling.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
+            implementation(libs.lib.recur)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
+            implementation(libs.lib.recur)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -44,6 +46,11 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlin.test.annotations)
         }
     }
 }

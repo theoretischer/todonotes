@@ -8,6 +8,8 @@ androidx-activityCompose = "1.10.1"
 androidx-core-ktx = "1.15.0"
 kotlin = "2.3.20"
 kotlinxSerialization = "1.7.3"
+kotlinxDatetime = "0.6.2"
+libRecur = "0.17.1"
 
 [libraries]
 compose-ui = { module = "androidx.compose.ui:ui", version.ref = "compose" }
@@ -18,6 +20,10 @@ compose-material3 = { module = "androidx.compose.material3:material3", version.r
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core-ktx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxDatetime" }
+lib-recur = { group = "org.dmfs", name = "lib-recur", version.ref = "libRecur" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlin-test-annotations = { module = "org.jetbrains.kotlin:kotlin-test-annotations-common", version.ref = "kotlin" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

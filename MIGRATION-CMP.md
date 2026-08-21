@@ -128,13 +128,20 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] **Test:** Alle 3 Targets bauen grün
 - **Hinweis:** Navigation + Material-Icons noch nicht dabei (kommen in M7, brauchen CMP-kompatible Versionen)
 
-### Phase M3 — Logik nach commonMain
-- [ ] `HabitEngine.kt` (0 Android-Imports) → commonMain
-- [ ] `NoteTextBody.kt` (0 Android-Imports) → commonMain
-- [ ] `SyncDTOs.kt` (0 Android-Imports, kotlinx.serialization ist MP) → commonMain
-- [ ] `RecurrenceEngine.kt` (`android.util.Log` → expect/actual Logger) → commonMain
-- [ ] Entities (Todo, Habit, …) → commonMain (Room KMP)
-- [ ] **Test:** Android baut + funktioniert, Unit-Tests grün
+### Phase M3 — Logik nach commonMain ✅
+- [x] `HabitEngine.kt` → commonMain (kotlinx-datetime statt java.util.Calendar)
+- [x] `NoteTextBody.kt` + `NoteBody.kt` + `NoteBodyJson.kt` → commonMain (0 Android-Imports)
+- [x] `SyncDTOs.kt` → commonMain (kotlinx.serialization ist MP)
+- [x] `RecurrenceEngine.kt` → expect/actual (JVM: lib-recur, Wasm: RecurrenceCalculator-Fallback)
+- [x] `RecurrenceCalculator.kt` → commonMain (kotlinx-datetime)
+- [x] Entities (Todo, Habit, HabitLog, HabitHistoryEntry, Note, Folder, ChatMessage) → commonMain (ohne Room-Annotationen, kommt in M4)
+- [x] `kotlinx-datetime` Dependency hinzugefügt
+- [x] `lib-recur` als JVM-only Dependency (androidMain + desktopMain)
+- [x] `commonTest` source set mit kotlin-test
+- [x] 39 Unit-Tests in commonTest (HabitEngine 10, NoteTextBody 18, NoteBodyJson 11) — alle grün
+- [x] Alle 3 Targets bauen (Android, Desktop, Wasm)
+- [x] **Bug-Fix:** `resetWeekday` Calendar-Nummerierung (1=SO, 2=MO, 7=SA) korrekt behandelt
+- [x] **Wasm-Fix:** `StringBuilder.deleteCharAt` → `deleteAt` (Wasm-kompatibel)
 
 ### Phase M4 — DB: Room KMP
 - [ ] Room KMP Dependencies (room-runtime multiplatform)
