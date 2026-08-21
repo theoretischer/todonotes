@@ -13,6 +13,7 @@ class TodoDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     title: str
     notes: str = ""
     dueAt: int | None = None
@@ -28,6 +29,7 @@ class HabitDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     title: str
     notes: str = ""
     cadenceType: str          # "DAY" | "WEEK" | "MONTH" | "YEAR" | "NDAYS"
@@ -48,6 +50,7 @@ class HabitLogDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     habitId: str
     timestamp: int
     note: str = ""
@@ -57,6 +60,7 @@ class HabitHistoryEntryDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     habitId: str
     title: str
     cadenceLabel: str
@@ -70,6 +74,7 @@ class FolderDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     parentId: str | None = None
     name: str
     createdAt: int
@@ -81,6 +86,7 @@ class NoteDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     folderId: str | None = None
     type: str = "NOTE"          # "NOTE" | "CHAT" (Block H)
     title: str = ""
@@ -94,6 +100,7 @@ class ChatMessageDTO(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
+    userId: str | None = None
     noteId: str
     text: str
     createdAt: int
@@ -122,3 +129,25 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     new_synced_at: int
     server_changes: ChangesBundle
+
+
+# --- Auth-Models (M1: Multi-User) ---
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    user_id: str
+    token: str
+
+
+class MigrateLegacyRequest(BaseModel):
+    username: str
+    password: str

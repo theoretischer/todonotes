@@ -40,17 +40,29 @@ _SYNC_TABLES = [
 ]
 
 
-def sync(last_synced_at: int, changes: ChangesBundle) -> ChangesBundle:
-    """ Wendet Client-Änderungen an und liefert Server-Änderungen seit
-    last_synced_at. Liefert nie None — leere Bundle wenn nichts da. """
-    _apply_changes(changes)
-    return _collect_server_changes(last_synced_at)
+def sync(
+    last_synced_at: int,
+    changes: ChangesBundle,
+    user_id: str,
+) -> ChangesBundle:
+    """Wendet Client-Änderungen an und liefert Server-Änderungen seit
+    last_synced_at. Liefert nie None — leere Bundle wenn nichts da.
+
+    user_id: alle Änderungen werden auf diesen User eingeschränkt.
+    """
+    _apply_changes(changes, user_id)
+    return _collect_server_changes(last_synced_at, user_id)
 
 
 # ----- Client -> Server (Apply) -----
 
-def _apply_changes(changes: ChangesBundle) -> None:
-    """ Client-Änderungen einspielen. Last-Write-Wins pro Zeile. """
+def _apply_changes(changes: ChangesBundle, user_id: str) -> None:
+    """Client-Änderungen einspielen. Last-Write-Wins pro Zeile.
+
+    user_id: alle eingefügten/aktualisierten Zeilen bekommen diese userId.
+    Bestehende Zeilen eines anderen Users werden nicht überschrieben
+    (PK-Kollision → UPDATE nur wenn userId passt, sonst ignorieren).
+    """
     bundle_map = {
         "todos":         changes.todos,
         "habits":        changes.habits,
@@ -64,33 +76,40 @@ def _apply_changes(changes: ChangesBundle) -> None:
         for table, dto_cls, _pk, change_field, _change_col in _SYNC_TABLES:
             rows = bundle_map[table]
             for dto in rows:
-                _upsert_row(conn, table, dto_cls, dto, change_field)
+                _upsert_row(conn, table, dto_cls, dto, change_field, user_id)
 
 
 def _upsert_row(
-    conn, table: str, dto_cls, dto, change_field: str
+    conn, table: str, dto_cls, dto, change_field: str, user_id: str
 ) -> None:
-    """Upsert mit Last-Write-Wins: nur überschreiben, wenn dto neuer ist."""
+    """Upsert mit Last-Write-Wins: nur überschreiben, wenn dto neuer ist.
+
+    user_id: neue Zeilen bekommen diese userId. Bestehende Zeilen werden nur
+    aktualisiert, wenn sie demselben user_id gehören (Sicherheit: fremde Daten
+    werden nicht überschrieben).
+    """
     data = dto.model_dump()
     pk = data["id"]
     new_change = data[change_field]
     # Bestehendes updated_at lesen (falls Zeile existiert).
     cur = conn.execute(
-        f"SELECT {change_field} FROM {table} WHERE id = ?", (pk,)
+        f"SELECT {change_field}, userId FROM {table} WHERE id = ?", (pk,)
     )
     existing = cur.fetchone()
     if existing is not None:
         # Append-only (logs/history): INSERT OR IGNORE (id-Kollision = bereits da)
         if change_field in ("timestamp", "loggedAt"):
-            # Nur einfügen, wenn noch nicht vorhanden (id-PK). Echte Änderung
-            # an einem Log macht keinen Sinn → ignorieren.
+            return
+        # Fremde Daten? Nicht überschreiben (Multi-User-Sicherheit).
+        if existing["userId"] is not None and existing["userId"] != user_id:
             return
         if existing[change_field] > new_change:
-            # Server ist neuer → Client-Änderung verwerfen.
             return
-        # Sonst: UPDATE (Client gewinnt).
+        # Sonst: UPDATE (Client gewinnt). userId bleibt unverändert.
         _update_row(conn, table, data)
     else:
+        # Neue Zeile: userId vom authentifizierten User setzen.
+        data["userId"] = user_id
         _insert_row(conn, table, data)
 
 
@@ -123,14 +142,19 @@ def _bool_to_int(v):
 
 # ----- Server -> Client (Collect) -----
 
-def _collect_server_changes(last_synced_at: int) -> ChangesBundle:
-    """Liefert alle Server-Zeilen, die seit last_synced_at geändert wurden."""
+def _collect_server_changes(
+    last_synced_at: int, user_id: str
+) -> ChangesBundle:
+    """Liefert alle Server-Zeilen, die seit last_synced_at geändert wurden.
+
+    user_id: nur Daten des authentifizierten Users zurückgeben.
+    """
     out = ChangesBundle()
     with db.db() as conn:
         for table, dto_cls, _pk, _change_field, change_col in _SYNC_TABLES:
             rows = conn.execute(
-                f"SELECT * FROM {table} WHERE {change_col} > ?",
-                (last_synced_at,),
+                f"SELECT * FROM {table} WHERE {change_col} > ? AND userId = ?",
+                (last_synced_at, user_id),
             ).fetchall()
             for row in rows:
                 d = dict(row)

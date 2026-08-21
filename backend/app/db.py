@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
@@ -56,8 +57,28 @@ def db() -> Iterator[sqlite3.Connection]:
 def _create_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(
         """
+        CREATE TABLE IF NOT EXISTS users (
+            id            TEXT PRIMARY KEY,
+            username      TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at    INTEGER NOT NULL,
+            is_legacy     INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS tokens (
+            id           TEXT PRIMARY KEY,
+            user_id      TEXT NOT NULL,
+            token        TEXT NOT NULL UNIQUE,
+            created_at   INTEGER NOT NULL,
+            last_used_at INTEGER,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);
+        CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens(user_id);
+
         CREATE TABLE IF NOT EXISTS todos (
             id           TEXT PRIMARY KEY,
+            userId       TEXT,
             title        TEXT NOT NULL,
             notes        TEXT NOT NULL,
             dueAt        INTEGER,
@@ -72,6 +93,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS habits (
             id                    TEXT PRIMARY KEY,
+            userId                TEXT,
             title                 TEXT NOT NULL,
             notes                 TEXT NOT NULL,
             cadenceType           TEXT NOT NULL,
@@ -91,6 +113,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS habit_logs (
             id        TEXT PRIMARY KEY,
+            userId    TEXT,
             habitId   TEXT NOT NULL,
             timestamp INTEGER NOT NULL,
             note      TEXT NOT NULL,
@@ -101,6 +124,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS habit_history (
             id          TEXT PRIMARY KEY,
+            userId      TEXT,
             habitId     TEXT NOT NULL,
             title       TEXT NOT NULL,
             cadenceLabel TEXT NOT NULL,
@@ -116,6 +140,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         -- Block F1: Notiz-App
         CREATE TABLE IF NOT EXISTS folders (
             id        TEXT PRIMARY KEY,
+            userId    TEXT,
             parentId  TEXT,
             name      TEXT NOT NULL,
             createdAt INTEGER NOT NULL,
@@ -127,6 +152,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS notes (
             id        TEXT PRIMARY KEY,
+            userId    TEXT,
             folderId  TEXT,
             type      TEXT NOT NULL DEFAULT 'NOTE',  -- 'NOTE' | 'CHAT' (Block H)
             title     TEXT NOT NULL,
@@ -144,6 +170,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         -- behält (bleibt beim Bearbeiten gleich — nur text/updatedAt ändern).
         CREATE TABLE IF NOT EXISTS chat_messages (
             id                TEXT PRIMARY KEY,
+            userId            TEXT,
             noteId            TEXT NOT NULL,
             text              TEXT NOT NULL,
             createdAt         INTEGER NOT NULL,
@@ -178,3 +205,45 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     # Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
     _add_column("chat_messages", "quotedMessageId", "quotedMessageId TEXT")
+
+    # M1: Multi-User-Auth — userId-Spalte auf alle Daten-Tabellen.
+    # Bestehende Zeilen (NULL nach ALTER) werden unten auf den Legacy-User gesetzt.
+    for table in (
+        "todos", "habits", "habit_logs", "habit_history",
+        "folders", "notes", "chat_messages",
+    ):
+        _add_column(table, "userId", "userId TEXT")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{table}_userId ON {table}(userId)"
+        )
+
+    # Legacy-User anlegen (einmalig, idempotent).
+    # Alle bestehenden Daten ohne userId werden ihm zugeordnet.
+    # Er ist nur via SYNC_TOKEN (Static-Secret) erreichbar — kein Login möglich.
+    _ensure_legacy_user(conn)
+
+LEGACY_USER_ID = "legacy-user"
+"""User-ID des Legacy-Users (für Static-Token-Auth)."""
+
+def _ensure_legacy_user(conn: sqlite3.Connection) -> None:
+    """Legt den Legacy-User an falls fehlt, ordnet alle Daten ohne userId ihm zu.
+    Idempotent — sicher bei jedem Startup."""
+    now = int(time.time() * 1000)
+    cur = conn.execute(
+        "SELECT id FROM users WHERE id = ?", (LEGACY_USER_ID,)
+    )
+    if cur.fetchone() is None:
+        conn.execute(
+            "INSERT INTO users (id, username, password_hash, created_at, is_legacy) "
+            "VALUES (?, ?, ?, ?, 1)",
+            (LEGACY_USER_ID, "legacy", "!LEGACY_NO_LOGIN", now),
+        )
+    # Alle Zeilen ohne userId auf Legacy-User setzen (idempotent).
+    for table in (
+        "todos", "habits", "habit_logs", "habit_history",
+        "folders", "notes", "chat_messages",
+    ):
+        conn.execute(
+            f"UPDATE {table} SET userId = ? WHERE userId IS NULL",
+            (LEGACY_USER_ID,),
+        )

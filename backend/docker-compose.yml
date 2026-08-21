@@ -12,8 +12,11 @@ services:
       - todonotes-data:/app/data
     environment:
       # Token aus .env. Nie in Git committen!
-      SYNC_TOKEN: ${SYNC_TOKEN:?SYNC_TOKEN muss in .env gesetzt sein}
+      # Static-Secret für Übergangs-Compat (alte Android-App).
+      # Kann leer gesetzt werden, wenn alle Clients auf account-basierte Auth umgestellt sind.
+      SYNC_TOKEN: ${SYNC_TOKEN:-}
       DB_PATH: /app/data/todonotes.db
+      WEB_DIR: /app/data/web
 
 volumes:
   todonotes-data:
