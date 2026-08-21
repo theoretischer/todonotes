@@ -104,17 +104,18 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] Key-Decisions bestätigt (Multi-User, Linux verschieben, etc.)
 - [ ] Linux nach `archive/linux-gtk4/` verschieben
 
-### Phase M1 — Backend: Multi-User-Auth + userId-Migration
-- [ ] `users` + `tokens` Tabellen in `db.py`
-- [ ] `userId`-Spalte auf alle 7 Daten-Tabellen (idempotent via `_migrate_schema`)
-- [ ] Legacy-User anlegen + bestehende Daten ihm zuordnen (`userId = 'legacy-user'`)
-- [ ] `/auth/register`, `/auth/login`, `/auth/migrate-legacy` Endpunkte (passlib/bcrypt)
-- [ ] `/sync` validiert Token gegen DB → filtert nach `userId`
-- [ ] **Übergangs-Auth:** Static-Secret weiterhin gültig (mappt auf Legacy-User)
-- [ ] Statische-Files-Routing (FastAPI `StaticFiles`) — erst mal leer, gefüllt in M9
-- [ ] **Daten-Sicherung:** Server-DB backup vor Migration (`todonotes.db.bak-pre-auth`)
-- [ ] **Test:** curl: Static-Token syncen (Legacy-Daten da), registrieren, login, migrate-legacy, syncen mit neuem Token (Daten da)
-- [ ] **Test:** Alte Android-App syncet weiter (Static-Token → Legacy-User)
+### Phase M1 — Backend: Multi-User-Auth + userId-Migration ✅
+- [x] `users` + `tokens` Tabellen in `db.py`
+- [x] `userId`-Spalte auf alle 7 Daten-Tabellen (idempotent via `_migrate_schema`)
+- [x] Legacy-User anlegen + bestehende Daten ihm zuordnen (`userId = 'legacy-user'`)
+- [x] `/auth/register`, `/auth/login`, `/auth/migrate-legacy` Endpunkte (passlib/bcrypt)
+- [x] `/sync` validiert Token gegen DB → filtert nach `userId`
+- [x] **Übergangs-Auth:** Static-Secret weiterhin gültig (mappt auf Legacy-User)
+- [x] Statische-Files-Routing (FastAPI `StaticFiles`) — leer, gefüllt in M9
+- [x] **Daten-Sicherung:** Server-DB backup vor Migration (`todonotes.db.bak-pre-auth`)
+- [x] **Test:** Unit-Tests grün (register/login/sync/migrate-legacy/isolation/idempotent)
+- [x] **Test:** Docker neu gebaut, Migration durchgelaufen, Legacy-Daten zugewiesen
+- [x] **Test:** Alte Android-App syncet weiter (Static-Token → Legacy-User, curl bestätigt)
 
 ### Phase M2 — KMP-Projekt aufsetzen
 - [ ] Neues `compose-app/` KMP-Projekt (commonMain/androidMain/wasmJsMain)

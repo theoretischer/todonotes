@@ -95,17 +95,14 @@
 
 ## Nächster Schritt
 
-**🔔 RICHTUNGSWECHSEL: Compose Multiplatform (CMP) Migration**
+**🔔 Compose Multiplatform (CMP) Migration — Phase M1 fertig**
 
-GTK4-Ansatz verworfen (zu komplex, nie hübsch, jedes Feature zweimal).
-Stattdessen: **eine Compose-Codebase** für Android + Web (+ optional Desktop).
+**Status:**
+- M0 ✅ Backup + Linux verschoben
+- M1 ✅ Backend Multi-User-Auth (users/tokens, userId auf alle Tabellen, Legacy-Migration, /auth/* Endpunkte)
+- M2 ⬜ KMP-Projekt aufsetzen (als nächstes)
 
-Plan steht in **`MIGRATION-CMP.md`** (Backup: Tag `backup-pre-cmp`).
+Backend läuft neu in Docker, alte Android-App funktioniert weiter (Static-Token → Legacy-User).
+Plan: `MIGRATION-CMP.md`.
 
-**Vor Implementierung müssen Key-Decisions bestätigt werden:**
-1. Auth-Modell: Single-User vs Multi-User?
-2. Linux/GTK4: Einfrieren oder löschen?
-3. Migration in-place oder neues compose-app/?
-4. Übergangs-Auth (Static + DB-Token parallel)?
-
-Sobald bestätigt: Phase M1 (Backend Auth) → M2 (KMP-Setup) → … → Schritt für Schritt mit Test nach jedem Schritt.
+**Nächster Schritt: M2 — compose-app/ KMP-Skeleton**
