@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.earendil.todonotes.composeApp-debug-48:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.earendil.todonotes.composeApp-androidMain-50:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.earendil.todonotes.composeApp-debug-48:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.earendil.todonotes.composeApp-androidMain-50:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.earendil.todonotes.composeApp-debug-48:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.earendil.todonotes.composeApp-androidMain-50:/drawable/ic_launcher_foreground.xml"
+    }
+]

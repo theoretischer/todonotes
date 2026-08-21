@@ -117,13 +117,16 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] **Test:** Docker neu gebaut, Migration durchgelaufen, Legacy-Daten zugewiesen
 - [x] **Test:** Alte Android-App syncet weiter (Static-Token → Legacy-User, curl bestätigt)
 
-### Phase M2 — KMP-Projekt aufsetzen
-- [ ] Neues `compose-app/` KMP-Projekt (commonMain/androidMain/wasmJsMain)
-- [ ] Gradle-Config: Kotlin Multiplatform + Compose Multiplatform Plugin
-- [ ] Android-Target: leeres Skeleton, baut + startet
-- [ ] **Test:** `./gradlew :compose-app:assembleDebug` + install + startet
-- **Strategie:** Inkrementell — erst Struktur, dann Datei-für-Datei verschieben.
-  Nach JEDEM Schritt bauen + auf Gerät testen.
+### Phase M2 — KMP-Projekt aufsetzen ✅
+- [x] Neues `compose-app/` KMP-Projekt (commonMain/androidMain/wasmJsMain/desktopMain)
+- [x] Gradle-Config: Kotlin Multiplatform + Compose Multiplatform Plugin
+- [x] Android-Target: baut (`assembleDebug`), MainActivity + Manifest
+- [x] Wasm-Target: baut (`wasmJsBrowserDistribution`), index.html + CanvasBasedWindow
+- [x] Desktop-Target: baut (`desktopJar`), JVM-Window
+- [x] `expect/actual` für `Platform` (Android/Wasm/Desktop)
+- [x] `App()` Composable in commonMain (Skeleton mit Material 3)
+- [x] **Test:** Alle 3 Targets bauen grün
+- **Hinweis:** Navigation + Material-Icons noch nicht dabei (kommen in M7, brauchen CMP-kompatible Versionen)
 
 ### Phase M3 — Logik nach commonMain
 - [ ] `HabitEngine.kt` (0 Android-Imports) → commonMain

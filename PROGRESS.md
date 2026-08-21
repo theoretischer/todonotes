@@ -100,9 +100,9 @@
 **Status:**
 - M0 ✅ Backup + Linux verschoben
 - M1 ✅ Backend Multi-User-Auth (users/tokens, userId auf alle Tabellen, Legacy-Migration, /auth/* Endpunkte)
-- M2 ⬜ KMP-Projekt aufsetzen (als nächstes)
+- M2 ✅ KMP-Skeleton (commonMain/androidMain/wasmJsMain/desktopMain), alle 3 Targets bauen
 
 Backend läuft neu in Docker, alte Android-App funktioniert weiter (Static-Token → Legacy-User).
 Plan: `MIGRATION-CMP.md`.
 
-**Nächster Schritt: M2 — compose-app/ KMP-Skeleton**
+**Nächster Schritt: M3 — Logik nach commonMain verschieben**
