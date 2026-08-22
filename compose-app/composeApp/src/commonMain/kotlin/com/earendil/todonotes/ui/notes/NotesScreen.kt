@@ -72,7 +72,6 @@ fun NotesScreen(
     var showNewMenu by remember { mutableStateOf(false) }
 
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
-    var reorder by remember { mutableStateOf<ReorderSession?>(null) }
     val folderBounds = remember { mutableStateMapOf<String, Rect>() }  // für Breadcrumb-Drop (unbenutzt, Drag deaktiviert)
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -97,45 +96,51 @@ fun NotesScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(state.folders, key = { it.id }) { folder ->
-                    val isDragged = reorder?.draggedId == folder.id
-                    SwipeOrReorderRow(
-                        onDelete = { notesVm.deleteFolder(folder.id) },
-                        onClick = { notesVm.openFolder(folder) },
-                        reorderEnabled = true,
-                        itemId = folder.id,
-                        repositories = state.folders.map { it.id },
-                        heightPx = rowHeights[folder.id] ?: 0,
-                        reorder = reorder,
-                        setReorder = { reorder = it },
-                        onSwap = { a, b -> notesVm.reorderFolders(a, b) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { rowHeights[folder.id] = it.height }
                     ) {
-                        FolderRow(
-                            folder = folder,
-                            onRename = { renameTarget = folder },
-                            onMove = { moveFolderTarget = folder }
-                        )
+                        SwipeOrReorderRow(
+                            onDelete = { notesVm.deleteFolder(folder.id) },
+                            onClick = { notesVm.openFolder(folder) },
+                            reorderEnabled = true,
+                            itemId = folder.id,
+                            repositories = state.folders.map { it.id },
+                            heightPx = rowHeights[folder.id] ?: 0,
+                            onSwap = { a, b -> notesVm.reorderFolders(a, b) }
+                        ) {
+                            FolderRow(
+                                folder = folder,
+                                onRename = { renameTarget = folder },
+                                onMove = { moveFolderTarget = folder }
+                            )
+                        }
                     }
                 }
                 if (state.folders.isNotEmpty() && state.notes.isNotEmpty()) {
                     item { Spacer(Modifier.height(4.dp)) }
                 }
                 items(state.notes, key = { it.id }) { note ->
-                    val isDragged = reorder?.draggedId == note.id
-                    SwipeOrReorderRow(
-                        onDelete = { notesVm.deleteNote(note.id) },
-                        onClick = { onOpenNote(note.id, false, note.type) },
-                        reorderEnabled = true,
-                        itemId = note.id,
-                        repositories = state.notes.map { it.id },
-                        heightPx = rowHeights[note.id] ?: 0,
-                        reorder = reorder,
-                        setReorder = { reorder = it },
-                        onSwap = { a, b -> notesVm.reorderNotes(a, b) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { rowHeights[note.id] = it.height }
                     ) {
-                        NoteRow(
-                            note = note,
-                            onMove = { moveNoteTarget = note }
-                        )
+                        SwipeOrReorderRow(
+                            onDelete = { notesVm.deleteNote(note.id) },
+                            onClick = { onOpenNote(note.id, false, note.type) },
+                            reorderEnabled = true,
+                            itemId = note.id,
+                            repositories = state.notes.map { it.id },
+                            heightPx = rowHeights[note.id] ?: 0,
+                            onSwap = { a, b -> notesVm.reorderNotes(a, b) }
+                        ) {
+                            NoteRow(
+                                note = note,
+                                onMove = { moveNoteTarget = note }
+                            )
+                        }
                     }
                 }
             }
