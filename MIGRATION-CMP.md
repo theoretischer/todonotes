@@ -206,17 +206,17 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] `RecurrenceParityTest` (14 Tests in desktopTest): vergleicht RecurrenceCalculator vs lib-recur → **alle grün**
 - [x] Alle 3 Targets bauen grün, 73 Tests insgesamt grün
 
-**Bekannte Semantik-Diskrepanz (bewusst nicht behoben, diskutiert):**
+**Semantik vereinheitlicht (Option 1 umgesetzt):**
 
-| Fall | JVM (lib-recur) | Wasm-Fallback |
-|---|---|---|
-| Abhaken am Fälligkeitstag | nächste Occ. | nächste Occ. ✓ gleich |
-| Todo N Perioden überfällig | fromDue+1 Periode (sofort wieder überfällig!) | springt zur nächsten Occ. nach now |
-| Abhaken *vor* Fälligkeit | fromDue+1 Periode | fromDue (unverändert) |
+| Fall | Alle Plattformen (lib-recur + Fallback) |
+|---|---|
+| Abhaken am Fälligkeitstag | nächste Occurrence |
+| Todo N Perioden überfällig | **springt zur nächsten Occ. nach now** (kein Schritt-für-Schritt) |
+| Abhaken *vor* Fälligkeit | fromDue+1 Periode (Rhythmus bleibt) |
 
-→ Parity-Tests testen nur den Normalfall (Abhaken am Fälligkeitstag).
-→ Die überfällig/früh-Fälle sind ein UX-Design-Thema, nicht M6.
-→ Entscheidung: Semantik vereinheitlichen? (z.B. "erste Occ. nach max(fromDue, now)") — offen, User-Entscheidung.
+→ `afterMillis = max(fromDue, now)` auf JVM, `threshold = max(base, now)` im Fallback
+→ Parity-Tests erweitert: jetzt **auch überfällig/frühes Abhaken** → 6 neue Tests, alle grün
+→ Löst das User-Problem: überfällige Todos mussten vorher einzeln abgehakt werden (alter Bug)
 
 ### Phase M7 — UI nach commonMain
 - [ ] Screens (TodosScreen, HabitsScreen, NotesScreen, ChatScreen, …) → commonMain

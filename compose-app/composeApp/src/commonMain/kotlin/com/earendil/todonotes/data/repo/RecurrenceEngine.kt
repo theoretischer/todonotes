@@ -7,8 +7,12 @@ package com.earendil.todonotes.data.repo
  * für volle RFC 5545-Unterstützung. Auf Wasm fällt [RecurrenceCalculator] ein,
  * der die häufigsten Fälle (FREQ, INTERVAL) abdeckt.
  *
- * WICHTIG: nextOccurrence liefert die nächste Occurrence, die STRENG NACH [now] liegt.
- * Beim Abhaken eines "jeden Tag ab heute"-Todos (now ≈ fromDue = heute) → morgen, nicht heute-nochmal.
+ * WICHTIG: nextOccurrence liefert die erste Occurrence, die STRENG NACH
+ * max(fromDue, now) liegt. Das gilt für alle Plattformen einheitlich:
+ *  - Abhaken am Fälligkeitstag (now ≈ fromDue) → nächste Occurrence
+ *  - überfälliges Todo (now > fromDue) → springt in die Zukunft (kein
+ *    Schritt-für-Schritt-Abarbeiten überfälliger Occurrences)
+ *  - frühes Abhaken (now < fromDue) → Rhythmus bleibt (nächste nach fromDue)
  */
 object RecurrenceEngine {
 

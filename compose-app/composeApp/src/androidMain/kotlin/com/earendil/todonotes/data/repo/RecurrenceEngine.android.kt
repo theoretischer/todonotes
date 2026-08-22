@@ -15,7 +15,11 @@ internal actual fun platformNextOccurrence(rrule: String, fromDue: Long?, now: L
     return try {
         val rule = RecurrenceRule(rrule)
         val startMillis = fromDue ?: now
-        val afterMillis = fromDue ?: now
+        // Semantik: erste Occurrence streng nach max(fromDue, now).
+        // - Abhaken am Fälligkeitstag → nächste Occurrence
+        // - überfälliges Todo → springt in die Zukunft (nicht Schritt-für-Schritt abarbeiten)
+        // - frühes Abhaken (now < fromDue) → Rhythmus bleibt (nächste nach fromDue)
+        val afterMillis = maxOf(startMillis, now)
         val start = DateTime(startMillis).toAllDay() ?: DateTime(startMillis)
 
         val it: RecurrenceRuleIterator = rule.iterator(start)

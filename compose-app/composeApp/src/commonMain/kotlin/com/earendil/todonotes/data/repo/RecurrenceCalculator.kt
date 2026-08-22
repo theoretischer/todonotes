@@ -61,7 +61,12 @@ object RecurrenceCalculator {
     fun nextOccurrence(rrule: String, fromDue: Long?, now: Long): Long? {
         val rule = parse(rrule) ?: return null
         val base = fromDue ?: now
-        return generate(rule, base) { occ -> occ > now }
+        // Semantik: erste Occurrence streng nach max(fromDue, now).
+        // - Abhaken am Fälligkeitstag → nächste Occurrence
+        // - überfälliges Todo → springt in die Zukunft (nicht Schritt-für-Schritt abarbeiten)
+        // - frühes Abhaken (now < fromDue) → Rhythmus bleibt (nächste nach fromDue)
+        val threshold = maxOf(base, now)
+        return generate(rule, base) { occ -> occ > threshold }
     }
 
     // ---------------------------------------------------------------

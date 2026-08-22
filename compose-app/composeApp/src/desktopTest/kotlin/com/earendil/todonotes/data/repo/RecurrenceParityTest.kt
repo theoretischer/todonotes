@@ -96,4 +96,53 @@ class RecurrenceParityTest {
 
     @Test fun parity_count_3() =
         assertParityAtCompletion("count-3", "FREQ=DAILY;COUNT=3", noon(2025, 1, 15))
+
+    // --- Spezialfälle (Semantik jetzt vereinheitlicht) ---
+
+    /** Hilfsfunktion für beliebige fromDue/now-Kombinationen. */
+    private fun assertParity(
+        label: String, rrule: String, base: Long, now: Long
+    ) {
+        val jvm = RecurrenceEngine.nextOccurrence(rrule, base, now)
+        val fallback = RecurrenceCalculator.nextOccurrence(rrule, base, now)
+        if (jvm == null) {
+            assertTrue(fallback == null, "$label: JVM=null aber fallback=$fallback")
+            return
+        }
+        assertTrue(fallback != null, "$label: fallback=null aber JVM=${dateOf(jvm)}")
+        assertEquals(
+            dateOf(jvm), dateOf(fallback!!),
+            "$label: rrule='$rrule' JVM=${dateOf(jvm)} fallback=${dateOf(fallback)}"
+        )
+    }
+
+    @Test fun parity_overdue_3_days() {
+        // 3 Tage überfällig: base 12.1., now 15.1. → beide springen auf 16.1.
+        assertParity("overdue-3d", "FREQ=DAILY", noon(2025, 1, 12), evening(2025, 1, 15))
+    }
+
+    @Test fun parity_overdue_weekly() {
+        // 2 Wochen überfällig: base Mo 1.1., now Mo 15.1. → beide springen auf Mo 22.1.
+        assertParity("overdue-wk", "FREQ=WEEKLY", noon(2025, 1, 6), evening(2025, 1, 20))
+    }
+
+    @Test fun parity_early_completion_daily() {
+        // Frühes Abhaken: base 16.1., now 15.1. → beide 17.1.
+        assertParity("early-daily", "FREQ=DAILY", noon(2025, 1, 16), noon(2025, 1, 15))
+    }
+
+    @Test fun parity_early_completion_weekly() {
+        // Frühes Abhaken: base Mi 22.1., now Mo 20.1. → beide Mi 29.1.
+        assertParity("early-weekly", "FREQ=WEEKLY", noon(2025, 1, 22), noon(2025, 1, 20))
+    }
+
+    @Test fun parity_early_completion_monthly() {
+        // Frühes Abhaken: base 15.2., now 15.1. → beide 15.3.
+        assertParity("early-monthly", "FREQ=MONTHLY", noon(2025, 2, 15), noon(2025, 1, 15))
+    }
+
+    @Test fun parity_overdue_count_exhausted() {
+        // FREQ=DAILY;COUNT=3, base 12.1. (3 Occ: 12.,13.,14.), now 15.1. → beide null (erschöpft)
+        assertParity("overdue-count", "FREQ=DAILY;COUNT=3", noon(2025, 1, 12), evening(2025, 1, 15))
+    }
 }

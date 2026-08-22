@@ -56,11 +56,20 @@ class RecurrenceCalculatorTest {
     }
 
     @Test fun daily_overdue_skips_to_future() {
-        // 3 Tage überfällig: base 12.1., now 15.1. → Fallback springt auf 16.1.
-        // (Diskrepanz zu lib-recur: JVM liefert 13.1. — siehe Parity-Test/Doku)
+        // 3 Tage überfällig: base 12.1., now 15.1. → springt auf 16.1.
+        // (Semantik: erste Occ. nach max(fromDue, now) — jetzt einheitlich auf allen Plattformen)
         assertEquals(
             LocalDate(2025, 1, 16),
             nextDate("FREQ=DAILY", noon(2025, 1, 12), evening(2025, 1, 15))
+        )
+    }
+
+    @Test fun daily_early_completion_keeps_rhythm() {
+        // Frühes Abhaken: base 16.1. (zukunft), now 15.1. → Rhythmus bleibt → 17.1.
+        // (Semantik: erste Occ. nach max(fromDue=16., now=15.) = nach dem 16. → 17.)
+        assertEquals(
+            LocalDate(2025, 1, 17),
+            nextDate("FREQ=DAILY", noon(2025, 1, 16), noon(2025, 1, 15))
         )
     }
 
