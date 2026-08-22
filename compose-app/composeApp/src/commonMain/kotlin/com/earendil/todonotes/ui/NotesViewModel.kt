@@ -76,6 +76,12 @@ class NotesViewModel(
     private var isReorderingNotes = false
     private var isReorderingFolders = false
 
+    // Letzte DB-Aktualisierung zwischenspeichern während Reorder ignoriert wird.
+    // Wenn isReordering=false wird, wird dieser State angewendet (damit die
+    // DB-Realität nach dem Batch ins State übernommen wird).
+    private var pendingDbFolders: List<Folder>? = null
+    private var pendingDbNotes: List<Note>? = null
+
     init {
         @OptIn(ExperimentalCoroutinesApi::class)
         vmScope.launch {
@@ -84,14 +90,14 @@ class NotesViewModel(
             ) { id, crumbs, folders, notes ->
                 NotesBrowserState(id, crumbs, folders, notes)
             }.collect { state ->
-                // Während Reorder: DB-Updates ignorieren (optimistic hat Vorrang).
-                val skipNotes = isReorderingNotes
-                val skipFolders = isReorderingFolders
+                // Während Reorder: DB-Update zwischenspeichern, nicht anwenden.
+                if (isReorderingFolders) pendingDbFolders = state.folders
+                if (isReorderingNotes) pendingDbNotes = state.notes
                 _browserState.value = _browserState.value.copy(
                     currentFolderId = state.currentFolderId,
                     breadcrumbs = state.breadcrumbs,
-                    folders = if (skipFolders) _browserState.value.folders else state.folders,
-                    notes = if (skipNotes) _browserState.value.notes else state.notes
+                    folders = if (isReorderingFolders) _browserState.value.folders else state.folders,
+                    notes = if (isReorderingNotes) _browserState.value.notes else state.notes
                 )
             }
         }
@@ -100,6 +106,12 @@ class NotesViewModel(
     // ---- Navigation ----
 
     fun openFolder(folder: Folder) {
+        // Reorder-Flags zurücksetzen, damit der neue Ordner sofort geladen wird
+        // (sonst wuerde die DB-Flow fuer den neuen Ordner ignoriert werden).
+        isReorderingFolders = false
+        isReorderingNotes = false
+        pendingDbFolders = null
+        pendingDbNotes = null
         currentFolderId.value = folder.id
         breadcrumbs.value = breadcrumbs.value + Crumb(folder.id, folder.name)
     }
@@ -107,6 +119,10 @@ class NotesViewModel(
     fun navigateToCrumb(crumb: Crumb) {
         val idx = breadcrumbs.value.indexOfFirst { it.folderId == crumb.folderId }
         if (idx < 0) return
+        isReorderingFolders = false
+        isReorderingNotes = false
+        pendingDbFolders = null
+        pendingDbNotes = null
         currentFolderId.value = crumb.folderId
         breadcrumbs.value = breadcrumbs.value.take(idx + 1)
     }
@@ -152,6 +168,14 @@ class NotesViewModel(
     }
 
     fun moveNote(id: String, newFolderId: String?) {
+        // Reorder-Flags zurücksetzen, damit die Notiz sofort aus der
+        // aktuellen Liste verschwindet (DB-Flow wird nicht mehr ignoriert).
+        isReorderingNotes = false
+        pendingDbNotes = null
+        // Optimistic: Notiz sofort aus aktueller Liste entfernen.
+        _browserState.value = _browserState.value.copy(
+            notes = _browserState.value.notes.filterNot { it.id == id }
+        )
         vmScope.launch { noteRepo.moveNote(id, newFolderId) }
     }
 
@@ -198,7 +222,13 @@ class NotesViewModel(
         val finalIds = _browserState.value.notes.map { it.id }
         vmScope.launch {
             noteRepo.applyOrder(finalIds)
-            isReorderingNotes = false  // erst nach DB-Batch freigeben
+            isReorderingNotes = false
+            // Gespeicherte DB-Aktualisierung anwenden (enthält die neue
+            // Reihenfolge nach dem Batch).
+            pendingDbNotes?.let { dbNotes ->
+                _browserState.value = _browserState.value.copy(notes = dbNotes)
+                pendingDbNotes = null
+            }
         }
     }
 
@@ -208,7 +238,11 @@ class NotesViewModel(
         val finalIds = _browserState.value.folders.map { it.id }
         vmScope.launch {
             folderRepo.applyOrder(finalIds)
-            isReorderingFolders = false  // erst nach DB-Batch freigeben
+            isReorderingFolders = false
+            pendingDbFolders?.let { dbFolders ->
+                _browserState.value = _browserState.value.copy(folders = dbFolders)
+                pendingDbFolders = null
+            }
         }
     }
 
