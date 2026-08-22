@@ -219,13 +219,37 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 → Löst das User-Problem: überfällige Todos mussten vorher einzeln abgehakt werden (alter Bug)
 
 ### Phase M7 — UI nach commonMain
-- [ ] Screens (TodosScreen, HabitsScreen, NotesScreen, ChatScreen, …) → commonMain
-- [ ] Login-Screen → commonMain
-- [ ] `expect` für plattformspezifische UI-Bits:
-    - Insets/Permissions (Android) vs. Browser (Web)
-    - `BackHandler` (Android) vs. Browser-History (Web)
+
+#### M7a — Fundament: Repositories + Service-Locator ✅
+- [x] `AlarmScheduler` Interface in commonMain + actuals:
+  - androidMain: `AndroidAlarmScheduler` (M7a noop, M8 macht echte Alarme)
+  - desktopMain/wasmJsMain: `NoopAlarmScheduler`
+- [x] `TimeHelpers.kt` in commonMain: `nowMs()`, `randomUuidString()`, `formatDateGerman()`, `defaultNoteTitle()`, `defaultChatTitle()`
+  - ersetzen System.currentTimeMillis(), java.util.UUID, java.text.SimpleDateFormat
+  - zentrale `@OptIn(ExperimentalUuidApi::class)`-Stelle
+- [x] 5 Repositories nach commonMain (DB + AlarmScheduler injected):
+  - TodoRepository (mit RecurrenceEngine, AlarmScheduler)
+  - HabitRepository (mit HabitEngine, checkAndLogPeriodChange, forceFinish)
+  - FolderRepository, NoteRepository, ChatMessageRepository
+- [x] `AppContainer` Service-Locator in commonMain: DB + Repos + Sync-Stack (SyncPrefs, HttpClient, SyncManager, AuthManager) + appScope
+- [x] Entry-Points angepasst:
+  - androidMain: MainActivity erstellt AppContainer (mit AndroidAlarmScheduler + setAppContext)
+  - desktopMain/wasmJsMain: main.kt erstellt AppContainer (mit NoopAlarmScheduler)
+- [x] `App(container)` nimmt AppContainer entgegen (UI noch Skeleton, M7b baut echtes UI)
+- [x] Alle 3 Targets bauen grün, 74 Tests grün
+- [x] APK auf S24 Ultra installiert — startet mit "M7a Fundament steht!"
+
+**Entscheidungen umgesetzt:**
+- ViewModels → plain Kotlin-Klassen (folgt in M7b/c/d)
+- Navigation → manuell (folgt in M7b)
+- UUID → `kotlin.uuid.Uuid` (via `randomUuidString()` Helper)
+- AlarmScheduler → Interface in commonMain, injected
+
+#### M7b — Theme + TodoNotesApp-Gerüst + TodosScreen (folgt)
 - [ ] Theme/Farben → commonMain
-- [ ] **Test:** Android: Alle 4 Tabs + Editor + Chat + Login funktionieren
+- [ ] `TodoNotesApp` (Scaffold + BottomBar + Tab-State) → commonMain
+- [ ] `TodosScreen` → commonMain
+- [ ] `TodoViewModel` als plain Kotlin-Klasse
 
 ### Phase M8 — Notifications (expect/actual)
 - [ ] `expect class AlarmScheduler` → androidMain (heutiger Code 1:1), wasmJsMain (noop/Browser-Notification)

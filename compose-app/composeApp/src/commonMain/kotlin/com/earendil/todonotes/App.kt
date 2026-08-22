@@ -14,9 +14,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+/**
+ * App-Einstiegspunkt (M7a — noch Skeleton; M7b baut das echte UI).
+ *
+ * Empfängt den [AppContainer] (Service-Locator) vom plattformspezifischen
+ * Entry-Point. Aktuell nur Anzeige dass das Fundament steht.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App() {
+fun App(container: AppContainer) {
     MaterialTheme {
         Scaffold(
             topBar = { TopAppBar(title = { Text("TodoNotes") }) }
@@ -29,8 +35,9 @@ fun App() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("CMP-Skeleton funktioniert!")
+                Text("M7a Fundament steht!")
                 Text("Platform: ${getPlatform().name}")
+                Text("DB-Tabelle todos: ${container.database.todoDao() != null}")
             }
         }
     }
