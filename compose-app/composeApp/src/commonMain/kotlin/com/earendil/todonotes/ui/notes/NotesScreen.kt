@@ -37,7 +37,7 @@ import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
-import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+import com.earendil.todonotes.ui.components.SwipeOrReorderRow
 import androidx.compose.runtime.collectAsState
 
 /**
@@ -71,6 +71,8 @@ fun NotesScreen(
     var moveFolderTarget by remember { mutableStateOf<Folder?>(null) }
     var showNewMenu by remember { mutableStateOf(false) }
 
+    val rowHeights = remember { mutableStateMapOf<String, Int>() }
+    var reorder by remember { mutableStateOf<ReorderSession?>(null) }
     val folderBounds = remember { mutableStateMapOf<String, Rect>() }  // für Breadcrumb-Drop (unbenutzt, Drag deaktiviert)
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -95,9 +97,17 @@ fun NotesScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(state.folders, key = { it.id }) { folder ->
-                    SwipeToDeleteRow(
+                    val isDragged = reorder?.draggedId == folder.id
+                    SwipeOrReorderRow(
                         onDelete = { notesVm.deleteFolder(folder.id) },
-                        onClick = { notesVm.openFolder(folder) }
+                        onClick = { notesVm.openFolder(folder) },
+                        reorderEnabled = true,
+                        itemId = folder.id,
+                        repositories = state.folders.map { it.id },
+                        heightPx = rowHeights[folder.id] ?: 0,
+                        reorder = reorder,
+                        setReorder = { reorder = it },
+                        onSwap = { a, b -> notesVm.reorderFolders(a, b) }
                     ) {
                         FolderRow(
                             folder = folder,
@@ -110,9 +120,17 @@ fun NotesScreen(
                     item { Spacer(Modifier.height(4.dp)) }
                 }
                 items(state.notes, key = { it.id }) { note ->
-                    SwipeToDeleteRow(
+                    val isDragged = reorder?.draggedId == note.id
+                    SwipeOrReorderRow(
                         onDelete = { notesVm.deleteNote(note.id) },
-                        onClick = { onOpenNote(note.id, false, note.type) }
+                        onClick = { onOpenNote(note.id, false, note.type) },
+                        reorderEnabled = true,
+                        itemId = note.id,
+                        repositories = state.notes.map { it.id },
+                        heightPx = rowHeights[note.id] ?: 0,
+                        reorder = reorder,
+                        setReorder = { reorder = it },
+                        onSwap = { a, b -> notesVm.reorderNotes(a, b) }
                     ) {
                         NoteRow(
                             note = note,
