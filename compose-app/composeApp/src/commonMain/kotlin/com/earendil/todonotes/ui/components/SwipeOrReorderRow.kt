@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -30,7 +29,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -44,19 +47,20 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * Einheitliche Row, die Swipe-to-Delete (horizontal) UND Drag-Reorder
- * (vertikal) in EINEM pointerInput kombiniert (M7d-Fix).
+ * Einheitliche Row: Swipe-Delete (horizontal) + Drag-Reorder (vertikal) +
+ * Drag-auf-Ordner (Notiz auf Ordner loslassen = Verschieben).
  *
- * Ein einziger Handler entscheidet nach dem ersten Drag-Betrag, welche
- * Richtung gemeint ist:
+ * Ein einziger pointerInput-Handler entscheidet nach dem ersten Drag-Betrag:
  *   |dx| > |dy| → horizontal = Swipe-Delete
- *   |dy| ≥ |dx| → vertikal   = Reorder
+ *   |dy| ≥ |dx| → vertikal   = Reorder (innerhalb der Liste)
  *
- * Touch (Android): Long-Press aktiviert den Drag (verhindert versehentliches
- * Verschieben beim Scrollen). Maus (Desktop/Wasm): Drag sofort ab Drag-Start.
+ * Beim Loslassen wird geprüft ob der Finger über einem Ordner war (via
+ * [folderBounds]) → [onDropOnFolder]. Das ist der Drag-Verschiebe-Modus.
  *
- * Während Reorder wird die Row mit [zIndex] nach oben gehoben (über den
- * anderen Rows) und der rote Delete-Hintergrund ausgeblendet.
+ * Nach jedem Swap wird dragOffsetY um heightPx korrigiert, damit die
+ * gezogene Row optisch mit dem Finger verbunden bleibt (nicht eins springt).
+ *
+ * Touch: Long-Press aktiviert Drag. Maus: Drag sofort.
  */
 @Composable
 fun SwipeOrReorderRow(
@@ -71,6 +75,8 @@ fun SwipeOrReorderRow(
     onSwap: (String, String) -> Unit = { _, _ -> },
     onReorderBegin: () -> Unit = {},
     onReorderEnd: () -> Unit = {},
+    folderBounds: Map<String, Rect> = emptyMap(),
+    onDropOnFolder: (itemId: String, folderId: String) -> Unit = { _, _ -> },
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -79,27 +85,26 @@ fun SwipeOrReorderRow(
     val offsetX = remember { Animatable(0f) }
     val isTouch = getPlatform().isTouch
 
-    // Live-Werte für den pointerInput-Block (rememberUpdatedState, damit der
-    // Block nicht re-launcht muss wenn sich repositories/heightPx ändern).
     val currentRepos by rememberUpdatedState(repositories)
     val currentHeight by rememberUpdatedState(heightPx)
     val currentOnSwap by rememberUpdatedState(onSwap)
+    val currentBounds by rememberUpdatedState(folderBounds)
+    val currentDropFolder by rememberUpdatedState(onDropOnFolder)
 
-    // Lokaler State: welche Geste läuft, wo ist der Finger.
     var isSwipeDeleting by remember { mutableStateOf(false) }
     var isReordering by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
-    // Lokale Reorder-Session (wird im pointerInput-Block gehalten und
-    // weitergereicht — NICHT über externen State, das war der Bug).
     var session by remember { mutableStateOf<ReorderSession?>(null) }
+    var nodeRoot by remember { mutableStateOf(Offset.Zero) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
             .zIndex(if (isReordering) 10f else 0f)
+            .onGloballyPositioned { nodeRoot = it.positionInRoot() }
     ) {
-        // Roter Hintergrund + Mülleimer — nur sichtbar bei Swipe-Delete.
+        // Roter Hintergrund + Mülleimer — nur bei Swipe-Delete.
         if (isSwipeDeleting || offsetX.value < 0f) {
             Box(
                 modifier = Modifier
@@ -140,8 +145,7 @@ fun SwipeOrReorderRow(
                 }
                 .background(MaterialTheme.colorScheme.surface)
                 .pointerInput(itemId, isTouch) {
-                    val handleDrag: (dragAmount: androidx.compose.ui.geometry.Offset) -> Unit = { dragAmount ->
-                        // Erstes Drag-Betrag entscheidet die Richtung.
+                    val handleDrag: (dragAmount: Offset) -> Unit = { dragAmount ->
                         if (!isSwipeDeleting && !isReordering) {
                             if (abs(dragAmount.x) > abs(dragAmount.y)) {
                                 isSwipeDeleting = true
@@ -150,7 +154,7 @@ fun SwipeOrReorderRow(
                                 val idx = currentRepos.indexOf(itemId)
                                 if (idx >= 0) {
                                     session = ReorderSession(itemId, ReorderKind.NOTE, idx, 0f)
-                                    onReorderBegin()  // DB-Flow ignorieren ab jetzt
+                                    onReorderBegin()
                                 }
                             }
                         }
@@ -164,6 +168,7 @@ fun SwipeOrReorderRow(
                             dragOffsetY += dragAmount.y
                             val s = session
                             if (s != null) {
+                                val oldIndex = s.index
                                 val step = reorderStep(
                                     session = s,
                                     repositories = currentRepos,
@@ -172,6 +177,14 @@ fun SwipeOrReorderRow(
                                     onSwap = currentOnSwap
                                 )
                                 session = ReorderSession(itemId, ReorderKind.NOTE, step.newIndex, step.newAccumPx)
+                                // Visuelle Korrektur: nach einem Swap wandert die Row in der
+                                // Liste eins weiter — dragOffsetY muss um eine Zeilenhöhe
+                                // zurückgesetzt werden, damit die Row mit dem Finger verbunden
+                                // bleibt (sonst springt sie eins zu weit).
+                                val swaps = step.newIndex - oldIndex
+                                if (swaps != 0 && currentHeight > 0) {
+                                    dragOffsetY -= swaps * currentHeight.toFloat()
+                                }
                             }
                         }
                     }
@@ -183,8 +196,16 @@ fun SwipeOrReorderRow(
                                 offsetX.animateTo(target, tween(250))
                                 if (target == 0f) isSwipeDeleting = false
                             } else if (isReordering) {
+                                // Prüfen ob über einem Ordner losgelassen wurde.
+                                val fingerGlobal = nodeRoot + Offset(0f, dragOffsetY)
+                                val hitId = currentBounds.entries.firstOrNull { (_, rect) ->
+                                    rect.contains(fingerGlobal)
+                                }?.key
+                                if (hitId != null && hitId != itemId) {
+                                    currentDropFolder(itemId, hitId)
+                                }
                                 session = null
-                                onReorderEnd()  // DB-Batch schreiben
+                                onReorderEnd()
                             }
                         }
                         dragOffsetY = 0f
@@ -198,7 +219,7 @@ fun SwipeOrReorderRow(
                         isReordering = false
                         isSwipeDeleting = false
                         session = null
-                        onReorderEnd()  // Drag abgebrochen → DB-Batch (mit orig. Reihenfolge)
+                        onReorderEnd()
                     }
 
                     if (isTouch) {

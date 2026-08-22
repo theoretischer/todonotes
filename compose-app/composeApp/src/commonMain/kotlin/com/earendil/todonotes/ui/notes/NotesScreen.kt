@@ -100,6 +100,7 @@ fun NotesScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onSizeChanged { rowHeights[folder.id] = it.height }
+                            .onGloballyPositioned { folderBounds[folder.id] = it.boundsInRoot() }
                     ) {
                         SwipeOrReorderRow(
                             onDelete = { notesVm.deleteFolder(folder.id) },
@@ -138,7 +139,11 @@ fun NotesScreen(
                             heightPx = rowHeights[note.id] ?: 0,
                             onSwap = { a, b -> notesVm.reorderNotes(a, b) },
                             onReorderBegin = { notesVm.beginNoteReorder() },
-                            onReorderEnd = { notesVm.commitNoteReorder() }
+                            onReorderEnd = { notesVm.commitNoteReorder() },
+                            folderBounds = folderBounds,
+                            onDropOnFolder = { noteId, folderId ->
+                                notesVm.moveNote(noteId, folderId)
+                            }
                         ) {
                             NoteRow(
                                 note = note,

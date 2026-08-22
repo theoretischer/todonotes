@@ -191,19 +191,25 @@ class NotesViewModel(
     fun beginNoteReorder() { isReorderingNotes = true }
 
     /** Drag beendet → finale Reihenfolge als Batch in DB schreiben,
-     *  dann DB-Flow wieder zulassen (korrigiert ggf. mit echter Reihenfolge). */
+     *  dann DB-Flow wieder zulassen. WICHTIG: isReordering bleibt true
+     *  bis der Batch fertig ist, sonst liefert die DB-Flow zwischendurch
+     *  die alte Reihenfolge und ueberschreibt das optimistic Update. */
     fun commitNoteReorder() {
-        isReorderingNotes = false
         val finalIds = _browserState.value.notes.map { it.id }
-        vmScope.launch { noteRepo.applyOrder(finalIds) }
+        vmScope.launch {
+            noteRepo.applyOrder(finalIds)
+            isReorderingNotes = false  // erst nach DB-Batch freigeben
+        }
     }
 
     fun beginFolderReorder() { isReorderingFolders = true }
 
     fun commitFolderReorder() {
-        isReorderingFolders = false
         val finalIds = _browserState.value.folders.map { it.id }
-        vmScope.launch { folderRepo.applyOrder(finalIds) }
+        vmScope.launch {
+            folderRepo.applyOrder(finalIds)
+            isReorderingFolders = false  // erst nach DB-Batch freigeben
+        }
     }
 
     suspend fun getAllFoldersForMove() = folderRepo.getAllFolders()
