@@ -52,10 +52,10 @@ class HabitViewModel(
                 val count = repo.currentCount(checked, now)
                 HabitWithProgress(checked, HabitProgress(count, checked.goalCount, 0L))
             }
-        }.stateIn(vmScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        }.stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     val habitHistory: StateFlow<List<HabitHistoryEntry>> =
-        repo.observeHabitHistory().stateIn(vmScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        repo.observeHabitHistory().stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     fun createHabit(form: HabitFormData) {
         vmScope.launch {

@@ -237,7 +237,15 @@ fun NoteEditorScreen(
         }
     }
 
+    // Bei Notizwechsel: Editor-State zurücksetzen und neu laden.
+    // Wichtig: lines + titleValue werden erst geleert, damit der Laded-Effekt
+    // oben (der auf lines.isEmpty() prüft) wieder anspringt.
     LaunchedEffect(noteId) {
+        lines = emptyList()
+        titleValue = null
+        titleSelectedOnce = false
+        focusTarget = null
+        activeLineId = null
         vm.load(noteId, isNew)
     }
 
@@ -492,15 +500,7 @@ private fun NoteLineEditor(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.width(PREFIX_WIDTH)
                     )
-                    ListType.ARROW -> Text(
-                        "→",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 19.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(PREFIX_WIDTH)
-                    )
+                    ListType.ARROW -> ArrowIcon()
                     null -> Unit
                 }
             }
@@ -554,6 +554,41 @@ private fun BulletDot() {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Canvas(modifier = Modifier.size(20.dp)) {
         drawCircle(color = color, radius = size.minDimension * 0.30f)
+    }
+}
+
+/** Pfeil-Icon (→) als Canvas-Zeichnung, da das Unicode-Zeichen in Wasm
+ *  nicht in jeder Schriftart enthalten ist. */
+@Composable
+private fun ArrowIcon() {
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(modifier = Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val centerY = h / 2f
+        // Linie: vom linken Rand (mit etwas Padding) nach rechts
+        val startX = w * 0.15f
+        val endX = w * 0.85f
+        drawLine(
+            color = color,
+            start = androidx.compose.ui.geometry.Offset(startX, centerY),
+            end = androidx.compose.ui.geometry.Offset(endX, centerY),
+            strokeWidth = w * 0.08f
+        )
+        // Pfeilspitze: zwei Linien vom Endpunkt aus nach unten-links und oben-links
+        val arrowSize = w * 0.25f
+        drawLine(
+            color = color,
+            start = androidx.compose.ui.geometry.Offset(endX, centerY),
+            end = androidx.compose.ui.geometry.Offset(endX - arrowSize, centerY - arrowSize * 0.7f),
+            strokeWidth = w * 0.08f
+        )
+        drawLine(
+            color = color,
+            start = androidx.compose.ui.geometry.Offset(endX, centerY),
+            end = androidx.compose.ui.geometry.Offset(endX - arrowSize, centerY + arrowSize * 0.7f),
+            strokeWidth = w * 0.08f
+        )
     }
 }
 

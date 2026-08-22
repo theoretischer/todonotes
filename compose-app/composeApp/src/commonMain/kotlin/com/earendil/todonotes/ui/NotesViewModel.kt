@@ -69,7 +69,7 @@ class NotesViewModel(
             currentFolderId, breadcrumbs, foldersInCurrent, notesInCurrent
         ) { id, crumbs, folders, notes ->
             NotesBrowserState(id, crumbs, folders, notes)
-        }.stateIn(vmScope, SharingStarted.WhileSubscribed(5000), NotesBrowserState.EMPTY)
+        }.stateIn(vmScope, SharingStarted.Eagerly, NotesBrowserState.EMPTY)
 
     // ---- Navigation ----
 

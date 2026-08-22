@@ -25,10 +25,10 @@ class TodoViewModel(
     private val vmScope = CoroutineScope(scope.coroutineContext + SupervisorJob())
 
     val openTodos: StateFlow<List<Todo>> =
-        repo.observeOpenTodos().stateIn(vmScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        repo.observeOpenTodos().stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     val completedTodos: StateFlow<List<Todo>> =
-        repo.observeCompletedTodos().stateIn(vmScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        repo.observeCompletedTodos().stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     fun createTodo(form: TodoFormData) {
         vmScope.launch {
