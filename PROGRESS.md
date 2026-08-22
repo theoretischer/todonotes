@@ -104,8 +104,9 @@
 - M3 ✅ Logik nach commonMain (HabitEngine, NoteTextBody, SyncDTOs, Entities, RecurrenceEngine expect/actual), 39 Tests grün
 - M4 ✅ Room KMP (Room 3.0, Entities+DAOs+Migrations in commonMain, expect/actual DatabaseBuilder, Migration v9→v10)
 - M5 ✅ Networking (Ktor 3.5.2 statt Retrofit, SyncManager+AuthManager in commonMain, multiplatform-settings)
+- M6 ✅ RRULE auf Web (RecurrenceCalculator erweitert, 14 Parity-Tests vs lib-recur alle grün)
 
 Backend läuft neu in Docker, alte Android-App funktioniert weiter (Static-Token → Legacy-User).
 Plan: `MIGRATION-CMP.md`.
 
-**Nächster Schritt: M6 — RRULE auf Web (lib-recur auf Wasm prüfen, ggf. Fallback)"**
+**Nächster Schritt: M7 — UI nach commonMain (Screens, Login, expect/actual)"**

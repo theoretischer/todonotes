@@ -193,12 +193,30 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - `System.currentTimeMillis()` → `Clock.System.now().toEpochMilliseconds()`
 - `android.util.Log` entfernt (Ktor Logging übernimmt)
 
-### Phase M6 — RRULE auf Web
-- [ ] Prüfen ob `lib-recur` (JVM-Library) auf Wasm verfügbar ist
-- [ ] Falls nicht: `expect class RecurrenceEngine` mit:
-    - androidMain: lib-recur (wie heute)
-    - wasmJsMain: eigene RRULE-Implementierung für FREQ/INTERVAL/BYDAY/COUNT/UNTIL
-- [ ] **Test:** Android: Recurrence funktioniert unverändert
+### Phase M6 — RRULE auf Web ✅
+- [x] `RecurrenceCalculator` (Wasm-Fallback) erweitert auf volle Feature-Parität mit dem Recurrence-Picker:
+  - FREQ = MINUTELY/HOURLY/DAILY/WEEKLY/MONTHLY/YEARLY
+  - INTERVAL=n
+  - BYDAY=MO,TU,... (WEEKLY mehrere Wochentage)
+  - BYMONTHDAY=1,15,28 (MONTHLY bestimmte Tage)
+  - BYSETPOS=n (MONTHLY n-ter Wochentag, z.B. 2. Montag)
+  - COUNT=n (Ende nach n Occurrences, RFC-konform ab DTSTART gezählt)
+- [x] RFC-konforme Edge-Cases: 31. überspringt Feb (nicht clampen!), 29.2. überspringt Nicht-Schaltjahre
+- [x] `RecurrenceCalculatorTest` (20 Tests in commonTest, überall lauffähig)
+- [x] `RecurrenceParityTest` (14 Tests in desktopTest): vergleicht RecurrenceCalculator vs lib-recur → **alle grün**
+- [x] Alle 3 Targets bauen grün, 73 Tests insgesamt grün
+
+**Bekannte Semantik-Diskrepanz (bewusst nicht behoben, diskutiert):**
+
+| Fall | JVM (lib-recur) | Wasm-Fallback |
+|---|---|---|
+| Abhaken am Fälligkeitstag | nächste Occ. | nächste Occ. ✓ gleich |
+| Todo N Perioden überfällig | fromDue+1 Periode (sofort wieder überfällig!) | springt zur nächsten Occ. nach now |
+| Abhaken *vor* Fälligkeit | fromDue+1 Periode | fromDue (unverändert) |
+
+→ Parity-Tests testen nur den Normalfall (Abhaken am Fälligkeitstag).
+→ Die überfällig/früh-Fälle sind ein UX-Design-Thema, nicht M6.
+→ Entscheidung: Semantik vereinheitlichen? (z.B. "erste Occ. nach max(fromDue, now)") — offen, User-Entscheidung.
 
 ### Phase M7 — UI nach commonMain
 - [ ] Screens (TodosScreen, HabitsScreen, NotesScreen, ChatScreen, …) → commonMain
