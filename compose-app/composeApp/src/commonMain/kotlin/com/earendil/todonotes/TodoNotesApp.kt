@@ -33,9 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.ui.HabitViewModel
+import com.earendil.todonotes.ui.NoteEditorViewModel
+import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.TodoViewModel
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
+import com.earendil.todonotes.ui.notes.NoteEditorScreen
+import com.earendil.todonotes.ui.notes.NotesScreen
 import com.earendil.todonotes.ui.todos.TodosScreen
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -64,6 +68,12 @@ fun TodoNotesApp(
     val habitVm = remember { HabitViewModel(container.habitRepository, container.appScope) }
     val habitsWithProgress by habitVm.habitsWithProgress.collectAsState()
     val habitHistory by habitVm.habitHistory.collectAsState()
+
+    val notesVm = remember { NotesViewModel(container.folderRepository, container.noteRepository, container.appScope) }
+
+    // Editor-Overlay-State (M7d-4 verkabelt Settings/Chat später)
+    var editorState by remember { mutableStateOf<EditorTarget?>(null) }
+    val editorVm = remember { NoteEditorViewModel(container.noteRepository, container.appScope) }
 
     var currentTab by remember { mutableStateOf(Tab.Todos) }
 
@@ -108,7 +118,16 @@ fun TodoNotesApp(
                     onFinishPeriod = habitVm::finishCurrentPeriod,
                     modifier = Modifier.fillMaxSize()
                 )
-                Tab.Notes -> ComingSoon("Notizen", Modifier.fillMaxSize())
+                Tab.Notes -> NotesScreen(
+                    notesVm = notesVm,
+                    onOpenNote = { id, isNew, type ->
+                        editorState = EditorTarget(id, isNew, isChat = type == com.earendil.todonotes.data.entity.NoteType.CHAT)
+                    },
+                    onOpenChat = { id, isNew ->
+                        editorState = EditorTarget(id, isNew, isChat = true)
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
                 Tab.History -> HistoryScreen(
                     completedTodos = completedTodos,
                     habitHistory = habitHistory,
@@ -121,7 +140,7 @@ fun TodoNotesApp(
 
             // Profil-Icon oben rechts (öffnet Settings — M7d)
             UserCircleIcon(
-                onClick = { /* M7d: SettingsScreen */ },
+                onClick = { /* M7d-3: SettingsScreen */ },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
@@ -129,7 +148,26 @@ fun TodoNotesApp(
             )
         }
     }
+
+    // Editor/Chat als Fullscreen-Overlay über dem Scaffold
+    editorState?.let { target ->
+        if (!target.isChat) {
+            NoteEditorScreen(
+                noteId = target.id,
+                isNew = target.isNew,
+                vm = editorVm,
+                onBack = { editorState = null }
+            )
+        }
+    }
 }
+
+/** Ziel des Editor-Overlays (Notiz-Editor oder Chat, M7d). */
+private data class EditorTarget(
+    val id: String,
+    val isNew: Boolean,
+    val isChat: Boolean
+)
 
 private enum class Tab(val label: String, val selected: ImageVector, val unselected: ImageVector) {
     Todos("Aufgaben", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircle),
