@@ -50,9 +50,16 @@ class NoteEditorViewModel(
     private var saveJob: Job? = null
     private var dirty = false
 
-    /** Notiz laden. Alte Block-JSON wird zu Plain Text migriert. */
+    /** Notiz laden. Alte Block-JSON wird zu Plain Text migriert.
+     *
+     *  WICHTIG: Setzt _state sofort auf loaded=false, bevor der Coroutine
+     *  startet. So wird state.loaded von true→false→true und der
+     *  LaunchedEffect(state.loaded) im Screen feuert neu — sonst würde
+     *  beim zweiten Öffnen der Editor im Lade-Kreisel stecken bleiben,
+     *  weil sich state.loaded nicht geändert hat. */
     fun load(noteId: String, isNew: Boolean) {
         this.noteId = noteId
+        _state.value = NoteEditorState(loaded = false, isNewNote = isNew)
         vmScope.launch {
             val note = noteRepo.getById(noteId)
             if (note != null) {

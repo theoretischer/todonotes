@@ -18,6 +18,9 @@ class HabitRepository(private val db: TodoNotesDatabase) {
 
     fun observeHabitHistory(): Flow<List<HabitHistoryEntry>> = dao.observeHabitHistory()
 
+    /** Alle aktiven Habits einmalig (nicht reaktiv, für Perioden-Check). */
+    suspend fun getAllActiveHabits(): List<Habit> = dao.getAllHabitsOnce()
+
     suspend fun getById(id: String): Habit? = dao.getById(id)
 
     suspend fun createHabit(habit: Habit): Habit {
@@ -92,6 +95,14 @@ class HabitRepository(private val db: TodoNotesDatabase) {
     suspend fun currentCount(habit: Habit, now: Long = nowMs()): Int {
         val start = HabitEngine.currentPeriodStart(habit, now)
         return dao.countSince(habit.id, start)
+    }
+
+    /** Reaktiver Count in der Periode, die [now] enthält — feuert neu, wenn
+     *  habit_logs sich ändert (z.B. +1 gedrückt). Für die Progress-Anzeige im UI.
+     *  M7c-Fix: ersetzt den N×2 suspend-Query-Bottleneck im HabitViewModel. */
+    fun observeCurrentCount(habit: Habit, now: Long = nowMs()): Flow<Int> {
+        val start = HabitEngine.currentPeriodStart(habit, now)
+        return dao.observeCountSince(habit.id, start)
     }
 
     /**

@@ -10,11 +10,14 @@ import com.earendil.todonotes.data.repo.nowMs
 import com.earendil.todonotes.data.repo.randomUuidString
 import com.earendil.todonotes.ui.habits.HabitFormData
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
@@ -30,9 +33,19 @@ data class HabitWithProgress(
 /**
  * Plain-Kotlin-ViewModel für Habits (M7c — commonMain).
  *
- * Kein androidx.lifecycle.ViewModel — stattdessen eigene CoroutineScope.
- * Nutzt kotlinx-datetime statt java.util.Calendar und randomUuidString()
- * statt java.util.UUID.
+ * Performance-Fix (M7c-rev): Der alte combine+refreshTick-Ansatz hat pro
+ * Habit 2 suspend-DB-Queries durch den Web Worker gemacht (jeder ein
+ * asynchroner Round-Trip). Bei 3 Habits = 6 Round-Trips = ~2s Verzögerung.
+ *
+ * Neuer Ansatz: observeHabits() liefert die Habit-Liste reaktiv. Pro Habit
+ * wird observeCurrentCount() als Flow gesammelt — das ist eine reaktive
+ * COUNT-Query, die nur feuert wenn habit_logs sich ändert. Alles über
+ * flatMapLatest verknüpft, ein einziger Flow der pro Habit einen Sub-Flow
+ * hat. Kein refreshTick mehr nötig.
+ *
+ * Periodenwechsel (checkAndLogPeriodChange) wird NICHT im Flow gemacht
+ * (würde DB-Schreibzugriff bei jedem Collect verursachen), sondern beim
+ * App-Start / wenn der Habits-Tab geöffnet wird.
  */
 class HabitViewModel(
     private val repo: HabitRepository,
@@ -40,22 +53,40 @@ class HabitViewModel(
 ) {
     private val vmScope = CoroutineScope(scope.coroutineContext + SupervisorJob())
 
-    // Tick, der nach jeder Log-Aktion hochgezählt wird → reaktiviert den combine-Flow.
-    private val refreshTick = MutableStateFlow(0L)
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     val habitsWithProgress: StateFlow<List<HabitWithProgress>> =
-        combine(repo.observeHabits(), refreshTick) { habits, _ ->
-            val now = nowMs()
-            habits.map { habit ->
-                // Periodenwechsel erkennen + ggf. Verlaufseintrag.
-                val checked = repo.checkAndLogPeriodChange(habit, now)
-                val count = repo.currentCount(checked, now)
-                HabitWithProgress(checked, HabitProgress(count, checked.goalCount, 0L))
+        repo.observeHabits().flatMapLatest { habits ->
+            // Pro Habit: observeCurrentCount → HabitWithProgress.
+            // Wenn habits leer ist, ein leerer Flow.
+            if (habits.isEmpty()) {
+                kotlinx.coroutines.flow.flowOf(emptyList())
+            } else {
+                combine(
+                    habits.map { habit ->
+                        repo.observeCurrentCount(habit).map { count ->
+                            HabitWithProgress(
+                                habit,
+                                HabitProgress(count, habit.goalCount, 0L)
+                            )
+                        }
+                    }
+                ) { it.toList() }
             }
         }.stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     val habitHistory: StateFlow<List<HabitHistoryEntry>> =
         repo.observeHabitHistory().stateIn(vmScope, SharingStarted.Eagerly, emptyList())
+
+    /** Periodenwechsel für alle Habits prüfen (beim App-Start / Tab-Öffnen).
+     *  Legt ggf. Verlaufseinträge an. NICHT im Flow — macht DB-Schreibzugriffe. */
+    fun checkPeriodsOnStart() {
+        vmScope.launch {
+            val now = nowMs()
+            repo.getAllActiveHabits().forEach { habit ->
+                repo.checkAndLogPeriodChange(habit, now)
+            }
+        }
+    }
 
     fun createHabit(form: HabitFormData) {
         vmScope.launch {
@@ -63,9 +94,6 @@ class HabitViewModel(
             val tz = TimeZone.currentSystemDefault()
             val startDateLdt = Instant.fromEpochMilliseconds(form.startDate).toLocalDateTime(tz)
 
-            // Reset-Anchor aus dem gewählten Startdatum ableiten.
-            // resetWeekday: Calendar-Nummerierung (1=SO, 2=MO, ..., 7=SA), wie in der DB gespeichert.
-            // kotlinx DayOfWeek: MONDAY=0..SUNDAY=6 → Calendar = (ordinal+2)%7+1
             val resetWeekday = if (form.cadenceType == CadenceType.WEEK)
                 (startDateLdt.dayOfWeek.ordinal + 2) % 7 + 1 else null
             val resetAnchorDay = if (form.cadenceType == CadenceType.MONTH ||
@@ -90,7 +118,6 @@ class HabitViewModel(
                 updatedAt = now
             )
             repo.createHabit(habit)
-            refreshTick.value = nowMs()
         }
     }
 
@@ -122,46 +149,28 @@ class HabitViewModel(
                     logToHistory = form.logToHistory
                 )
             )
-            refreshTick.value = nowMs()
         }
     }
 
-    /** +1: Log-Eintrag anlegen, dann Counts aktualisieren. */
+    /** +1: Log-Eintrag anlegen. Flow feuert reaktiv → UI aktualisiert sofort. */
     fun logHabit(id: String) {
-        vmScope.launch {
-            repo.logHabit(id)
-            refreshTick.value = nowMs()
-        }
+        vmScope.launch { repo.logHabit(id) }
     }
 
     /** Letzten +1 in der aktuellen Periode rückgängig. */
     fun undoLog(id: String) {
-        vmScope.launch {
-            repo.undoLatestLog(id)
-            refreshTick.value = nowMs()
-        }
+        vmScope.launch { repo.undoLatestLog(id) }
     }
 
     fun deleteHabit(id: String) {
-        vmScope.launch {
-            repo.deleteHabit(id)
-            refreshTick.value = nowMs()
-        }
+        vmScope.launch { repo.deleteHabit(id) }
     }
 
-    /** Verlaufseintrag loeschen (Swipe im Verlauf-Tab). */
     fun deleteHistoryEntry(id: String) {
-        vmScope.launch {
-            repo.deleteHistoryEntry(id)
-            refreshTick.value = nowMs()
-        }
+        vmScope.launch { repo.deleteHistoryEntry(id) }
     }
 
-    /** Schließt die aktuelle Periode EINES Habits ab → Verlauf + Counter reset. */
     fun finishCurrentPeriod(id: String) {
-        vmScope.launch {
-            repo.forceFinishCurrentPeriod(id)
-            refreshTick.value = nowMs()
-        }
+        vmScope.launch { repo.forceFinishCurrentPeriod(id) }
     }
 }

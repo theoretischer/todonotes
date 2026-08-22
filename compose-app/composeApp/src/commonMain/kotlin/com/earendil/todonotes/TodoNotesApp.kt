@@ -24,6 +24,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +69,9 @@ fun TodoNotesApp(
     val habitVm = remember { HabitViewModel(container.habitRepository, container.appScope) }
     val habitsWithProgress by habitVm.habitsWithProgress.collectAsState()
     val habitHistory by habitVm.habitHistory.collectAsState()
+
+    // Periodenwechsel beim App-Start prüfen (legt ggf. Verlaufseinträge an).
+    LaunchedEffect(Unit) { habitVm.checkPeriodsOnStart() }
 
     val notesVm = remember { NotesViewModel(container.folderRepository, container.noteRepository, container.appScope) }
 

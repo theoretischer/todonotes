@@ -45,6 +45,12 @@ interface HabitDao {
     @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
     suspend fun countSince(habitId: String, since: Long): Int
 
+    /** Reaktiver Count eines Habits ab :since — feuert neu, wenn habit_logs sich
+     *  ändert. Für die Progress-Anzeige im UI (M7c-Fix: statt N×2 suspend-Queries
+     *  pro refresh ein einzelner Flow pro Habit). */
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
+    fun observeCountSince(habitId: String, since: Long): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: HabitLog)
 
