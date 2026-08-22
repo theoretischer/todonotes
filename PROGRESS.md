@@ -95,7 +95,7 @@
 
 ## Nächster Schritt
 
-**🔔 Compose Multiplatform (CMP) Migration — Phase M4 fertig**
+**🔔 Compose Multiplatform (CMP) Migration — Phase M5 fertig**
 
 **Status:**
 - M0 ✅ Backup + Linux verschoben
@@ -103,8 +103,9 @@
 - M2 ✅ KMP-Skeleton (commonMain/androidMain/wasmJsMain/desktopMain), alle 3 Targets bauen
 - M3 ✅ Logik nach commonMain (HabitEngine, NoteTextBody, SyncDTOs, Entities, RecurrenceEngine expect/actual), 39 Tests grün
 - M4 ✅ Room KMP (Room 3.0, Entities+DAOs+Migrations in commonMain, expect/actual DatabaseBuilder, Migration v9→v10)
+- M5 ✅ Networking (Ktor 3.5.2 statt Retrofit, SyncManager+AuthManager in commonMain, multiplatform-settings)
 
 Backend läuft neu in Docker, alte Android-App funktioniert weiter (Static-Token → Legacy-User).
 Plan: `MIGRATION-CMP.md`.
 
-**Nächster Schritt: M5 — Ktor statt Retrofit (SyncManager multiplatform, Auth-Integration)**
+**Nächster Schritt: M6 — RRULE auf Web (lib-recur auf Wasm prüfen, ggf. Fallback)"**

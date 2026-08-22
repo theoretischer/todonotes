@@ -37,15 +37,18 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.lib.recur)
             implementation(libs.androidx.sqlite.bundled)
+            implementation(libs.ktor.client.okhttp)
         }
         val wasmJsMain by getting
         wasmJsMain.dependencies {
             implementation(libs.androidx.sqlite.web)
+            implementation(libs.ktor.client.js)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.lib.recur)
             implementation(libs.androidx.sqlite.bundled)
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -56,6 +59,11 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.androidx.room3.runtime)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.ktor.client.logging)
+            implementation(libs.multiplatform.settings)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

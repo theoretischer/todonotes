@@ -169,12 +169,29 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - `db.execSQL(sql)` → `connection.execSQL(sql)` (Extension-Funktion)
 - KAPT → KSP-only (Room 3 ist Kotlin-only)
 
-### Phase M5 — Networking: Ktor statt Retrofit
-- [ ] Ktor-Client (multiplatform) Dependencies
-- [ ] `SyncManager` umschreiben: Retrofit → Ktor (kann nach commonMain)
-- [ ] Auth-Integration: Login/Token statt Static-Secret
-- [ ] `expect` für HttpClient-Config falls nötig
-- [ ] **Test:** Android: Sync funktioniert gegen Backend (mit Login)
+### Phase M5 — Networking: Ktor statt Retrofit ✅
+- [x] Ktor 3.5.2 Dependencies (client-core, content-negotiation, serialization-kotlinx-json, logging)
+- [x] Engine pro Plattform: OkHttp (Android + Desktop), JS (Wasm)
+- [x] `multiplatform-settings-no-arg` 1.3.0 (SharedPreferences/Preferences/localStorage)
+- [x] `SyncPrefs` nach commonMain (mit multiplatform-settings)
+- [x] `SyncManager` umgeschrieben: Retrofit → Ktor (HttpClient, post/get, bearerAuth, setBody)
+- [x] `HttpClientFactory` in commonMain (ContentNegotiation + Logging)
+- [x] Auth-DTOs (RegisterRequest, LoginRequest, MigrateLegacyRequest, AuthResponse, HealthResponse)
+- [x] `AuthManager` in commonMain (register, login, migrateLegacy, logout)
+- [x] Auth-Integration: Login speichert token + userId + username in SyncPrefs
+- [x] Mapper `toEntity()` angepasst: `userId`-Parameter (Default 'legacy-user')
+- [x] `kotlinWasmUpgradeYarnLock` nach Ktor-Dependency-Änderung
+- [x] Alle 3 Targets bauen grün (Android, Desktop, Wasm)
+- [x] 39 commonTest-Tests noch grün
+- [x] **Test:** Android APK installiert + baut
+
+**Breaking Changes bewältigt:**
+- Retrofit (Interface mit @GET/@POST) → Ktor (HttpClient + post/get/setBody)
+- OkHttp + HttpLoggingInterceptor → Ktor Logging Plugin
+- retrofit2-kotlinx-serialization-converter → Ktor ContentNegotiation + kotlinx-json
+- SharedPreferences (Android-only) → multiplatform-settings (Android/JVM/Wasm)
+- `System.currentTimeMillis()` → `Clock.System.now().toEpochMilliseconds()`
+- `android.util.Log` entfernt (Ktor Logging übernimmt)
 
 ### Phase M6 — RRULE auf Web
 - [ ] Prüfen ob `lib-recur` (JVM-Library) auf Wasm verfügbar ist
