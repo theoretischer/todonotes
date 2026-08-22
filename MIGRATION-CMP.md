@@ -245,11 +245,32 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - UUID → `kotlin.uuid.Uuid` (via `randomUuidString()` Helper)
 - AlarmScheduler → Interface in commonMain, injected
 
-#### M7b — Theme + TodoNotesApp-Gerüst + TodosScreen (folgt)
-- [ ] Theme/Farben → commonMain
-- [ ] `TodoNotesApp` (Scaffold + BottomBar + Tab-State) → commonMain
-- [ ] `TodosScreen` → commonMain
-- [ ] `TodoViewModel` als plain Kotlin-Klasse
+#### M7b — Theme + TodoNotesApp-Gerüst + TodosScreen ✅
+- [x] `material-icons-core` + `-extended` Dependency (org.jetbrains.compose.material 1.7.3 — CMP 1.8.2 hat keine transitive Abhängigkeit mehr)
+- [x] Theme → commonMain: `TodoNotesTheme` + `resolveColorScheme` expect/actual
+  - Android: Dynamic Color ab S (12), sonst statisch
+  - Desktop/Wasm: statisch (kein Dynamic Color)
+- [x] `RecurrenceState`/`RecurrenceCodec` → commonMain: `Weekdays`-Konstanten statt java.util.Calendar
+- [x] `RecurrenceEditor` → commonMain (Calendar.* → Weekdays.*)
+- [x] `SwipeToDeleteRow` → commonMain (war schon pure Compose)
+- [x] `TodoGrouping` → commonMain: kotlinx.datetime statt java.util.Calendar
+- [x] `TodoEditDialog` → commonMain: kotlinx.datetime (DatePicker/TimePicker aus M3 sind multiplatform)
+- [x] `TodosScreen` → commonMain: `formatTodoDate()` mit kotlinx statt SimpleDateFormat
+- [x] `TodoViewModel` → commonMain: plain Kotlin-Klasse (eigener CoroutineScope, kein androidx.lifecycle.ViewModel)
+- [x] `TodoNotesApp` + `App` → commonMain: Scaffold + BottomBar (4 Tabs) + Profil-Icon
+  - Navigation manuell via `when(currentTab)` + State-Flags
+  - `windowInsetsPadding(ime.union(navigationBars))` auf BottomBar
+  - Habits/Notes/History zeigen "kommt in M7c/d" (Placeholder)
+- [x] Wasm-Fix: `String.format` nicht verfügbar → `buildString` mit padStart
+- [x] Alle 3 Targets bauen grün, 74 Tests grün
+- [x] APK auf S24 installiert — echtes Todos-Tab sichtbar
+
+#### M7c — HabitsScreen + HistoryScreen (folgt)
+- [ ] HabitViewModel + HabitEngine-Integration
+- [ ] HabitsScreen + HabitEditDialog + HabitCadencePicker
+- [ ] HistoryScreen
+
+#### M7d — NotesScreen + NoteEditorScreen + ChatScreen + SettingsScreen + LoginScreen (folgt)
 
 ### Phase M8 — Notifications (expect/actual)
 - [ ] `expect class AlarmScheduler` → androidMain (heutiger Code 1:1), wasmJsMain (noop/Browser-Notification)

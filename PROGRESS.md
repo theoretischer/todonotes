@@ -106,8 +106,9 @@
 - M5 ✅ Networking (Ktor 3.5.2 statt Retrofit, SyncManager+AuthManager in commonMain, multiplatform-settings)
 - M6 ✅ RRULE auf Web (RecurrenceCalculator erweitert, 14 Parity-Tests vs lib-recur alle grün)
 - M7a ✅ Fundament (Repositories + AppContainer in commonMain, AlarmScheduler expect/actual)
+- M7b ✅ Theme + TodoNotesApp-Gerüst + TodosScreen (RecurrenceEditor, TodoEditDialog, SwipeToDeleteRow, material-icons)
 
 Backend läuft neu in Docker, alte Android-App funktioniert weiter (Static-Token → Legacy-User).
 Plan: `MIGRATION-CMP.md`.
 
-**Nächster Schritt: M7b — Theme + TodoNotesApp-Gerüst + TodosScreen"**
+**Nächster Schritt: M7c — HabitsScreen + HistoryScreen"**
