@@ -1,15 +1,18 @@
 [versions]
 compose = "1.8.2"
-agp = "8.7.3"
+agp = "8.10.0"
 android-minSdk = "34"
 android-compileSdk = "36"
 android-targetSdk = "36"
 androidx-activityCompose = "1.10.1"
 androidx-core-ktx = "1.15.0"
 kotlin = "2.3.20"
+ksp = "2.3.11"
 kotlinxSerialization = "1.7.3"
 kotlinxDatetime = "0.6.2"
 libRecur = "0.17.1"
+room3 = "3.0.1"
+sqlite = "2.7.0"
 
 [libraries]
 compose-ui = { module = "androidx.compose.ui:ui", version.ref = "compose" }
@@ -24,6 +27,10 @@ kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime",
 lib-recur = { group = "org.dmfs", name = "lib-recur", version.ref = "libRecur" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-test-annotations = { module = "org.jetbrains.kotlin:kotlin-test-annotations-common", version.ref = "kotlin" }
+androidx-room3-runtime = { module = "androidx.room3:room3-runtime", version.ref = "room3" }
+androidx-room3-compiler = { module = "androidx.room3:room3-compiler", version.ref = "room3" }
+androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
+androidx-sqlite-web = { module = "androidx.sqlite:sqlite-web", version.ref = "sqlite" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -31,3 +38,5 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 pluginCompose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 jetbrainsCompose = { id = "org.jetbrains.compose", version.ref = "compose" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+androidx-room3 = { id = "androidx.room3", version.ref = "room3" }

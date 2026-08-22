@@ -1,5 +1,8 @@
 package com.earendil.todonotes.data.entity
 
+import androidx.room3.Entity
+import androidx.room3.PrimaryKey
+
 /**
  * Ein Todo-Aufgabe.
  *
@@ -10,8 +13,11 @@ package com.earendil.todonotes.data.entity
  * - deletedAt: Soft-Delete
  * - updatedAt: Last-Write-Wins beim Sync
  * - logToHistory: Nutzer-Setting pro Todo "Nach Abschluss in Verlauf eintragen"
+ * - userId: Multi-User (M1). Default "legacy-user" bei Migration v9→v10.
  */
+@Entity(tableName = "todos")
 data class Todo(
+    @PrimaryKey
     val id: String,
     val title: String,
     val notes: String = "",
@@ -21,7 +27,8 @@ data class Todo(
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null,
-    val logToHistory: Boolean = true
+    val logToHistory: Boolean = true,
+    val userId: String = "legacy-user"
 ) {
     val isOpen: Boolean get() = completedAt == null && deletedAt == null
     val isTimed: Boolean get() = dueAt != null

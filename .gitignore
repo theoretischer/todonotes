@@ -48,3 +48,5 @@ Thumbs.db
 # --- Pi/Crush Agent-Metadaten (sollen nicht ins Repo) ---
 .crush/
 .pi/
+
+# Room-Schema-JSON (compose-app) wird committet — wie android/app/schemas/

@@ -1,0 +1,114 @@
+package com.earendil.todonotes.data.dao
+
+import androidx.room3.Dao
+import androidx.room3.Insert
+import androidx.room3.OnConflictStrategy
+import androidx.room3.Query
+import androidx.room3.Update
+import com.earendil.todonotes.data.entity.Habit
+import com.earendil.todonotes.data.entity.HabitHistoryEntry
+import com.earendil.todonotes.data.entity.HabitLog
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface HabitDao {
+
+    /** Alle aktiven Habits (nicht gelöscht), sortiert nach Erstellungszeit. */
+    @Query(
+        """
+        SELECT * FROM habits
+        WHERE deletedAt IS NULL
+        ORDER BY createdAt ASC
+        """
+    )
+    fun observeHabits(): Flow<List<Habit>>
+
+    @Query("SELECT * FROM habits WHERE id = :id")
+    suspend fun getById(id: String): Habit?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(habit: Habit)
+
+    @Update
+    suspend fun update(habit: Habit)
+
+    @Query("UPDATE habits SET deletedAt = :now, updatedAt = :now WHERE id = :id")
+    suspend fun softDelete(id: String, now: Long)
+
+    // ---- HabitLogs ----
+
+    /** Alle Logs eines Habits ab :since (Start der aktuellen Periode). */
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since ORDER BY timestamp ASC")
+    suspend fun logsSince(habitId: String, since: Long): List<HabitLog>
+
+    /** Anzahl Logs eines Habits ab :since (für Count-Berechnung, ohne Liste zu laden). */
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
+    suspend fun countSince(habitId: String, since: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: HabitLog)
+
+    /** Neuesten Log eines Habits ab :since löschen (Undo des letzten +1). */
+    @Query(
+        """
+        DELETE FROM habit_logs
+        WHERE id = (
+            SELECT id FROM habit_logs
+            WHERE habitId = :habitId AND timestamp >= :since
+            ORDER BY timestamp DESC LIMIT 1
+        )
+        """
+    )
+    suspend fun deleteLatestLogSince(habitId: String, since: Long)
+
+    /** Alle Logs eines Habits ab :since löschen (Periode abschließen). */
+    @Query("DELETE FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
+    suspend fun deleteLogsSince(habitId: String, since: Long)
+
+    /** Anzahl Logs eines Habits im Zeitraum [from, until). */
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until")
+    suspend fun countBetween(habitId: String, from: Long, until: Long): Int
+
+    // ---- HabitHistory ----
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHistory(entry: HabitHistoryEntry)
+
+    /** Verlaufseintrag per id loeschen (fuer Swipe-to-delete im Verlauf-Tab). */
+    @Query("DELETE FROM habit_history WHERE id = :id")
+    suspend fun deleteHistoryEntry(id: String)
+
+    // ---- Sync ----
+
+    /** Alle Habits einmalig (inkl. soft-deleted, für Sync-Upstream). */
+    @Query("SELECT * FROM habits")
+    suspend fun getAllHabitsForSync(): List<Habit>
+
+    /** Server-Änderungen einspielen. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllHabits(habits: List<Habit>)
+
+    /** Alle Logs einmalig (für Sync-Upstream). */
+    @Query("SELECT * FROM habit_logs")
+    suspend fun getAllLogsForSync(): List<HabitLog>
+
+    /** Server-Logs einspielen (REPLACE — id-PK). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllLogs(logs: List<HabitLog>)
+
+    /** Alle History-Einträge einmalig. */
+    @Query("SELECT * FROM habit_history")
+    suspend fun getAllHistoryForSync(): List<HabitHistoryEntry>
+
+    /** Server-History einspielen. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAllHistory(entries: List<HabitHistoryEntry>)
+
+    /** Alle aktiven Habits einmalig (nicht reaktiv). */
+    @Query("SELECT * FROM habits WHERE deletedAt IS NULL ORDER BY createdAt ASC")
+    suspend fun getAllHabitsOnce(): List<Habit>
+
+    /** Alle Verlaufseinträge aller Habits, neueste zuerst. */
+    @Query("SELECT * FROM habit_history ORDER BY loggedAt DESC")
+    fun observeHabitHistory(): Flow<List<HabitHistoryEntry>>
+}

@@ -9,6 +9,8 @@ plugins {
     alias(libs.plugins.jetbrainsCompose)
     alias(libs.plugins.pluginCompose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room3)
 }
 
 kotlin {
@@ -34,10 +36,16 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.ktx)
             implementation(libs.lib.recur)
+            implementation(libs.androidx.sqlite.bundled)
+        }
+        val wasmJsMain by getting
+        wasmJsMain.dependencies {
+            implementation(libs.androidx.sqlite.web)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.lib.recur)
+            implementation(libs.androidx.sqlite.bundled)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -47,12 +55,25 @@ kotlin {
             implementation(compose.components.resources)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.androidx.room3.runtime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.kotlin.test.annotations)
         }
     }
+}
+
+// KSP für Room-Compiler — pro Target (Room generiert plattformspezifischen Code)
+dependencies {
+    add("kspAndroid", libs.androidx.room3.compiler)
+    add("kspDesktop", libs.androidx.room3.compiler)
+    add("kspWasmJs", libs.androidx.room3.compiler)
+}
+
+// Room-Schema-Export (für Migrations-Tests + Nachvollziehbarkeit)
+room3 {
+    schemaDirectory("$projectDir/schemas")
 }
 
 android {

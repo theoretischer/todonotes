@@ -143,13 +143,31 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] **Bug-Fix:** `resetWeekday` Calendar-Nummerierung (1=SO, 2=MO, 7=SA) korrekt behandelt
 - [x] **Wasm-Fix:** `StringBuilder.deleteCharAt` → `deleteAt` (Wasm-kompatibel)
 
-### Phase M4 — DB: Room KMP
-- [ ] Room KMP Dependencies (room-runtime multiplatform)
-- [ ] Entities + DAOs nach commonMain (+ `userId`-Spalte)
-- [ ] Migration v9→v10 (userId auf alle Tabellen)
-- [ ] `expect class DatabaseBuilder` → `actual` pro Plattform (Android: Room.databaseBuilder, Wasm: SQLite-OPFS)
-- [ ] Migrationen bleiben shared (sind plattformneutral)
-- [ ] **Test:** Android: DB funktioniert, Migrationen grün
+### Phase M4 — DB: Room KMP ✅
+- [x] Room 3.0 Dependencies (room3-runtime, room3-compiler, sqlite-bundled, sqlite-web)
+- [x] KSP 2.3.11 + AGP 8.10.0 (KSP brauchte min AGP 8.10)
+- [x] Entities + DAOs in commonMain mit `androidx.room3.*` Annotationen
+- [x] `@TypeConverter` → `@ColumnTypeConverter` (Room 3 Naming-Änderung)
+- [x] `userId`-Spalte auf alle 7 Entities (Default `"legacy-user"`)
+- [x] Migration v9→v10: `ALTER TABLE ... ADD COLUMN userId TEXT NOT NULL DEFAULT 'legacy-user'` auf alle Tabellen
+- [x] Alle 9 Migrationen (v1→v10) von `SupportSQLiteDatabase` → `SQLiteConnection` + `execSQL` Extension
+- [x] `migrate()` ist jetzt `suspend fun` (Room 3 Coroutine-API)
+- [x] `@Database(version=10)` + `@ConstructedBy(TodoNotesDatabaseConstructor::class)`
+- [x] expect/actual `getDatabaseBuilder()`: Android (Context+Pfad), Desktop (JVM-Pfad), Wasm (inMemory, persistente OPFS-DB kommt M9)
+- [x] `buildDatabase()` in commonMain: Builder + Migrationen + `.build()`
+- [x] KSP generiert `TodoNotesDatabase_Impl.kt` für alle 3 Targets
+- [x] Schema `10.json` exportiert + committet
+- [x] Alle 3 Targets bauen grün (Android, Desktop, Wasm)
+- [x] 39 commonTest-Tests noch grün
+- [x] **Test:** Android APK installiert, baut + funktioniert
+
+**Raum 3 Breaking Changes bewältigt:**
+- `androidx.room` → `androidx.room3` (neues Package)
+- `SupportSQLiteDatabase` → `SQLiteConnection` (neue Driver-API)
+- `@TypeConverter` → `@ColumnTypeConverter`
+- `migrate(db: SupportSQLiteDatabase)` → `suspend migrate(connection: SQLiteConnection)`
+- `db.execSQL(sql)` → `connection.execSQL(sql)` (Extension-Funktion)
+- KAPT → KSP-only (Room 3 ist Kotlin-only)
 
 ### Phase M5 — Networking: Ktor statt Retrofit
 - [ ] Ktor-Client (multiplatform) Dependencies
