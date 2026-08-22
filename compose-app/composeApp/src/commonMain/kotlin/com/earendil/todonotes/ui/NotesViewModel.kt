@@ -135,6 +135,11 @@ class NotesViewModel(
         vmScope.launch { noteRepo.moveNote(id, newFolderId) }
     }
 
+    /** Ordner in einen anderen verschieben (null = Wurzel). */
+    fun moveFolder(id: String, newParentId: String?) {
+        vmScope.launch { folderRepo.moveFolder(id, newParentId) }
+    }
+
     /** Reihenfolge zweier Notizen tauschen (1D-Drag&Drop). */
     fun reorderNotes(idA: String, idB: String) {
         vmScope.launch { noteRepo.swapNoteOrder(idA, idB) }

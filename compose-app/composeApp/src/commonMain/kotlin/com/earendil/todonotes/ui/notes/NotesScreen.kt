@@ -67,12 +67,11 @@ fun NotesScreen(
 
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Folder?>(null) }
-    var moveTarget by remember { mutableStateOf<Note?>(null) }
+    var moveNoteTarget by remember { mutableStateOf<Note?>(null) }
+    var moveFolderTarget by remember { mutableStateOf<Folder?>(null) }
     var showNewMenu by remember { mutableStateOf(false) }
 
-    val rowHeights = remember { mutableStateMapOf<String, Int>() }
-    var reorder by remember { mutableStateOf<ReorderSession?>(null) }
-    val folderBounds = remember { mutableStateMapOf<String, Rect>() }
+    val folderBounds = remember { mutableStateMapOf<String, Rect>() }  // für Breadcrumb-Drop (unbenutzt, Drag deaktiviert)
 
     Box(modifier = modifier.fillMaxSize()) {
 
@@ -96,65 +95,29 @@ fun NotesScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(state.folders, key = { it.id }) { folder ->
-                    val isDragged = reorder?.draggedId == folder.id && reorder?.kind == ReorderKind.FOLDER
-                    RowReorder(
-                        isDragged = isDragged,
-                        onSizeChanged = { rowHeights[folder.id] = it },
-                        onGloballyPositioned = { pos -> folderBounds[folder.id] = pos.boundsInRoot() }
+                    SwipeToDeleteRow(
+                        onDelete = { notesVm.deleteFolder(folder.id) },
+                        onClick = { notesVm.openFolder(folder) }
                     ) {
-                        val dragModifier = Modifier.reorderDragGesture(
-                            itemId = folder.id,
-                            kind = ReorderKind.FOLDER,
-                            repositories = state.folders.map { it.id },
-                            heightPx = rowHeights[folder.id] ?: 0,
-                            reorder = reorder,
-                            setReorder = { reorder = it },
-                            onSwap = { a, b -> notesVm.reorderFolders(a, b) }
+                        FolderRow(
+                            folder = folder,
+                            onRename = { renameTarget = folder },
+                            onMove = { moveFolderTarget = folder }
                         )
-                        SwipeToDeleteRow(
-                            onDelete = { notesVm.deleteFolder(folder.id) },
-                            onClick = { notesVm.openFolder(folder) },
-                            onLongClick = null,
-                            contentModifier = dragModifier
-                        ) {
-                            FolderRow(folder = folder)
-                        }
                     }
                 }
                 if (state.folders.isNotEmpty() && state.notes.isNotEmpty()) {
                     item { Spacer(Modifier.height(4.dp)) }
                 }
                 items(state.notes, key = { it.id }) { note ->
-                    val isDragged = reorder?.draggedId == note.id && reorder?.kind == ReorderKind.NOTE
-                    RowReorder(
-                        isDragged = isDragged,
-                        onSizeChanged = { rowHeights[note.id] = it },
-                        onGloballyPositioned = {}
+                    SwipeToDeleteRow(
+                        onDelete = { notesVm.deleteNote(note.id) },
+                        onClick = { onOpenNote(note.id, false, note.type) }
                     ) {
-                        val dragModifier = Modifier.reorderDragGesture(
-                            itemId = note.id,
-                            kind = ReorderKind.NOTE,
-                            repositories = state.notes.map { it.id },
-                            heightPx = rowHeights[note.id] ?: 0,
-                            reorder = reorder,
-                            setReorder = { reorder = it },
-                            onSwap = { a, b -> notesVm.reorderNotes(a, b) },
-                            folderBounds = folderBounds,
-                            onDropOnFolder = { noteId, folderIdOrRoot ->
-                                val target = if (folderIdOrRoot == ROOT_DROP_KEY) null else folderIdOrRoot
-                                if (target != state.currentFolderId) {
-                                    notesVm.moveNote(noteId, target)
-                                }
-                            }
+                        NoteRow(
+                            note = note,
+                            onMove = { moveNoteTarget = note }
                         )
-                        SwipeToDeleteRow(
-                            onDelete = { notesVm.deleteNote(note.id) },
-                            onClick = { onOpenNote(note.id, false, note.type) },
-                            onLongClick = null,
-                            contentModifier = dragModifier
-                        ) {
-                            NoteRow(note = note)
-                        }
                     }
                 }
             }
@@ -234,102 +197,29 @@ fun NotesScreen(
         )
     }
 
-    moveTarget?.let { note ->
+    moveNoteTarget?.let { note ->
         MoveNoteSheet(
             note = note,
             currentFolderId = state.currentFolderId,
             onMove = { targetFolderId ->
                 notesVm.moveNote(note.id, targetFolderId)
-                moveTarget = null
+                moveNoteTarget = null
             },
-            onDismiss = { moveTarget = null },
+            onDismiss = { moveNoteTarget = null },
             loadFolders = { notesVm.getAllFoldersForMove() }
         )
     }
-}
 
-@Composable
-private fun RowReorder(
-    isDragged: Boolean,
-    onSizeChanged: (Int) -> Unit,
-    onGloballyPositioned: (androidx.compose.ui.layout.LayoutCoordinates) -> Unit,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .zIndex(if (isDragged) 2f else 0f)
-            .onSizeChanged { onSizeChanged(it.height) }
-            .onGloballyPositioned(onGloballyPositioned)
-    ) {
-        content()
-    }
-}
-
-@Composable
-fun Modifier.reorderDragGesture(
-    itemId: String,
-    kind: ReorderKind,
-    repositories: List<String>,
-    heightPx: Int,
-    reorder: ReorderSession?,
-    setReorder: (ReorderSession?) -> Unit,
-    onSwap: (String, String) -> Unit,
-    folderBounds: Map<String, Rect> = emptyMap(),
-    onDropOnFolder: (id: String, folderId: String) -> Unit = { _, _ -> }
-): Modifier {
-    val currentKind by rememberUpdatedState(kind)
-    val currentRepos by rememberUpdatedState(repositories)
-    val currentHeight by rememberUpdatedState(heightPx)
-    val currentSetReorder by rememberUpdatedState(setReorder)
-    val currentOnSwap by rememberUpdatedState(onSwap)
-    val currentBounds by rememberUpdatedState(folderBounds)
-    val currentDropFolder by rememberUpdatedState(onDropOnFolder)
-    var nodeRoot = Offset.Zero
-    return this
-        .onGloballyPositioned { nodeRoot = it.positionInRoot() }
-        .pointerInput(itemId) {
-        var session = reorder?.takeIf { it.draggedId == itemId }
-        var lastGlobal = Offset.Zero
-        fun hit(): String? {
-            if (currentBounds.isEmpty()) return null
-            var best: String? = null
-            var bestArea = Float.MAX_VALUE
-            for ((id, rect) in currentBounds) {
-                if (!rect.contains(lastGlobal)) continue
-                val area = rect.width * rect.height
-                if (area < bestArea) { best = id; bestArea = area }
-            }
-            return best
-        }
-        detectDragGesturesAfterLongPress(
-            onDragStart = {
-                val idx = currentRepos.indexOf(itemId)
-                if (idx < 0) return@detectDragGesturesAfterLongPress
-                session = ReorderSession(itemId, currentKind, idx, 0f)
-                currentSetReorder(session)
+    moveFolderTarget?.let { folder ->
+        MoveFolderSheet(
+            folder = folder,
+            currentParentId = folder.parentId,
+            onMove = { targetParentId ->
+                notesVm.moveFolder(folder.id, targetParentId)
+                moveFolderTarget = null
             },
-            onDrag = { change, dragAmount ->
-                change.consume()
-                lastGlobal = nodeRoot + change.position
-                val s = session ?: return@detectDragGesturesAfterLongPress
-                val step = reorderStep(
-                    session = s,
-                    repositories = currentRepos,
-                    heightPx = currentHeight,
-                    dragAmountPx = dragAmount.y,
-                    onSwap = currentOnSwap
-                )
-                session = ReorderSession(itemId, currentKind, step.newIndex, step.newAccumPx)
-                currentSetReorder(session)
-            },
-            onDragEnd = {
-                if (currentKind == ReorderKind.NOTE) {
-                    hit()?.let { currentDropFolder(itemId, it) }
-                }
-                currentSetReorder(null)
-            },
-            onDragCancel = { currentSetReorder(null) }
+            onDismiss = { moveFolderTarget = null },
+            loadFolders = { notesVm.getAllFoldersForMove() }
         )
     }
 }
@@ -393,14 +283,19 @@ private fun NewMenuItem(
 }
 
 @Composable
-private fun FolderRow(folder: Folder) {
+private fun FolderRow(
+    folder: Folder,
+    onRename: () -> Unit,
+    onMove: () -> Unit
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -418,20 +313,43 @@ private fun FolderRow(folder: Folder) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            // ⋮-Menü
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Optionen")
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Umbenennen") },
+                        onClick = { menuExpanded = false; onRename() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Verschieben") },
+                        onClick = { menuExpanded = false; onMove() }
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun NoteRow(note: Note) {
+private fun NoteRow(
+    note: Note,
+    onMove: () -> Unit
+) {
     val preview = remember(note.bodyJson) { notePreview(note) }
+    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -457,6 +375,21 @@ private fun NoteRow(note: Note) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            // ⋮-Menü
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Optionen")
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Verschieben") },
+                        onClick = { menuExpanded = false; onMove() }
                     )
                 }
             }
@@ -571,6 +504,56 @@ private fun MoveNoteSheet(
                     icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                     name = folder.name,
                     onClick = { onMove(folder.id) }
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveFolderSheet(
+    folder: Folder,
+    currentParentId: String?,
+    onMove: (String?) -> Unit,
+    onDismiss: () -> Unit,
+    loadFolders: suspend () -> List<Folder>
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
+    LaunchedEffect(Unit) { folders = loadFolders() }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Text(
+            "Ordner verschieben",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 8.dp)
+        )
+        if (currentParentId != null) {
+            MoveTargetRow(
+                icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                name = "Hauptebene",
+                onClick = { onMove(null) }
+            )
+            HorizontalDivider()
+        }
+        // Eigenen Ordner + Nachfahren herausfiltern (Zyklen-Vermeidung).
+        val candidates = folders.filter { it.id != folder.id && it.id != currentParentId }
+        if (candidates.isEmpty() && currentParentId == null) {
+            Text(
+                "Keine Ziel-Ordner vorhanden.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(24.dp)
+            )
+        } else {
+            candidates.forEach { target ->
+                MoveTargetRow(
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    name = target.name,
+                    onClick = { onMove(target.id) }
                 )
             }
         }
