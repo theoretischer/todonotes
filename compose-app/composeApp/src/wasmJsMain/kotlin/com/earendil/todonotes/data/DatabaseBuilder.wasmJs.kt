@@ -1,19 +1,26 @@
+@file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+
 package com.earendil.todonotes.data
 
 import androidx.room3.Room
 import androidx.room3.RoomDatabase
+import androidx.sqlite.driver.web.WebWorkerSQLiteDriver
 
 /**
- * WasmJS actual: WebWorkerSQLiteDriver (OPFS-basiert).
+ * WasmJS actual: SQLite über Web Worker + OPFS (Origin Private File System).
  *
- * TODO (M9): Web Worker mit SQLite WASM einrichten — braucht worker.js
- * im resources + @JsFun für new Worker(...). Siehe:
- * https://github.com/danysantiago/room-web-demo
+ * Nutzt [WebWorkerSQLiteDriver] aus androidx.sqlite:sqlite-web, der mit einem
+ * Web Worker kommuniziert (worker.js im sqlite-web-worker/ Ordner). Der Worker
+ * nutzt @sqlite.org/sqlite-wasm für persistente OPFS-Speicherung — Daten
+ * überleben also Browser-Reloads.
  *
- * Vorerst: inMemoryBuilder (Daten überleben Reload nicht).
- * Für persistente Wasm-DB siehe M9 (Web-Target).
+ * Der Worker wird in der JS-Datei sqlite-worker.js erstellt (siehe
+ * [SqliteWorkerJs.kt]). Das ist notwendig, weil js() in Kotlin/Wasm den
+ * Code als Property-Wert (nicht als Funktion) ins Import-Objekt einbettet.
  */
 actual fun getDatabaseBuilder(): RoomDatabase.Builder<TodoNotesDatabase> {
-    // In-Memory für jetzt — persistente OPFS-DB kommt in M9.
-    return Room.inMemoryDatabaseBuilder<TodoNotesDatabase>()
+    val driver = WebWorkerSQLiteDriver(createSqliteWorker())
+    return Room.databaseBuilder<TodoNotesDatabase>(
+        name = "todonotes.db"
+    ).setDriver(driver)
 }

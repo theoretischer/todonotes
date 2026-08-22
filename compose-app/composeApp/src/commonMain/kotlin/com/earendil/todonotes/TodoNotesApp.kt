@@ -32,7 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.earendil.todonotes.ui.HabitViewModel
 import com.earendil.todonotes.ui.TodoViewModel
+import com.earendil.todonotes.ui.habits.HabitsScreen
+import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.todos.TodosScreen
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -56,6 +59,12 @@ fun TodoNotesApp(
 ) {
     val todoVm = remember { TodoViewModel(container.todoRepository, container.appScope) }
     val openTodos by todoVm.openTodos.collectAsState()
+    val completedTodos by todoVm.completedTodos.collectAsState()
+
+    val habitVm = remember { HabitViewModel(container.habitRepository, container.appScope) }
+    val habitsWithProgress by habitVm.habitsWithProgress.collectAsState()
+    val habitHistory by habitVm.habitHistory.collectAsState()
+
     var currentTab by remember { mutableStateOf(Tab.Todos) }
 
     Scaffold(
@@ -90,9 +99,24 @@ fun TodoNotesApp(
                     onDeleteTodo = todoVm::deleteTodo,
                     modifier = Modifier.fillMaxSize()
                 )
-                Tab.Habits -> ComingSoon("Gewohnheiten", Modifier.fillMaxSize())
+                Tab.Habits -> HabitsScreen(
+                    habits = habitsWithProgress,
+                    onCreateHabit = habitVm::createHabit,
+                    onEditHabit = habitVm::updateHabit,
+                    onLogHabit = habitVm::logHabit,
+                    onDeleteHabit = habitVm::deleteHabit,
+                    onFinishPeriod = habitVm::finishCurrentPeriod,
+                    modifier = Modifier.fillMaxSize()
+                )
                 Tab.Notes -> ComingSoon("Notizen", Modifier.fillMaxSize())
-                Tab.History -> ComingSoon("Verlauf", Modifier.fillMaxSize())
+                Tab.History -> HistoryScreen(
+                    completedTodos = completedTodos,
+                    habitHistory = habitHistory,
+                    onReopenTodo = todoVm::reopenTodo,
+                    onDeleteTodo = todoVm::deleteTodo,
+                    onDeleteHistoryEntry = habitVm::deleteHistoryEntry,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // Profil-Icon oben rechts (öffnet Settings — M7d)

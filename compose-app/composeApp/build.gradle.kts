@@ -43,6 +43,8 @@ kotlin {
         wasmJsMain.dependencies {
             implementation(libs.androidx.sqlite.web)
             implementation(libs.ktor.client.js)
+            // SQLite-WASM-Engine + androidx-Worker für OPFS-persistente DB (M9).
+            implementation(npm("@androidx/sqlite-web-worker", "$rootDir/sqlite-web-worker"))
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
