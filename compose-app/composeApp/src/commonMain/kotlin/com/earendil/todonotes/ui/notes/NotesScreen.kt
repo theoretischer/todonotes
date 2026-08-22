@@ -108,7 +108,9 @@ fun NotesScreen(
                             itemId = folder.id,
                             repositories = state.folders.map { it.id },
                             heightPx = rowHeights[folder.id] ?: 0,
-                            onSwap = { a, b -> notesVm.reorderFolders(a, b) }
+                            onSwap = { a, b -> notesVm.reorderFolders(a, b) },
+                            onReorderBegin = { notesVm.beginFolderReorder() },
+                            onReorderEnd = { notesVm.commitFolderReorder() }
                         ) {
                             FolderRow(
                                 folder = folder,
@@ -134,7 +136,9 @@ fun NotesScreen(
                             itemId = note.id,
                             repositories = state.notes.map { it.id },
                             heightPx = rowHeights[note.id] ?: 0,
-                            onSwap = { a, b -> notesVm.reorderNotes(a, b) }
+                            onSwap = { a, b -> notesVm.reorderNotes(a, b) },
+                            onReorderBegin = { notesVm.beginNoteReorder() },
+                            onReorderEnd = { notesVm.commitNoteReorder() }
                         ) {
                             NoteRow(
                                 note = note,

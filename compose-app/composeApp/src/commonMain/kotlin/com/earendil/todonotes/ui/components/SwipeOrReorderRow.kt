@@ -69,6 +69,8 @@ fun SwipeOrReorderRow(
     repositories: List<String> = emptyList(),
     heightPx: Int = 0,
     onSwap: (String, String) -> Unit = { _, _ -> },
+    onReorderBegin: () -> Unit = {},
+    onReorderEnd: () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -148,6 +150,7 @@ fun SwipeOrReorderRow(
                                 val idx = currentRepos.indexOf(itemId)
                                 if (idx >= 0) {
                                     session = ReorderSession(itemId, ReorderKind.NOTE, idx, 0f)
+                                    onReorderBegin()  // DB-Flow ignorieren ab jetzt
                                 }
                             }
                         }
@@ -181,6 +184,7 @@ fun SwipeOrReorderRow(
                                 if (target == 0f) isSwipeDeleting = false
                             } else if (isReordering) {
                                 session = null
+                                onReorderEnd()  // DB-Batch schreiben
                             }
                         }
                         dragOffsetY = 0f
@@ -194,6 +198,7 @@ fun SwipeOrReorderRow(
                         isReordering = false
                         isSwipeDeleting = false
                         session = null
+                        onReorderEnd()  // Drag abgebrochen → DB-Batch (mit orig. Reihenfolge)
                     }
 
                     if (isTouch) {

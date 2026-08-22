@@ -10,9 +10,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -36,10 +36,15 @@ data class NotesBrowserState(
 /**
  * Plain-Kotlin-ViewModel für den Notizen-Tab (M7d — commonMain).
  *
- * Kein androidx.lifecycle.ViewModel — stattdessen eigene CoroutineScope.
- * Hält den Traversal-State (aktueller Ordner + Breadcrumb-Pfad) und
- * observiert die Ordner + Notizen der aktuellen Ebene reaktiv.
- * Drag&Drop, Editor-Öffnen und Erstellen laufen über die Aktionsfunktionen.
+ * Optimistic Reorder (M7d-rev): Auf Wasm ist jeder DB-Swap ein asynchroner
+ * Round-Trip zum Web Worker (getById×2 + getInFolder + setPosition×N). Bei
+ * 5 Swaps = dutzende Round-Trips = 3-5s Verzögerung, und der reaktive Flow
+ * liefert zwischendurch alte Listen → die Row springt zurück.
+ *
+ * Lösung: browserState ist ein MutableStateFlow, der von der DB gespeist
+ * wird. reorderNotes/reorderFolders mutieren ihn SOFORT (optimistic), der
+ * DB-Batch passiert erst am Ende des Drags (commitReorder) in einem Aufruf.
+ * Während des Drags wird die DB-Flow ignoriert (isReordering-Flag).
  */
 class NotesViewModel(
     private val folderRepo: FolderRepository,
@@ -52,7 +57,6 @@ class NotesViewModel(
     private val currentFolderId = MutableStateFlow<String?>(null)
     private val breadcrumbs = MutableStateFlow<List<Crumb>>(listOf(Crumb(null, "Notizen")))
 
-    // Ordner + Notizen auf der aktuellen Ebene (reaktiv via flatMapLatest).
     @OptIn(ExperimentalCoroutinesApi::class)
     private val foldersInCurrent = currentFolderId.flatMapLatest { id ->
         if (id == null) folderRepo.observeRootFolders() else folderRepo.observeFoldersIn(id)
@@ -63,23 +67,43 @@ class NotesViewModel(
         if (id == null) noteRepo.observeRootNotes() else noteRepo.observeNotesIn(id)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val browserState: StateFlow<NotesBrowserState> =
-        combine(
-            currentFolderId, breadcrumbs, foldersInCurrent, notesInCurrent
-        ) { id, crumbs, folders, notes ->
-            NotesBrowserState(id, crumbs, folders, notes)
-        }.stateIn(vmScope, SharingStarted.Eagerly, NotesBrowserState.EMPTY)
+    // DB-backed Flow → speist _state. Während isReordering=true wird die
+    // DB-Flow ignoriert (optimistic Updates haben Vorrang).
+    private val _browserState = MutableStateFlow(NotesBrowserState.EMPTY)
+    val browserState: StateFlow<NotesBrowserState> = _browserState.asStateFlow()
+
+    // True während eines Drag-Reorders → DB-Flow-Updates ignorieren.
+    private var isReorderingNotes = false
+    private var isReorderingFolders = false
+
+    init {
+        @OptIn(ExperimentalCoroutinesApi::class)
+        vmScope.launch {
+            combine(
+                currentFolderId, breadcrumbs, foldersInCurrent, notesInCurrent
+            ) { id, crumbs, folders, notes ->
+                NotesBrowserState(id, crumbs, folders, notes)
+            }.collect { state ->
+                // Während Reorder: DB-Updates ignorieren (optimistic hat Vorrang).
+                val skipNotes = isReorderingNotes
+                val skipFolders = isReorderingFolders
+                _browserState.value = _browserState.value.copy(
+                    currentFolderId = state.currentFolderId,
+                    breadcrumbs = state.breadcrumbs,
+                    folders = if (skipFolders) _browserState.value.folders else state.folders,
+                    notes = if (skipNotes) _browserState.value.notes else state.notes
+                )
+            }
+        }
+    }
 
     // ---- Navigation ----
 
-    /** Ordner öffnen (einen Level runter). */
     fun openFolder(folder: Folder) {
         currentFolderId.value = folder.id
         breadcrumbs.value = breadcrumbs.value + Crumb(folder.id, folder.name)
     }
 
-    /** Über einen Breadcrumb-Eintrag zu einem höheren Level springen. */
     fun navigateToCrumb(crumb: Crumb) {
         val idx = breadcrumbs.value.indexOfFirst { it.folderId == crumb.folderId }
         if (idx < 0) return
@@ -87,7 +111,6 @@ class NotesViewModel(
         breadcrumbs.value = breadcrumbs.value.take(idx + 1)
     }
 
-    /** Eine Ebene hoch (Back). Liefert false, wenn wir schon auf Wurzel sind. */
     fun goUp(): Boolean {
         if (breadcrumbs.value.size <= 1) return false
         val newCrumbs = breadcrumbs.value.dropLast(1)
@@ -110,8 +133,6 @@ class NotesViewModel(
         vmScope.launch { folderRepo.deleteFolder(id) }
     }
 
-    /** Neue leere Notiz im aktuellen Ordner anlegen. Liefert die neue Id
-     *  via Callback, damit der Aufrufer direkt den Editor öffnen kann. */
     fun createNote(onCreated: (String) -> Unit) {
         vmScope.launch {
             val note = noteRepo.createNote(folderId = currentFolderId.value)
@@ -119,7 +140,6 @@ class NotesViewModel(
         }
     }
 
-    /** Neue Chat-Notiz anlegen. Liefert die neue Id via Callback. */
     fun createChatNote(onCreated: (String) -> Unit) {
         vmScope.launch {
             val note = noteRepo.createChatNote(folderId = currentFolderId.value)
@@ -135,22 +155,57 @@ class NotesViewModel(
         vmScope.launch { noteRepo.moveNote(id, newFolderId) }
     }
 
-    /** Ordner in einen anderen verschieben (null = Wurzel). */
     fun moveFolder(id: String, newParentId: String?) {
         vmScope.launch { folderRepo.moveFolder(id, newParentId) }
     }
 
-    /** Reihenfolge zweier Notizen tauschen (1D-Drag&Drop). */
+    // ---- Optimistic Reorder ----
+
+    /** Notiz-Swap: sofort im lokalen State (optimistic), DB erst am Ende. */
     fun reorderNotes(idA: String, idB: String) {
-        vmScope.launch { noteRepo.swapNoteOrder(idA, idB) }
+        val notes = _browserState.value.notes
+        val ia = notes.indexOfFirst { it.id == idA }
+        val ib = notes.indexOfFirst { it.id == idB }
+        if (ia < 0 || ib < 0) return
+        val swapped = notes.toMutableList()
+        val tmp = swapped[ia]
+        swapped[ia] = swapped[ib]
+        swapped[ib] = tmp
+        _browserState.value = _browserState.value.copy(notes = swapped)
     }
 
-    /** Reihenfolge zweier Ordner tauschen (1D-Drag&Drop). */
+    /** Ordner-Swap: sofort im lokalen State (optimistic), DB erst am Ende. */
     fun reorderFolders(idA: String, idB: String) {
-        vmScope.launch { folderRepo.swapFolderOrder(idA, idB) }
+        val folders = _browserState.value.folders
+        val ia = folders.indexOfFirst { it.id == idA }
+        val ib = folders.indexOfFirst { it.id == idB }
+        if (ia < 0 || ib < 0) return
+        val swapped = folders.toMutableList()
+        val tmp = swapped[ia]
+        swapped[ia] = swapped[ib]
+        swapped[ib] = tmp
+        _browserState.value = _browserState.value.copy(folders = swapped)
     }
 
-    /** Alle Ordner flach (für Verschieben-Picker). */
+    /** Drag beginnt → DB-Flow für Notizen ignorieren. */
+    fun beginNoteReorder() { isReorderingNotes = true }
+
+    /** Drag beendet → finale Reihenfolge als Batch in DB schreiben,
+     *  dann DB-Flow wieder zulassen (korrigiert ggf. mit echter Reihenfolge). */
+    fun commitNoteReorder() {
+        isReorderingNotes = false
+        val finalIds = _browserState.value.notes.map { it.id }
+        vmScope.launch { noteRepo.applyOrder(finalIds) }
+    }
+
+    fun beginFolderReorder() { isReorderingFolders = true }
+
+    fun commitFolderReorder() {
+        isReorderingFolders = false
+        val finalIds = _browserState.value.folders.map { it.id }
+        vmScope.launch { folderRepo.applyOrder(finalIds) }
+    }
+
     suspend fun getAllFoldersForMove() = folderRepo.getAllFolders()
 
     fun deleteNote(id: String) {

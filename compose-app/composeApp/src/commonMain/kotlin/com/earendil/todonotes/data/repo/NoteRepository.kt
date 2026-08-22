@@ -86,4 +86,15 @@ class NoteRepository(private val db: TodoNotesDatabase) {
     suspend fun deleteNote(id: String) {
         dao.softDelete(id, nowMs())
     }
+
+    /** Finale Reihenfolge als Batch schreiben (optimistic Reorder, M7d-rev).
+     *  Setzt position = (index+1)*10 für alle Notizen in der angegebenen
+     *  Reihenfolge — ein Aufruf statt N Swaps. */
+    suspend fun applyOrder(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val now = nowMs()
+        ids.forEachIndexed { index, id ->
+            dao.setPosition(id, (index + 1).toLong() * 10, now)
+        }
+    }
 }

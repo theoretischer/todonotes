@@ -84,4 +84,13 @@ class FolderRepository(private val db: TodoNotesDatabase) {
     suspend fun deleteFolder(id: String) {
         dao.softDelete(id, nowMs())
     }
+
+    /** Finale Reihenfolge als Batch schreiben (optimistic Reorder, M7d-rev). */
+    suspend fun applyOrder(ids: List<String>) {
+        if (ids.isEmpty()) return
+        val now = nowMs()
+        ids.forEachIndexed { index, id ->
+            dao.setPosition(id, (index + 1).toLong() * 10, now)
+        }
+    }
 }
