@@ -220,15 +220,15 @@ class NotesViewModel(
      *  die alte Reihenfolge und ueberschreibt das optimistic Update. */
     fun commitNoteReorder() {
         val finalIds = _browserState.value.notes.map { it.id }
+        val folderId = currentFolderId.value
         vmScope.launch {
             noteRepo.applyOrder(finalIds)
+            // Explicit neu aus DB laden (die reaktive Flow feuert evtl.
+            // nicht zuverlaessig nach dem Batch auf Wasm).
+            val freshNotes = noteRepo.getNotesInFolder(folderId)
+            _browserState.value = _browserState.value.copy(notes = freshNotes)
             isReorderingNotes = false
-            // Gespeicherte DB-Aktualisierung anwenden (enthält die neue
-            // Reihenfolge nach dem Batch).
-            pendingDbNotes?.let { dbNotes ->
-                _browserState.value = _browserState.value.copy(notes = dbNotes)
-                pendingDbNotes = null
-            }
+            pendingDbNotes = null
         }
     }
 
@@ -236,13 +236,13 @@ class NotesViewModel(
 
     fun commitFolderReorder() {
         val finalIds = _browserState.value.folders.map { it.id }
+        val parentId = currentFolderId.value
         vmScope.launch {
             folderRepo.applyOrder(finalIds)
+            val freshFolders = folderRepo.getFoldersIn(parentId)
+            _browserState.value = _browserState.value.copy(folders = freshFolders)
             isReorderingFolders = false
-            pendingDbFolders?.let { dbFolders ->
-                _browserState.value = _browserState.value.copy(folders = dbFolders)
-                pendingDbFolders = null
-            }
+            pendingDbFolders = null
         }
     }
 

@@ -93,4 +93,8 @@ class FolderRepository(private val db: TodoNotesDatabase) {
             dao.setPosition(id, (index + 1).toLong() * 10, now)
         }
     }
+
+    /** Ordner in einem Eltern-Ordner einmalig laden (fuer explicit Refresh). */
+    suspend fun getFoldersIn(parentId: String?): List<Folder> =
+        dao.getInFolder(parentId)
 }

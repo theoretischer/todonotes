@@ -207,19 +207,27 @@ fun SwipeOrReorderRow(
                                 session = null
                                 onReorderEnd()
                             }
+                            // WICHTIG: Resets ERST nach den Checks oben,
+                            // innerhalb des Coroutines. Sonst sind sie schon
+                            // false bevor der Coroutine-Body läuft (scope.launch
+                            // ist async!).
+                            dragOffsetY = 0f
+                            isReordering = false
+                            isSwipeDeleting = false
                         }
-                        dragOffsetY = 0f
-                        isReordering = false
-                        isSwipeDeleting = false
                     }
 
                     val handleCancel: () -> Unit = {
-                        scope.launch { offsetX.animateTo(0f, tween(150)) }
-                        dragOffsetY = 0f
-                        isReordering = false
-                        isSwipeDeleting = false
-                        session = null
-                        onReorderEnd()
+                        scope.launch {
+                            offsetX.animateTo(0f, tween(150))
+                            if (isReordering) {
+                                session = null
+                                onReorderEnd()
+                            }
+                            dragOffsetY = 0f
+                            isReordering = false
+                            isSwipeDeleting = false
+                        }
                     }
 
                     if (isTouch) {

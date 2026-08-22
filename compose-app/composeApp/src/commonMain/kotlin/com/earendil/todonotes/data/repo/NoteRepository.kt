@@ -97,4 +97,10 @@ class NoteRepository(private val db: TodoNotesDatabase) {
             dao.setPosition(id, (index + 1).toLong() * 10, now)
         }
     }
+
+    /** Notizen in einem Ordner einmalig laden (fuer explicit Refresh nach
+     *  Reorder-Batch — die reaktive Flow feuert auf Wasm evtl. nicht
+     *  zuverlaessig nach mehreren setPosition-Aufrufen). */
+    suspend fun getNotesInFolder(folderId: String?): List<Note> =
+        dao.getInFolder(folderId)
 }
