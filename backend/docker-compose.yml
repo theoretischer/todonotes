@@ -17,9 +17,8 @@ services:
       SYNC_TOKEN: ${SYNC_TOKEN:-}
       DB_PATH: /app/data/todonotes.db
       DATA_DIR: /app/data
-      # Web-App (Wasm-dist) — wird per rsync von GitHub Actions hier abgelegt
-      # (deploy-web Job). Bind-Mount, damit kein Container-Rebuild nötig ist.
-      WEB_DIR: /opt/todonotes/web
+      # Web-App (Wasm-dist, per deploy-web.sh ins Repo kopiert & committet)
+      WEB_DIR: /app/web
 
 volumes:
   todonotes-data:
