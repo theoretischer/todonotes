@@ -63,6 +63,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -72,6 +78,7 @@ import com.earendil.todonotes.data.entity.ChatMessage
 import com.earendil.todonotes.data.repo.dayOfYearAndYear
 import com.earendil.todonotes.data.repo.formatDateGerman
 import com.earendil.todonotes.data.repo.formatTimeGerman
+import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.ChatViewModel
 import kotlinx.coroutines.delay
@@ -469,6 +476,7 @@ private fun ChatInputBar(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit
 ) {
+    val isTouch = getPlatform().isTouch
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -478,7 +486,20 @@ private fun ChatInputBar(
         OutlinedTextField(
             value = text,
             onValueChange = onTextChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                // Enter (ohne Shift) senden auf Desktop, nicht auf Touch.
+                // Shift+Enter = neue Zeile (ueberall).
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                        if (!isTouch && !event.isShiftPressed) {
+                            if (text.isNotBlank()) onSend()
+                            true  // Enter konsumiert (nicht als Newline)
+                        } else {
+                            false  // Shift+Enter oder Touch → neue Zeile
+                        }
+                    } else false
+                },
             placeholder = { Text("Nachricht…") },
             maxLines = 5,
             keyboardOptions = KeyboardOptions(
