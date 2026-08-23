@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 
@@ -60,6 +62,10 @@ class SyncManager(
     private val _dirty = MutableStateFlow(0)
     private var scope: CoroutineScope? = null
 
+    /** Mutex: nur ein sync() zur Zeit (vermeidet SQLITE_BUSY auf Wasm
+     *  mit single-connection-pool). Auto-Sync + SSE-Push konkurrieren sonst. */
+    private val syncMutex = Mutex()
+
     /** Wird aufgerufen wenn lokale Daten geändert wurden (Repositories).
      *  Triggert einen debounced Auto-Sync (300ms). */
     fun markDirty() {
@@ -85,6 +91,10 @@ class SyncManager(
     /** Führt einen Sync aus. Liefert true bei Erfolg, false bei Fehler
      *  (Fehlermeldung steht dann in prefs.lastSyncResult). */
     suspend fun sync(): Boolean {
+        return syncMutex.withLock { syncInternal() }
+    }
+
+    private suspend fun syncInternal(): Boolean {
         if (!prefs.isConfigured) {
             prefs.lastSyncResult = "Nicht konfiguriert (Server-URL/Token fehlt)"
             return false
