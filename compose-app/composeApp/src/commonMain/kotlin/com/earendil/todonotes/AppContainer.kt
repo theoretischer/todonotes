@@ -9,6 +9,7 @@ import com.earendil.todonotes.data.repo.NoteRepository
 import com.earendil.todonotes.data.repo.TodoRepository
 import com.earendil.todonotes.data.sync.AuthManager
 import com.earendil.todonotes.data.sync.SyncManager
+import com.earendil.todonotes.data.sync.SseClient
 import com.earendil.todonotes.data.sync.SyncPrefs
 import com.earendil.todonotes.data.sync.createHttpClient
 import com.earendil.todonotes.notification.AlarmScheduler
@@ -31,18 +32,19 @@ class AppContainer(
 ) {
     val database: TodoNotesDatabase = buildDatabase()
 
-    // Repositories
-    val todoRepository: TodoRepository = TodoRepository(database, alarmScheduler)
-    val habitRepository: HabitRepository = HabitRepository(database)
-    val folderRepository: FolderRepository = FolderRepository(database)
-    val noteRepository: NoteRepository = NoteRepository(database)
-    val chatMessageRepository: ChatMessageRepository = ChatMessageRepository(database)
-
-    // Sync-Stack (M5)
+    // Sync-Stack (M5) — vor Repos, damit diese markDirty() aufrufen können.
     val syncPrefs: SyncPrefs = SyncPrefs()
     val httpClient: HttpClient = createHttpClient()
     val syncManager: SyncManager = SyncManager(database, syncPrefs, httpClient)
     val authManager: AuthManager = AuthManager(syncPrefs, httpClient)
+    val sseClient: SseClient = SseClient(httpClient, syncPrefs, syncManager)
+
+    // Repositories (markDirty → Auto-Sync)
+    val todoRepository: TodoRepository = TodoRepository(database, alarmScheduler, syncManager)
+    val habitRepository: HabitRepository = HabitRepository(database, syncManager)
+    val folderRepository: FolderRepository = FolderRepository(database, syncManager)
+    val noteRepository: NoteRepository = NoteRepository(database, syncManager)
+    val chatMessageRepository: ChatMessageRepository = ChatMessageRepository(database, syncManager)
 
     /** Globaler Coroutine-Scope für Hintergrund-Arbeit (z.B. Auto-Sync, M8). */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob())

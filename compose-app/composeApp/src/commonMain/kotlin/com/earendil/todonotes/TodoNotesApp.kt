@@ -82,7 +82,12 @@ fun TodoNotesApp(
     }
 
     if (!isAuthenticated) {
-        AuthGate(vm = authVm, onAuthenticated = { isAuthenticated = true })
+        AuthGate(vm = authVm, onAuthenticated = {
+            isAuthenticated = true
+            // Auto-Sync + SSE starten (Echtzeit-Sync).
+            container.syncManager.startAutoSync(container.appScope)
+            container.sseClient.start(container.appScope)
+        })
         return
     }
 
@@ -211,6 +216,7 @@ fun TodoNotesApp(
             onBack = { showSettings = false },
             onLogout = {
                 showSettings = false
+                container.sseClient.stop()
                 authVm.logout()
                 isAuthenticated = false
             }

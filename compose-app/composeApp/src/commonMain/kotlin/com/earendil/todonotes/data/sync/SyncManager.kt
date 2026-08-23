@@ -18,6 +18,12 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
 
@@ -44,6 +50,33 @@ class SyncManager(
         ignoreUnknownKeys = true
         encodeDefaults = true
         explicitNulls = false
+    }
+
+    /** Auto-Sync: debounced. Wenn lokale Änderung → markDirty() →
+     *  nach 300ms sync(). Mehrere schnelle Änderungen werden gebündelt. */
+    private val _dirty = MutableStateFlow(0)
+    private var scope: CoroutineScope? = null
+
+    /** Wird aufgerufen wenn lokale Daten geändert wurden (Repositories).
+     *  Triggert einen debounced Auto-Sync (300ms). */
+    fun markDirty() {
+        _dirty.value++
+    }
+
+    /** SSE-Push: Server hat neue Daten → sofort pullen. */
+    fun onRemoteChanged() {
+        scope?.launch { sync() }
+    }
+
+    /** Auto-Sync starten. Einmal nach Login aufrufen. */
+    fun startAutoSync(s: CoroutineScope) {
+        scope = s
+        s.launch {
+            _dirty
+                .filter { it > 0 }
+                .debounce(300)
+                .collect { sync() }
+        }
     }
 
     /** Führt einen Sync aus. Liefert true bei Erfolg, false bei Fehler

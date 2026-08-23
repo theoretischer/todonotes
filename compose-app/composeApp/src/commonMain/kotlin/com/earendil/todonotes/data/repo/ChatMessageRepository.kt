@@ -2,6 +2,7 @@ package com.earendil.todonotes.data.repo
 
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.ChatMessage
+import com.earendil.todonotes.data.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -11,10 +12,14 @@ import kotlinx.coroutines.flow.Flow
  * werden chronologisch geordnet via [position] (älteste = kleinste).
  * Beim Senden wird eine neue UUID generiert + position = max+1.
  */
-class ChatMessageRepository(private val db: TodoNotesDatabase) {
+class ChatMessageRepository(
+    private val db: TodoNotesDatabase,
+    private val syncManager: SyncManager? = null
+) {
 
     private val chatDao = db.chatMessageDao()
     private val noteDao = db.noteDao()
+    private fun dirty() { syncManager?.markDirty() }
 
     /** Alle nicht-gelöschten Nachrichten einer Chat-Notiz (älteste zuerst). */
     fun observeMessages(noteId: String): Flow<List<ChatMessage>> =
@@ -38,8 +43,9 @@ class ChatMessageRepository(private val db: TodoNotesDatabase) {
         )
         chatDao.insert(message)
         // Notiz-updatedAt anheben, damit Sync merkt, dass sich etwas geändert hat.
-        val note = noteDao.getById(noteId) ?: return
-        noteDao.update(note.copy(updatedAt = now))
+        val note = noteDao.getById(noteId)
+        if (note != null) noteDao.update(note.copy(updatedAt = now))
+        dirty()
     }
 
     /** Nachricht bearbeiten (nur text + updatedAt, createdAt bleibt). */
@@ -48,11 +54,13 @@ class ChatMessageRepository(private val db: TodoNotesDatabase) {
         if (trimmed.isEmpty()) return
         val msg = chatDao.getById(messageId) ?: return
         chatDao.update(msg.copy(text = trimmed, updatedAt = nowMs()))
+        dirty()
     }
 
     /** Soft-Delete einer Nachricht. */
     suspend fun deleteMessage(messageId: String) {
         chatDao.softDelete(messageId, nowMs())
+        dirty()
     }
 
     // ----- Sync -----

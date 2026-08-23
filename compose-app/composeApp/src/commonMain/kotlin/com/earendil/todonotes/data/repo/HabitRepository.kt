@@ -5,14 +5,19 @@ import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
+import com.earendil.todonotes.data.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 
 /**
  * Repository für Habits (M7a — commonMain).
  */
-class HabitRepository(private val db: TodoNotesDatabase) {
+class HabitRepository(
+    private val db: TodoNotesDatabase,
+    private val syncManager: SyncManager? = null
+) {
 
     private val dao = db.habitDao()
+    private fun dirty() { syncManager?.markDirty() }
 
     fun observeHabits(): Flow<List<Habit>> = dao.observeHabits()
 
@@ -25,20 +30,24 @@ class HabitRepository(private val db: TodoNotesDatabase) {
 
     suspend fun createHabit(habit: Habit): Habit {
         dao.upsert(habit)
+        dirty()
         return habit
     }
 
     suspend fun updateHabit(habit: Habit) {
         dao.upsert(habit.copy(updatedAt = nowMs()))
+        dirty()
     }
 
     suspend fun deleteHabit(id: String) {
         dao.softDelete(id, nowMs())
+        dirty()
     }
 
     /** Verlaufseintrag löschen (Swipe-to-delete im Verlauf-Tab). */
     suspend fun deleteHistoryEntry(id: String) {
         dao.deleteHistoryEntry(id)
+        dirty()
     }
 
     /** +1: neuen Log-Eintrag für jetzt anlegen. */
@@ -46,6 +55,7 @@ class HabitRepository(private val db: TodoNotesDatabase) {
         dao.insertLog(
             HabitLog(id = randomUuidString(), habitId = habitId, timestamp = now)
         )
+        dirty()
     }
 
     /** Letzten Log der aktuellen Periode löschen (Undo des letzten +1). */
@@ -53,6 +63,7 @@ class HabitRepository(private val db: TodoNotesDatabase) {
         val habit = dao.getById(habitId) ?: return
         val periodStart = HabitEngine.currentPeriodStart(habit, now)
         dao.deleteLatestLogSince(habitId, periodStart)
+        dirty()
     }
 
     /**
@@ -84,6 +95,7 @@ class HabitRepository(private val db: TodoNotesDatabase) {
         dao.deleteLogsSince(habit.id, currentStart)
         // WICHTIG: dao.update (nicht upsert/REPLACE), sonst löscht CASCADE die History.
         dao.update(habit.copy(lastLoggedPeriodStart = nextStart, updatedAt = now))
+        dirty()
     }
 
     /** Schließt die aktuelle Periode für ALLE aktiven Habits ab. */

@@ -3,6 +3,7 @@ package com.earendil.todonotes.data.repo
 import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Folder
+import com.earendil.todonotes.data.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -13,9 +14,13 @@ import kotlinx.coroutines.flow.Flow
  * in sich selbst oder einen seiner Nachfahren verschoben werden) — das
  * macht [canMoveFolderInto] via rekursiver CTE im DAO.
  */
-class FolderRepository(private val db: TodoNotesDatabase) {
+class FolderRepository(
+    private val db: TodoNotesDatabase,
+    private val syncManager: SyncManager? = null
+) {
 
     private val dao = db.folderDao()
+    private fun dirty() { syncManager?.markDirty() }
 
     /** Ordner auf der Wurzel-Ebene (parentId == null). */
     fun observeRootFolders(): Flow<List<Folder>> = dao.observeFoldersIn(null)
@@ -37,6 +42,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
             position = (dao.getInFolder(parentId).maxOfOrNull { it.position } ?: 0L) + 1
         )
         dao.insert(folder)
+        dirty()
         return folder
     }
 
@@ -60,6 +66,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
         list.forEachIndexed { index, folder ->
             dao.setPosition(folder.id, (index + 1).toLong() * 10, now)
         }
+        dirty()
     }
 
     /** Ordner in einen anderen verschieben (F6, null = Wurzel).
@@ -70,6 +77,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
         val folder = dao.getById(id) ?: return false
         val maxPos = (dao.getInFolder(newParentId).maxOfOrNull { it.position } ?: 0L) + 1
         dao.update(folder.copy(parentId = newParentId, updatedAt = nowMs(), position = maxPos))
+        dirty()
         return true
     }
 
@@ -77,6 +85,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
     suspend fun renameFolder(id: String, newName: String) {
         val folder = dao.getById(id) ?: return
         dao.update(folder.copy(name = newName, updatedAt = nowMs()))
+        dirty()
     }
 
     /** Alle nicht-geloeschten Ordner flach (fuer Verschieben-Picker). */
@@ -84,6 +93,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
 
     suspend fun deleteFolder(id: String) {
         dao.softDelete(id, nowMs())
+        dirty()
     }
 
     /** Finale Reihenfolge als Batch schreiben (optimistic Reorder, M7d-rev). */
@@ -95,6 +105,7 @@ class FolderRepository(private val db: TodoNotesDatabase) {
                 dao.setPosition(id, (index + 1).toLong() * 10, now)
             }
         }
+        dirty()
     }
 
     /** Ordner in einem Eltern-Ordner einmalig laden (fuer explicit Refresh). */

@@ -4,6 +4,7 @@ import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
+import com.earendil.todonotes.data.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -13,9 +14,13 @@ import kotlinx.coroutines.flow.Flow
  * JSON-String gespeichert (bodyJson) — das Rich-Text-Modell aus F3
  * serialisiert/deserialisiert das. Hier im Repository ist der Body opak.
  */
-class NoteRepository(private val db: TodoNotesDatabase) {
+class NoteRepository(
+    private val db: TodoNotesDatabase,
+    private val syncManager: SyncManager? = null
+) {
 
     private val dao = db.noteDao()
+    private fun dirty() { syncManager?.markDirty() }
 
     /** Notizen auf der Wurzel-Ebene (folderId == null). */
     fun observeRootNotes(): Flow<List<Note>> = dao.observeNotesInFolder(null)
@@ -49,6 +54,7 @@ class NoteRepository(private val db: TodoNotesDatabase) {
             position = (dao.getInFolder(folderId).maxOfOrNull { it.position } ?: 0L) + 1
         )
         dao.insert(note)
+        dirty()
         return note
     }
 
@@ -69,12 +75,14 @@ class NoteRepository(private val db: TodoNotesDatabase) {
         list.forEachIndexed { index, note ->
             dao.setPosition(note.id, (index + 1).toLong() * 10, now)
         }
+        dirty()
     }
 
     /** Speichert Titel + Body (wird vom Editor bei Back/auto-save gerufen, F5). */
     suspend fun updateNote(id: String, title: String, bodyJson: String) {
         val note = dao.getById(id) ?: return
         dao.update(note.copy(title = title, bodyJson = bodyJson, updatedAt = nowMs()))
+        dirty()
     }
 
     /** Notiz in einen anderen Ordner verschieben (F6). null = Wurzel. */
@@ -82,10 +90,12 @@ class NoteRepository(private val db: TodoNotesDatabase) {
         val note = dao.getById(id) ?: return
         val maxPos = (dao.getInFolder(newFolderId).maxOfOrNull { it.position } ?: 0L) + 1
         dao.update(note.copy(folderId = newFolderId, updatedAt = nowMs(), position = maxPos))
+        dirty()
     }
 
     suspend fun deleteNote(id: String) {
         dao.softDelete(id, nowMs())
+        dirty()
     }
 
     /** Finale Reihenfolge als Batch schreiben (optimistic Reorder, M7d-rev).
@@ -104,6 +114,7 @@ class NoteRepository(private val db: TodoNotesDatabase) {
                 dao.setPosition(id, (index + 1).toLong() * 10, now)
             }
         }
+        dirty()
     }
 
     /** Notizen in einem Ordner einmalig laden (fuer explicit Refresh nach

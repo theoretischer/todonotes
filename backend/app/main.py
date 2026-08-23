@@ -9,9 +9,9 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, status
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
@@ -219,7 +219,53 @@ def sync_endpoint(
     """
     server_changes = sync.sync(req.last_synced_at, req.changes, user_id)
     new_synced_at = int(time.time() * 1000)
+    # Andere verbundene Clients benachrichtigen → die pullen sofort.
+    from .event_bus import event_bus
+    event_bus.publish(user_id)
     return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes)
+
+
+@app.get("/sync/events")
+async def sync_events(
+    token: str,
+    request: Request,
+):
+    """SSE-Stream: pusht 'sync'-Events an verbundene Clients.
+
+    token als Query-Parameter (EventSource kann keine Custom-Header senden).
+    Bei jedem POST /sync eines anderen Clients feuert hier ein Event →
+    der Client pullt sofort neue Daten.
+    """
+    # Token validieren (gleiches wie verify_token, aber als Query-Param).
+    try:
+        user_id = auth.verify_token_str(token)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="token ungültig")
+    from .event_bus import event_bus
+    q = event_bus.subscribe(user_id)
+
+    async def event_stream():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                event = await q.get()
+                if event == "__keepalive__":
+                    yield ": keepalive\n\n"
+                else:
+                    yield f"event: sync\ndata: {event}\n\n"
+        finally:
+            event_bus.unsubscribe(user_id, q)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # --- Statische Web-Files (für Wasm-App, gefüllt in Phase M9) ---

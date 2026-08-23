@@ -199,7 +199,15 @@ def verify_request_token(
        Für Übergangs-Compat mit alter Android-App.
     2. DB-Token (tokens-Tabelle) → echte user_id.
     """
-    token = creds.credentials
+    return verify_token_str(creds.credentials)
+
+
+def verify_token_str(token: str) -> str:
+    """Prüft ein Token als reinen String (ohne FastAPI-Dependency).
+
+    Für SSE-Endpoint (token kommt als Query-Param, nicht als Bearer-Header).
+    Liefert user_id, wirft 401 bei ungültigem Token.
+    """
     # 1. Static-Secret?
     if _SYNC_TOKEN and secrets.compare_digest(
         token.encode(), _SYNC_TOKEN.encode()

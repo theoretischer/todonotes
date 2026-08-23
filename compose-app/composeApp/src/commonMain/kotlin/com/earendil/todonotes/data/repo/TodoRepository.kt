@@ -2,6 +2,7 @@ package com.earendil.todonotes.data.repo
 
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Todo
+import com.earendil.todonotes.data.sync.SyncManager
 import com.earendil.todonotes.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
 
@@ -18,12 +19,15 @@ import kotlinx.coroutines.flow.Flow
  */
 class TodoRepository(
     private val db: TodoNotesDatabase,
-    private val alarmScheduler: AlarmScheduler
+    private val alarmScheduler: AlarmScheduler,
+    private val syncManager: SyncManager? = null
 ) {
     private val dao = db.todoDao()
 
     fun observeOpenTodos(): Flow<List<Todo>> = dao.observeOpenTodos()
     fun observeCompletedTodos(): Flow<List<Todo>> = dao.observeCompletedTodos()
+
+    private fun dirty() { syncManager?.markDirty() }
 
     suspend fun createTodo(
         title: String,
@@ -45,6 +49,7 @@ class TodoRepository(
         )
         dao.upsert(todo)
         scheduleAlarmFor(todo)
+        dirty()
         return todo
     }
 
@@ -82,6 +87,7 @@ class TodoRepository(
                 )
             }
         }
+        dirty()
     }
 
     /** Todo wieder öffnen (Verlauf → offene Liste). */
@@ -90,18 +96,21 @@ class TodoRepository(
         val todo = dao.getById(id) ?: return
         dao.upsert(todo.copy(completedAt = null, updatedAt = now))
         scheduleAlarmFor(todo.copy(completedAt = null))
+        dirty()
     }
 
     suspend fun softDelete(id: String) {
         val todo = dao.getById(id) ?: return
         alarmScheduler.cancelAlarm(id, todo.dueAt ?: nowMs())
         dao.softDelete(id, nowMs())
+        dirty()
     }
 
     suspend fun updateTodo(todo: Todo) {
         dao.upsert(todo.copy(updatedAt = nowMs()))
         alarmScheduler.cancelAlarm(todo.id, todo.dueAt ?: nowMs())
         scheduleAlarmFor(todo)
+        dirty()
     }
 
     /** Bearbeiten über Form-Daten (wie im UI eingegeben). */
@@ -126,6 +135,7 @@ class TodoRepository(
         )
         dao.upsert(updated)
         scheduleAlarmFor(updated)
+        dirty()
     }
 
     private fun scheduleAlarmFor(todo: Todo) {
