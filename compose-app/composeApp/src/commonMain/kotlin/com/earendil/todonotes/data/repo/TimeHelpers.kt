@@ -15,8 +15,14 @@ import kotlin.uuid.Uuid
  * Ersetzen System.currentTimeMillis(), java.text.SimpleDateFormat, java.util.UUID.
  */
 
-/** Aktuelle Zeit als Epoch-Millisekunden (entspricht System.currentTimeMillis()). */
-internal fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
+/** Offset zwischen Client-Uhr und Server-Uhr (ms). Wird von SyncManager
+ *  nach jedem Sync aktualisiert: serverTime - clientTime. So ist nowMs()
+ *  immer ≈ Server-Zeit → LWW-Check funktioniert auch bei Clock-Skew. */
+internal var serverTimeOffset: Long = 0
+
+/** Aktuelle Zeit als Epoch-Millisekunden (Server-adjustiert via serverTimeOffset).
+ *  Entspricht System.currentTimeMillis() + serverTimeOffset. */
+internal fun nowMs(): Long = Clock.System.now().toEpochMilliseconds() + serverTimeOffset
 
 /** Neue zufällige UUID als String (zentrale @OptIn-Stelle für ExperimentalUuidApi). */
 @OptIn(ExperimentalUuidApi::class)

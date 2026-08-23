@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.serialization.json.Json
+import com.earendil.todonotes.data.repo.serverTimeOffset
 
 /**
  * Führt einen Sync-Zyklus aus (M5: Ktor statt Retrofit):
@@ -120,6 +121,9 @@ class SyncManager(
             prefs.lastSyncedAt = response.newSyncedAt
             prefs.lastSyncAt = Clock.System.now().toEpochMilliseconds()
             prefs.lastSyncResult = "OK"
+            // Server-Zeit-Offset aktualisieren: nowMs() liefert ab jetzt
+            // Server-Zeit → LWW-Check funktioniert auch bei Clock-Skew.
+            serverTimeOffset = response.newSyncedAt - Clock.System.now().toEpochMilliseconds()
             true
         } catch (e: Exception) {
             prefs.lastSyncResult = "Fehler: ${e.message ?: e::class.simpleName}"

@@ -86,42 +86,40 @@ def _apply_changes(changes: ChangesBundle, user_id: str, server_now: int) -> Non
 def _upsert_row(
     conn, table: str, dto_cls, dto, change_field: str, user_id: str, server_now: int
 ) -> None:
-    """Upsert: Client-Änderung anwenden, updatedAt = server_now setzen.
+    """Upsert mit LWW: nur ueberschreiben wenn incoming >= existing.
 
-    Kein LWW-Check mehr (Client-Uhren können skewed sein). Der Server
-    als Source of Truth setzt updatedAt = server_now → eliminiert
-    Clock-Skew-Probleme zwischen Geräten.
+    Server-Zeit wird NACH dem LWW-Check als updatedAt gesetzt
+    (monoton, vergleichbar ueber Clients). Der LWW-Check vergleicht
+    die INCOMING client-Zeit gegen die existing SERVER-Zeit:
+    - incoming >= existing → apply (client hat neuere Daten)
+    - incoming < existing → skip (client hat stale Daten, z.B. beim
+      naechsten Full-Sync unveraenderte Zeilen)
 
-    user_id: neue Zeilen bekommen diese userId. Bestehende Zeilen werden nur
-    aktualisiert, wenn sie demselben user_id gehören (Sicherheit: fremde Daten
-    werden nicht überschrieben).
+    Das verhindert dass Client B (stale, hat A's Loeschung noch nicht)
+    durch seinen Full-Sync A's Loeschung ueberschreibt.
     """
     data = dto.model_dump()
-    # Server-Zeit als Source of Truth (nicht Client-Zeit → kein Clock-Skew).
-    data[change_field] = server_now
+    new_change = data[change_field]  # client's updatedAt (vor LWW-Check)
     pk = data["id"]
-    # Bestehendes updated_at lesen (falls Zeile existiert).
     cur = conn.execute(
         f"SELECT {change_field}, userId FROM {table} WHERE id = ?", (pk,)
     )
     existing = cur.fetchone()
     if existing is not None:
-        # Append-only (logs/history): INSERT OR IGNORE (id-Kollision = bereits da)
         if change_field in ("timestamp", "loggedAt"):
-            return
-        # Fremde Daten? Nicht überschreiben (Multi-User-Sicherheit).
+            return  # append-only
         if existing["userId"] is not None and existing["userId"] != user_id:
-            return
-        # UPDATE: Server-Zeit als updatedAt (kein LWW-Check mehr —
-        # der letzte Sync gewinnt, eliminiert Clock-Skew).
-        # userId NICHT aus dem DTO uebernehmen (Client kennt es nicht) —
-        # bestehendes userId bleibt erhalten.
+            return  # fremde Daten
+        if existing[change_field] > new_change:
+            return  # existing (server) neuer als incoming (client) → skip stale
+        # incoming >= existing → apply. Server-Zeit als updatedAt.
+        data[change_field] = server_now
         if "userId" in data:
-            del data["userId"]
+            del data["userId"]  # bestehendes userId erhalten
         _update_row(conn, table, data)
     else:
-        # Neue Zeile: userId vom authentifizierten User setzen.
         data["userId"] = user_id
+        data[change_field] = server_now
         _insert_row(conn, table, data)
 
 
