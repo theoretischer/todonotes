@@ -368,7 +368,10 @@ Root-Causes die nacheinander gefunden wurden:
 - [x] SQLite-OPFS: `opfs-sahpool` VFS statt altem `opfs`-VFS (alter VFS: ~900ms pro Commit
   durch Thread-Grenze/Atomics pro VFS-Call; SAHPool verwaltet SyncAccessHandles direkt im
   Worker). Einmalige Migration der Legacy-DB via `importDb()` beim Worker-Start.
-  **Gemessene Rest-Latenz: ~1s pro Sync-Durchlauf** (apply-Block enthält OPFS-Flush) — akzeptiert.
+  **Gemessene Rest-Latenz: ~1s pro Sync-Durchlauf** — später als CACHING-ARTEFAKT
+  entlarvt: der Browser servte den alten Worker-Chunk (641.js) weiter; der SAHPool-Code
+  lief nie an. Nach Domain-Wechsel (frischer Browser-Speicher) real gemessen:
+  **http=48ms apply=30ms** — ~30x schneller. Siehe 'Produktions-Deploy' unten.
 - [x] Timing-Log `SYNC[push/pull]: collect/http/apply/rowsUp/rowsDown` für zukünftige Analyse
 
 ### Phase M10 — Desktop-Target (optional, später)
