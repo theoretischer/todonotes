@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, File, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
@@ -44,6 +45,16 @@ def verify_token(
 
 # --- App lifecycle: DB initialisieren ---
 app = FastAPI(title="TodoNotes Sync", version="0.2.0")
+
+# CORS: lokale Entwicklung (Web auf :8090, Backend auf :8001).
+# Produktiv läuft beides auf gleicher Origin → CORS irrelevant.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
