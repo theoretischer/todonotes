@@ -220,8 +220,10 @@ def sync_endpoint(
     server_changes = sync.sync(req.last_synced_at, req.changes, user_id)
     new_synced_at = int(time.time() * 1000)
     # Andere verbundene Clients benachrichtigen → die pullen sofort.
+    # except_client_id: den syncenden Client NICHT benachrichtigen
+    # (sonst Ping-Pong-Endlosschleife: sync → SSE → sync → ...).
     from .event_bus import event_bus
-    event_bus.publish(user_id)
+    event_bus.publish(user_id, except_client_id=req.client_id or "")
     return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes)
 
 
@@ -229,12 +231,14 @@ def sync_endpoint(
 async def sync_events(
     token: str,
     request: Request,
+    client_id: str = "",
 ):
     """SSE-Stream: pusht 'sync'-Events an verbundene Clients.
 
-    token als Query-Parameter (EventSource kann keine Custom-Header senden).
-    Bei jedem POST /sync eines anderen Clients feuert hier ein Event →
-    der Client pullt sofort neue Daten.
+    token als Query-Parameter (SSE kann keine Custom-Header senden).
+    client_id: damit der Server diesen Client beim publish() exclude kann
+    (kein Ping-Pong). Bei jedem POST /sync eines anderen Clients feuert hier
+    ein Event → der Client pullt sofort neue Daten.
     """
     # Token validieren (gleiches wie verify_token, aber als Query-Param).
     try:
@@ -242,7 +246,7 @@ async def sync_events(
     except HTTPException:
         raise HTTPException(status_code=401, detail="token ungültig")
     from .event_bus import event_bus
-    q = event_bus.subscribe(user_id)
+    q = event_bus.subscribe(user_id, client_id)
 
     async def event_stream():
         try:

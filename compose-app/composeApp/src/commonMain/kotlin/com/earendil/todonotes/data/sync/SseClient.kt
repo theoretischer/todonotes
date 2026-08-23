@@ -48,7 +48,9 @@ class SseClient(
             try {
                 println("SSE: verbinde mit ${prefs.serverUrl}/sync/events")
                 httpClient.sse(
-                    request = { url("${prefs.serverUrl}/sync/events?token=${prefs.token}") }
+                    request = {
+                        url("${prefs.serverUrl}/sync/events?token=${prefs.token}&client_id=${prefs.clientId}")
+                    }
                 ) {
                     // Verbindung steht — Backoff zurücksetzen.
                     println("SSE: verbunden, warte auf events")
