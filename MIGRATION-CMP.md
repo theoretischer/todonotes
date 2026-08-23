@@ -283,10 +283,13 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] Atomare applyOrder via withWriteTransaction (kein Rubberbanding, persists bei Neuladen)
 - [x] ROOT-Drop-Hitbox (Breadcrumb-Box), ROOT_DROP_KEY→null Konvertierung
 
-##### M7d-2 — ChatScreen (folgt als nächstes)
-- [ ] ChatViewModel + ChatScreen port (WhatsApp-Style)
-- [ ] SimpleDateFormat/Calendar → kotlinx-datetime
-- [ ] Chat-Notiz öffnet ChatScreen statt Editor (TodoNotesApp Routing)
+##### M7d-2 — ChatScreen ✅
+- [x] ChatViewModel + ChatScreen port (WhatsApp-Style)
+- [x] SimpleDateFormat/Calendar → kotlinx-datetime (formatTimeGerman, dayOfYearAndYear)
+- [x] Chat-Notiz öffnet ChatScreen statt Editor (TodoNotesApp Routing)
+- [x] Optimistic UI: sendMessage/editMessage/deleteMessage mutieren sofort _messages
+- [x] Enter-to-Send (Desktop only): Enter=senden, Shift+Enter=neue Zeile an Cursor-Position
+- [x] Inline-Titel-Rename: Tap auf Titel → BasicTextField, Enter=speichern
 
 ##### M7d-3 — Settings + Login
 - [ ] SyncViewModel (plain Kotlin)
