@@ -308,11 +308,26 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] Chat/Settings als Fullscreen-Overlays
 - [x] Routing: Tabs (Todos/Habits/Notes/History) + Overlays (Chat, Settings) + Editor
 
-### Phase M8 — Notifications (expect/actual) — OFFEN
-- [ ] `AlarmScheduler` androidMain: echte Alarme (Port aus altem android/)
-- [ ] `NotificationHelper` androidMain (wie heute), wasmJsMain (noop)
-- [ ] `WorkManagerSync` androidMain (WorkManager), wasmJsMain (Auto-Sync läuft bereits via SSE)
-- [ ] **Test:** Android: Fullscreen-Alarm funktioniert wie vorher
+### Phase M8 — Notifications (expect/actual) ✅
+- [x] `AndroidAlarmScheduler`: echte AlarmManager-Alarme (Port aus altem android/, ans
+  commonMain-Interface angepasst). Request-Code = (dueAt/1000).toInt().
+- [x] `AlarmReceiver`: Notification mit Fullscreen-Intent + "Erledigt"-Direkt-Action.
+  "Erledigt" läuft über `TodoRepository.completeTodo` (erledigt/soft-delete + Recurrence-
+  Neuplanung + dirty) **+ direkter Sync-Push** — der Receiver läuft evtl. ohne offene App,
+  dann gibt es keinen Auto-Sync.
+- [x] `FullScreenAlarmActivity`: Vollbild über Sperrbildschirm (setShowWhenLocked +
+  setTurnScreenOn, kein Keyguard-Dismiss). Compose-UI mit TodoNotesTheme.
+- [x] `NotificationHelper`: Channel "todo_alarms" (IMPORTANCE_HIGH, CATEGORY_ALARM).
+- [x] `ContainerAccess` (androidMain): Lazy-Singleton für AppContainer — AlarmManager kann
+  die App starten ohne MainActivity; Receiver/Activity bauen den Container selbst on-demand
+  (eine DB, ein SyncManager, keine Duplikate).
+- [x] Manifest: POST_NOTIFICATIONS, USE_FULL_SCREEN_INTENT, SCHEDULE_EXACT_ALARM,
+  USE_EXACT_ALARM, WAKE_LOCK, VIBRATE + Receiver/Activity-Registrierung
+  (excludeFromRecents, noHistory, showOnLockScreen).
+- [x] MainActivity fragt POST_NOTIFICATIONS an (ab Android 13) + nutzt ContainerAccess.
+- [x] wasmJsMain/Desktop: NoopAlarmScheduler (wie bisher — Browser-Notifications evtl. später)
+- [x] APK installiert — **Test durch Nutzer ausstehend** (Todo mit Fälligkeit in 1-2 Min
+  anlegen, App schließen, Alarm + Vollbild + "Erledigt"-Sync prüfen)
 
 ### Phase M9 — Web-Target ✅
 - [x] `wasmJsMain` Entry-Point + HTML-Template + main()

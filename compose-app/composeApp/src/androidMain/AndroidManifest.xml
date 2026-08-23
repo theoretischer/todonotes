@@ -2,6 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- M8: Notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Fullscreen-Intent über Sperrbildschirm (ab Android 14 nicht automatisch gewährt) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Exakte Alarme planen -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Wecken aus Doze / Idle -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Vibration -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:allowBackup="true"
@@ -19,6 +32,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- M8: Vollbild-Alarm über dem Sperrbildschirm -->
+        <activity
+            android:name=".notification.FullScreenAlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:noHistory="true"
+            android:showOnLockScreen="true"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <!-- M8: AlarmManager-Receiver -->
+        <receiver
+            android:name=".notification.AlarmReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>
