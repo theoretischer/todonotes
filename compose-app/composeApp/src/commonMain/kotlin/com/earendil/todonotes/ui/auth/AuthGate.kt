@@ -313,5 +313,15 @@ private fun LoginForm(vm: AuthViewModel, state: AuthUiState.NeedsLogin, error: S
             Spacer(Modifier.height(16.dp))
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
+        Spacer(Modifier.height(24.dp))
+        // Server-Wechsel nach Logout (URL bleibt sonst gespeichert und ist
+        // nicht mehr änderbar)
+        TextButton(onClick = { vm.resetServerUrl() }) {
+            Text(
+                "Anderen Server verbinden",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

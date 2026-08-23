@@ -142,6 +142,13 @@ class AuthViewModel(
         prefs.serverUrl = normalizeUrl(url)
     }
 
+    /** Gespeicherte Server-URL verwerfen → URL-Eingabe erscheint wieder.
+     *  (Logout laesst die URL sonst stehen — Server-Wechsel war so unmöglich.) */
+    fun resetServerUrl() {
+        prefs.serverUrl = ""
+        _state.value = AuthUiState.NeedsServerUrl
+    }
+
     /** Server-URL setzen + setup-status pruefen → NeedsSetup oder NeedsLogin. */
     fun connectToServer(url: String) {
         _error.value = null
