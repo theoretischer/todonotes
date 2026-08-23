@@ -265,12 +265,37 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] Alle 3 Targets bauen grün, 74 Tests grün
 - [x] APK auf S24 installiert — echtes Todos-Tab sichtbar
 
-#### M7c — HabitsScreen + HistoryScreen (folgt)
-- [ ] HabitViewModel + HabitEngine-Integration
-- [ ] HabitsScreen + HabitEditDialog + HabitCadencePicker
-- [ ] HistoryScreen
+#### M7c — HabitsScreen + HistoryScreen ✅
+- [x] HabitViewModel + HabitEngine-Integration (optimistic UI, reactive COUNT-Flow)
+- [x] HabitsScreen + HabitEditDialog + HabitCadencePicker
+- [x] HistoryScreen
 
-#### M7d — NotesScreen + NoteEditorScreen + ChatScreen + SettingsScreen + LoginScreen (folgt)
+#### M7d — NotesScreen + NoteEditorScreen + ChatScreen + SettingsScreen + LoginScreen
+
+##### M7d-1 — NotesScreen + NoteEditorScreen ✅
+- [x] NotesScreen (Breadcrumb, Folders/Notes, ⋮-Menu, Move-Sheets, SwipeOrReorderRow)
+- [x] NoteEditorScreen (line-based editor, visual prefixes, inline formatting, CompactFormatBar)
+- [x] NotesViewModel + NoteEditorViewModel (optimistic reorder, optimistic load)
+- [x] BackHandler expect/actual (Android: activity.compose, Wasm/Desktop: noop)
+- [x] ReorderLogic (pure, tested)
+- [x] Drag-Reorder + Drag-to-Folder (single pointerInput, position-based correction)
+- [x] Optimistic UI: Editor lädt sofort (initial-Daten aus Liste), flush updated Liste sofort
+- [x] Atomare applyOrder via withWriteTransaction (kein Rubberbanding, persists bei Neuladen)
+- [x] ROOT-Drop-Hitbox (Breadcrumb-Box), ROOT_DROP_KEY→null Konvertierung
+
+##### M7d-2 — ChatScreen (folgt als nächstes)
+- [ ] ChatViewModel + ChatScreen port (WhatsApp-Style)
+- [ ] SimpleDateFormat/Calendar → kotlinx-datetime
+- [ ] Chat-Notiz öffnet ChatScreen statt Editor (TodoNotesApp Routing)
+
+##### M7d-3 — Settings + Login
+- [ ] SyncViewModel (plain Kotlin)
+- [ ] SettingsScreen (Android permissions als expect/actual oder reduziert)
+- [ ] LoginScreen (neu für M1-Auth)
+- [ ] ProfileSheet
+
+##### M7d-4 — TodoNotesApp Navigation
+- [ ] Chat/Settings/Login als Fullscreen-Overlays
 
 ### Phase M8 — Notifications (expect/actual)
 - [ ] `expect class AlarmScheduler` → androidMain (heutiger Code 1:1), wasmJsMain (noop/Browser-Notification)

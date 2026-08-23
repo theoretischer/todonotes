@@ -83,6 +83,7 @@ fun NotesScreen(
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .zIndex(5f)
+                .statusBarsPadding()
                 .onGloballyPositioned { coords ->
                     folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
                 }
@@ -456,7 +457,8 @@ private fun EmptyNotesHint(modifier: Modifier = Modifier) {
             Text(
                 "Tippe auf „Neu“, um eine Notiz oder einen Ordner zu erstellen.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
