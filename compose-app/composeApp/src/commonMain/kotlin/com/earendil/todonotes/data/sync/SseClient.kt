@@ -61,7 +61,7 @@ class SseClient(
                 }
                 // Verbindung normal geschlossen → reconnect.
                 delay(backoff)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Fehler (Netzwerk, Server down) → Backoff.
                 delay(backoff)
                 backoff = (backoff * 2).coerceAtMost(30000L)

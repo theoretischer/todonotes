@@ -43,7 +43,7 @@ class AuthManager(
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
         }
     }
@@ -62,7 +62,7 @@ class AuthManager(
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
         }
     }
@@ -81,7 +81,7 @@ class AuthManager(
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
         }
     }
@@ -92,7 +92,7 @@ class AuthManager(
         return try {
             val body: Map<String, String> = response.body()
             body["detail"] ?: "HTTP ${response.status.value}"
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             "HTTP ${response.status.value}"
         }
     }
@@ -124,7 +124,7 @@ class AuthManager(
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
         }
     }
@@ -168,7 +168,7 @@ class AuthManager(
             val response = httpClient.get("${prefs.serverUrl}/avatars/$userId")
             if (response.status.value !in 200..299) return null
             response.body<ByteArray>()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             null
         }
     }

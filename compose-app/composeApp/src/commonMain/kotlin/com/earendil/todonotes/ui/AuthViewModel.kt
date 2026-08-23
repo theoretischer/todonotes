@@ -93,22 +93,31 @@ class AuthViewModel(
                 } else {
                     _state.value = AuthUiState.NeedsSetup(status.openRegistration)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = "Server nicht erreichbar: ${e.message}"
                 _state.value = AuthUiState.NeedsServerUrl
             }
         }
     }
 
+    /** Server-URL normalisieren: "localhost:8001" → "http://localhost:8001"
+     *  (sonst interpretiert der Browser https — der Nutzer tippt das Schema
+     *  erfahrungsgemäß nicht mit). */
+    private fun normalizeUrl(url: String): String {
+        val trimmed = url.trim().trimEnd('/')
+        return if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
+        else "http://$trimmed"
+    }
+
     /** Server-URL setzen (ohne checkAuth — fuer Login/Setup-Flow). */
     fun setServerUrl(url: String) {
-        prefs.serverUrl = url
+        prefs.serverUrl = normalizeUrl(url)
     }
 
     /** Server-URL setzen + setup-status pruefen → NeedsSetup oder NeedsLogin. */
     fun connectToServer(url: String) {
         _error.value = null
-        prefs.serverUrl = url
+        prefs.serverUrl = normalizeUrl(url)
         _state.value = AuthUiState.Loading
         vmScope.launch {
             try {
@@ -118,7 +127,7 @@ class AuthViewModel(
                 } else {
                     _state.value = AuthUiState.NeedsSetup(status.openRegistration)
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = "Server nicht erreichbar: ${e.message}"
                 _state.value = AuthUiState.NeedsServerUrl
             }
@@ -192,7 +201,7 @@ class AuthViewModel(
         vmScope.launch {
             try {
                 _profile.value = authManager.updateProfile(displayName, password)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = e.message
             }
         }
@@ -205,7 +214,7 @@ class AuthViewModel(
                 authManager.uploadAvatar(bytes, ext)
                 _profile.value = authManager.getProfile()
                 _avatarBytes.value = bytes // sofort anzeigen
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = e.message
             }
         }
@@ -236,7 +245,7 @@ class AuthViewModel(
             try {
                 authManager.adminCreateUser(username, password, displayName, isAdmin)
                 _adminUsers.value = authManager.adminListUsers()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = e.message
             }
         }
@@ -248,7 +257,7 @@ class AuthViewModel(
             try {
                 authManager.adminDeleteUser(userId)
                 _adminUsers.value = authManager.adminListUsers()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = e.message
             }
         }
@@ -259,7 +268,7 @@ class AuthViewModel(
         vmScope.launch {
             try {
                 _settings.value = authManager.adminUpdateSettings(open)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 _error.value = e.message
             }
         }

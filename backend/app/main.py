@@ -65,6 +65,11 @@ async def coop_coep_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    # index.html nie cachen: verweist auf hash-benannte Bundle-Dateien —
+    # ein gecachtes index.html servt nach einem Deploy die ALTEN Bundles
+    # (bzw. verpasst die neuen Hashes). Hash-Dateien selbst dürfen ewig cachen.
+    if request.url.path in ("/", "/index.html"):
+        response.headers["Cache-Control"] = "no-cache"
     return response
 
 

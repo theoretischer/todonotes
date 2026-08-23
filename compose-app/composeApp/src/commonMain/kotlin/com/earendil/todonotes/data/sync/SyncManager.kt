@@ -150,7 +150,7 @@ class SyncManager(
                 response.serverChanges.chat_messages.size
             println("SYNC[${if (notify) "push" else "pull"}]: collect=${tCollect - t0}ms http=${tHttp - tCollect}ms apply=${tEnd - tHttp}ms rowsUp=$upCount rowsDown=$downCount")
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             prefs.lastSyncResult = "Fehler: ${e.message ?: e::class.simpleName}"
             false
         }
@@ -160,7 +160,7 @@ class SyncManager(
     suspend fun health(): Boolean = try {
         httpClient.get("${prefs.serverUrl}/health")
         true
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         prefs.lastSyncResult = "Verbindung fehlgeschlagen: ${e.message ?: e::class.simpleName}"
         false
     }
