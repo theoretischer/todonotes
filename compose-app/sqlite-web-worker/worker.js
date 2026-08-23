@@ -32,6 +32,25 @@ const statements = new Map(); // stores statementId -> SQLiteStatementObject
 let nextDatabaseId = 0;
 let nextStatementId = 0;
 
+function opfsDiagnostic() {
+    // Präzise Diagnose: WELCHE API fehlt im Worker? (Firefox/u.U. andere
+    // Browser exposenavigator.storage z.T. nicht in Workern.)
+    const checks = {
+        'SharedArrayBuffer': typeof globalThis.SharedArrayBuffer !== 'undefined',
+        'FileSystemHandle': !!globalThis.FileSystemHandle,
+        'FileSystemDirectoryHandle': !!globalThis.FileSystemDirectoryHandle,
+        'FileSystemFileHandle': !!globalThis.FileSystemFileHandle,
+        'createSyncAccessHandle': !!(globalThis.FileSystemFileHandle
+            && globalThis.FileSystemFileHandle.prototype.createSyncAccessHandle),
+        'navigator.storage': !!navigator?.storage,
+        'navigator.storage.getDirectory': !!navigator?.storage?.getDirectory,
+    };
+    const missing = Object.entries(checks).filter(([, ok]) => !ok).map(([k]) => k);
+    console.warn('[sqlite-worker] OPFS-Diagnose — fehlt:', missing.length ? missing.join(', ') : 'nichts',
+        '| crossOriginIsolated:', typeof crossOriginIsolated !== 'undefined' ? crossOriginIsolated : '?');
+    return missing;
+}
+
 function openRequest(id, requestData) {
     try {
         const newDatabaseId = nextDatabaseId++;
@@ -45,11 +64,15 @@ function openRequest(id, requestData) {
             // langsam auf OPFS — ~900ms pro Commit gemessen.
             newDatabase.exec("PRAGMA synchronous=NORMAL;");
         } else {
-            // OPFS gar nicht verfügbar (z.B. Firefox privat / fehlende
-            // COOP/COEP-Header) → klassischer JS-WebSQL-artiger Speicher:
-            // best effort mit "kvvfs" (localStorage, ~5MB Limit).
-            console.warn('[sqlite-worker] OPFS nicht verfügbar — kvvfs (localStorage, ~5MB).');
-            newDatabase = new sqlite3.oo1.DB(requestData.fileName, 'kvvfs');
+            // OPFS gar nicht verfügbar. kvvfs (localStorage) geht im Worker
+            // NICHT (kein localStorage in Worker-Kontexten!) → Memory-DB:
+            // App läuft, Daten sind aber nach dem Neuladen WEG.
+            opfsDiagnostic();
+            console.error('[sqlite-worker] ACHTUNG: keine persistente Datenbank '
+                + 'verfügbar — Daten überleben kein Neuladen!');
+            // ':memory:' ist vfs-unabhaengig (SQLite fängt es intern ab) —
+            // der robusteste Notfall-Modus.
+            newDatabase = new sqlite3.oo1.DB(':memory:');
         }
         databases.set(newDatabaseId, newDatabase);
         postMessage({'id': id, data: {'databaseId': newDatabaseId}});
@@ -222,6 +245,7 @@ sqlite3InitModule().then(async instance => {
     } catch (e) {
         console.warn('[sqlite-worker] opfs-sahpool nicht verfügbar, '
             + 'Fallback auf langsameren opfs-VFS:', e);
+        opfsDiagnostic();
         sahpool = null;
     }
     if (sahpool) {

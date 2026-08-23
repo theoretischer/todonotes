@@ -8,8 +8,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")/compose-app"
 
+# WICHTIG: build/wasm enthält eine KOPIE des lokalen npm-Paketes
+# (@androidx/sqlite-web-worker). Gradle erkennt Aenderungen an worker.js
+# dort NICHT zuverlässig -> veralteter Worker im Build! Deshalb vorher
+# loeschen und mit --rerun-tasks bauen.
+rm -rf build/wasm
+
 echo ">>> Baue Web-App (dauert ~1-2 Min)..."
-JAVA_HOME=/usr/lib/jvm/java-17-openjdk ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk ./gradlew :composeApp:wasmJsBrowserDistribution --no-daemon --rerun-tasks
 
 DIST="composeApp/build/dist/wasmJs/productionExecutable"
 DEST="../backend/web"
