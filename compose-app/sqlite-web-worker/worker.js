@@ -30,6 +30,14 @@ function openRequest(id, requestData) {
     try {
         const newDatabaseId = nextDatabaseId++;
         const newDatabase = new sqlite3.oo1.OpfsDb(requestData.fileName);
+        // Perf: Standard (journal_mode=DELETE, synchronous=FULL) macht bei
+        // JEDEM Write teuere OPFS-Sync-Operations (gemessen ~900ms fuer 1
+        // Zeile!). WAL + synchronous=NORMAL: Commits werden asynchron
+        // geschrieben, nur Checkpoints syncen — Faktor ~50 schneller.
+        // NORMAL ist bei WAL sicher (kein Corruption bei Crash, max. der
+        // letzte Commit kann verloren gehen — genau was ein Sync eh heilt).
+        newDatabase.exec("PRAGMA journal_mode=WAL;");
+        newDatabase.exec("PRAGMA synchronous=NORMAL;");
         databases.set(newDatabaseId, newDatabase);
         postMessage({'id': id, data: {'databaseId': newDatabaseId}});
     } catch (error) {
