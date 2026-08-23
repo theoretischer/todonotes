@@ -4,10 +4,12 @@ private val platform = object : Platform {
     override val name: String
         get() = "Web (Wasm)"
     override val isTouch: Boolean = false
-    // Leer: lokales Dev hat Web (:8090) und Backend (:8001) getrennt.
-    // Produktion: Backend liefert Web aus (gleiche Origin) → User gibt
-    // dort die Backend-URL ein oder wir setzen sie spaeter ueber config.
-    override val defaultServerUrl: String = ""
+    // window.location.origin: In Produktion liefert das Backend die Web-App
+    // selbst aus (gleiche Origin) → Server-URL steht automatisch fest, der
+    // User muss NICHTS eingeben.
+    // Lokales Dev (Web :8090, Backend :8001): Origin ist falsch → checkAuth
+    // schlaegt fehl → ServerUrlForm erscheint, URL einmalig manuell eingeben.
+    override val defaultServerUrl: String = getBaseUrl()
 }
 
 actual fun getPlatform(): Platform = platform
