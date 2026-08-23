@@ -1,5 +1,6 @@
 package com.earendil.todonotes.data.repo
 
+import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Folder
 import kotlinx.coroutines.flow.Flow
@@ -89,8 +90,10 @@ class FolderRepository(private val db: TodoNotesDatabase) {
     suspend fun applyOrder(ids: List<String>) {
         if (ids.isEmpty()) return
         val now = nowMs()
-        ids.forEachIndexed { index, id ->
-            dao.setPosition(id, (index + 1).toLong() * 10, now)
+        db.withWriteTransaction {
+            ids.forEachIndexed { index, id ->
+                dao.setPosition(id, (index + 1).toLong() * 10, now)
+            }
         }
     }
 

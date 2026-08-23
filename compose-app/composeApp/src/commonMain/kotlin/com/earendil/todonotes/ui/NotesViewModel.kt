@@ -167,16 +167,33 @@ class NotesViewModel(
         vmScope.launch { noteRepo.updateNote(id, title, bodyJson) }
     }
 
+    /** Optimistic: Notiz-Titel/Body sofort in browserState.notes updaten
+     *  (ohne auf DB-Flow zu warten). Wird vom Editor beim flush aufgerufen. */
+    fun updateNoteOptimistic(id: String, title: String, bodyJson: String) {
+        _browserState.value = _browserState.value.copy(
+            notes = _browserState.value.notes.map { n ->
+                if (n.id == id) n.copy(title = title, bodyJson = bodyJson) else n
+            }
+        )
+    }
+
     fun moveNote(id: String, newFolderId: String?) {
-        // Reorder-Flags zurücksetzen, damit die Notiz sofort aus der
-        // aktuellen Liste verschwindet (DB-Flow wird nicht mehr ignoriert).
-        isReorderingNotes = false
-        pendingDbNotes = null
+        // DB-Flow ignorieren bis der Move fertig ist — sonst feuert die
+        // Flow mit der alten Liste (Notiz noch drin) und ueberschreibt
+        // das optimistic Remove → Notiz blinkt wieder auf.
+        isReorderingNotes = true
         // Optimistic: Notiz sofort aus aktueller Liste entfernen.
         _browserState.value = _browserState.value.copy(
             notes = _browserState.value.notes.filterNot { it.id == id }
         )
-        vmScope.launch { noteRepo.moveNote(id, newFolderId) }
+        vmScope.launch {
+            noteRepo.moveNote(id, newFolderId)
+            // DB-Write fertig → Flow wieder zulassen + explicit neu laden.
+            val freshNotes = noteRepo.getNotesInFolder(currentFolderId.value)
+            _browserState.value = _browserState.value.copy(notes = freshNotes)
+            isReorderingNotes = false
+            pendingDbNotes = null
+        }
     }
 
     fun moveFolder(id: String, newParentId: String?) {

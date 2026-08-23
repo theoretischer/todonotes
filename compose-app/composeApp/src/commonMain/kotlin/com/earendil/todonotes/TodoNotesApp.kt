@@ -79,6 +79,14 @@ fun TodoNotesApp(
     var editorState by remember { mutableStateOf<EditorTarget?>(null) }
     val editorVm = remember { NoteEditorViewModel(container.noteRepository, container.appScope) }
 
+    // Optimistic UI: wenn der Editor eine Notiz speichert, die Liste sofort
+    // (ohne DB-Roundtrip) updaten — der neue Titel/Body erscheint sofort.
+    LaunchedEffect(editorVm) {
+        editorVm.onNoteUpdated = { id, title, body ->
+            notesVm.updateNoteOptimistic(id, title, body)
+        }
+    }
+
     var currentTab by remember { mutableStateOf(Tab.Todos) }
 
     Scaffold(
@@ -125,10 +133,18 @@ fun TodoNotesApp(
                 Tab.Notes -> NotesScreen(
                     notesVm = notesVm,
                     onOpenNote = { id, isNew, type ->
-                        editorState = EditorTarget(id, isNew, isChat = type == com.earendil.todonotes.data.entity.NoteType.CHAT)
+                        // Optimistic: initial-Daten aus der Liste uebergeben,
+                        // damit der Editor sofort rendert (kein DB-Roundtrip).
+                        val note = notesVm.browserState.value.notes.firstOrNull { it.id == id }
+                        val initialTitle = if (!isNew) note?.title else null
+                        val initialBody = if (!isNew) note?.bodyJson else null
+                        editorState = EditorTarget(id, isNew, isChat = type == com.earendil.todonotes.data.entity.NoteType.CHAT, initialTitle = initialTitle, initialBody = initialBody)
                     },
                     onOpenChat = { id, isNew ->
-                        editorState = EditorTarget(id, isNew, isChat = true)
+                        val note = notesVm.browserState.value.notes.firstOrNull { it.id == id }
+                        val initialTitle = if (!isNew) note?.title else null
+                        val initialBody = if (!isNew) note?.bodyJson else null
+                        editorState = EditorTarget(id, isNew, isChat = true, initialTitle = initialTitle, initialBody = initialBody)
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -159,6 +175,8 @@ fun TodoNotesApp(
             NoteEditorScreen(
                 noteId = target.id,
                 isNew = target.isNew,
+                initialTitle = target.initialTitle,
+                initialBody = target.initialBody,
                 vm = editorVm,
                 onBack = { editorState = null }
             )
@@ -170,7 +188,9 @@ fun TodoNotesApp(
 private data class EditorTarget(
     val id: String,
     val isNew: Boolean,
-    val isChat: Boolean
+    val isChat: Boolean,
+    val initialTitle: String? = null,
+    val initialBody: String? = null
 )
 
 private enum class Tab(val label: String, val selected: ImageVector, val unselected: ImageVector) {

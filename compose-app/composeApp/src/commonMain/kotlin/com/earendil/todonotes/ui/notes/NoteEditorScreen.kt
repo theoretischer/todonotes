@@ -87,6 +87,7 @@ import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.NoteEditorState
 import com.earendil.todonotes.ui.NoteEditorViewModel
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.first
 
 /** Eine editierbare Zeile im Editor. */
 private data class EditLine(
@@ -198,7 +199,9 @@ fun NoteEditorScreen(
     noteId: String,
     isNew: Boolean,
     vm: NoteEditorViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    initialTitle: String? = null,
+    initialBody: String? = null
 ) {
     val state by vm.state.collectAsState()
 
@@ -217,25 +220,9 @@ fun NoteEditorScreen(
     }
 
     // Einmalig laden, sobald das VM-State bereit ist.
-    LaunchedEffect(state.loaded) {
-        if (state.loaded && lines.isEmpty()) {
-            val parsed = NoteTextBody.toLines(state.body)
-            lines = if (parsed.isEmpty()) {
-                listOf(EditLine(genId(), null, false, TextFieldValue("")))
-            } else {
-                parsed.map { li ->
-                    EditLine(
-                        id = genId(),
-                        type = li.type,
-                        checked = li.checked,
-                        value = TextFieldValue(li.content, TextRange(li.content.length))
-                    )
-                }
-            }
-            titleValue = TextFieldValue(state.title)
-            focusTarget = lines.firstOrNull()?.id
-        }
-    }
+    // WICHTIG: Wird im LaunchedEffect(noteId) unten mitgeprüft (per first),
+    // nicht mehr via state.loaded-Wechsel — bei Optimistic UI wechselt
+    // loaded naemlich true→true (kein Change → Effekt feuert nicht).
 
     // Bei Notizwechsel: Editor-State zurücksetzen und neu laden.
     // Wichtig: lines + titleValue werden erst geleert, damit der Laded-Effekt
@@ -246,7 +233,26 @@ fun NoteEditorScreen(
         titleSelectedOnce = false
         focusTarget = null
         activeLineId = null
-        vm.load(noteId, isNew)
+        vm.load(noteId, isNew, initialTitle, initialBody)
+        // Warten bis VM loaded=true, dann Zeilen parsen.
+        // first { it.loaded } kehrt sofort zurück wenn schon loaded
+        // (Optimistic UI) oder wartet auf den DB-Load.
+        val s = vm.state.first { it.loaded }
+        val parsed = NoteTextBody.toLines(s.body)
+        lines = if (parsed.isEmpty()) {
+            listOf(EditLine(genId(), null, false, TextFieldValue("")))
+        } else {
+            parsed.map { li ->
+                EditLine(
+                    id = genId(),
+                    type = li.type,
+                    checked = li.checked,
+                    value = TextFieldValue(li.content, TextRange(li.content.length))
+                )
+            }
+        }
+        titleValue = TextFieldValue(s.title)
+        focusTarget = lines.firstOrNull()?.id
     }
 
     // System-Back: speichern + schließen

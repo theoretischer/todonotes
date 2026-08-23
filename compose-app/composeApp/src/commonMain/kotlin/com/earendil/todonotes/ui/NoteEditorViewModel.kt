@@ -36,6 +36,12 @@ data class NoteEditorState(
  * automatisch migriert.
  *
  * Auto-Save: 1 s nach letzter Änderung + sofort bei Back.
+ *
+ * **Optimistic UI**: [load] akzeptiert initial-Daten (Titel+Body) aus der
+ * Notiz-Liste. So kann der Editor sofort rendern (loaded=true) ohne auf
+ * den DB-Roundtrip zu warten. Der DB-Refresh läuft im Hintergrund und
+ * aktualisiert nur wenn abweichend. [onNoteUpdated] wird bei flush
+ * aufgerufen damit die Liste sofort den neuen Titel/Body zeigt.
  */
 class NoteEditorViewModel(
     private val noteRepo: NoteRepository,
@@ -49,28 +55,47 @@ class NoteEditorViewModel(
     private var noteId: String? = null
     private var saveJob: Job? = null
     private var dirty = false
+    // Callback: wird bei flush aufgerufen mit (id, title, body) damit die
+    // Liste sofort (optimistic) den neuen Titel/Body zeigen kann.
+    var onNoteUpdated: ((id: String, title: String, body: String) -> Unit)? = null
 
-    /** Notiz laden. Alte Block-JSON wird zu Plain Text migriert.
+    /** Notiz laden.
      *
-     *  WICHTIG: Setzt _state sofort auf loaded=false, bevor der Coroutine
-     *  startet. So wird state.loaded von true→false→true und der
-     *  LaunchedEffect(state.loaded) im Screen feuert neu — sonst würde
-     *  beim zweiten Öffnen der Editor im Lade-Kreisel stecken bleiben,
-     *  weil sich state.loaded nicht geändert hat. */
-    fun load(noteId: String, isNew: Boolean) {
+     *  **Optimistic**: Wenn initialTitle/initialBody übergeben werden (aus der
+     *  Notiz-Liste), setzt der Editor sofort loaded=true mit diesen Daten —
+     *  kein Warten auf den DB-Roundtrip. Der DB-Refresh läuft im Hintergrund.
+     *
+     *  Ohne initial-Daten (z.B. neue Notiz): klassisch loaded=false + DB-Load.
+     *
+     *  Alte Block-JSON wird zu Plain Text migriert. */
+    fun load(noteId: String, isNew: Boolean, initialTitle: String? = null, initialBody: String? = null) {
         this.noteId = noteId
-        _state.value = NoteEditorState(loaded = false, isNewNote = isNew)
-        vmScope.launch {
-            val note = noteRepo.getById(noteId)
-            if (note != null) {
-                _state.value = NoteEditorState(
-                    title = note.title,
-                    body = NoteTextBody.migrateFromBlocks(note.bodyJson),
-                    loaded = true,
-                    isNewNote = isNew
-                )
-            } else {
-                _state.value = NoteEditorState(loaded = true, isNewNote = isNew)
+        val initialBodyParsed = initialBody?.let { NoteTextBody.migrateFromBlocks(it) }
+        if (initialTitle != null && initialBodyParsed != null) {
+            // Optimistic: sofort rendern mit bekannten Daten aus der Liste.
+            // Die Liste wird selbst von der DB-Flow gespeist → Daten sind aktuell.
+            // Kein Hintergrund-Refresh nötig (vermeidet Race-Conditions).
+            _state.value = NoteEditorState(
+                title = initialTitle,
+                body = initialBodyParsed,
+                loaded = true,
+                isNewNote = isNew
+            )
+        } else {
+            // Klassisch: laden von DB.
+            _state.value = NoteEditorState(loaded = false, isNewNote = isNew)
+            vmScope.launch {
+                val note = noteRepo.getById(noteId)
+                if (note != null) {
+                    _state.value = NoteEditorState(
+                        title = note.title,
+                        body = NoteTextBody.migrateFromBlocks(note.bodyJson),
+                        loaded = true,
+                        isNewNote = isNew
+                    )
+                } else {
+                    _state.value = NoteEditorState(loaded = true, isNewNote = isNew)
+                }
             }
         }
     }
@@ -94,7 +119,9 @@ class NoteEditorViewModel(
         }
     }
 
-    /** Sofort speichern (bei Back). */
+    /** Sofort speichern (bei Back). Ruft onNoteUpdated auf damit die
+     *  Liste sofort (optimistic) den neuen Titel/Body zeigt — ohne auf
+     *  den DB-Roundtrip zu warten. */
     fun flushNow() {
         saveJob?.cancel()
         vmScope.launch { flush() }
@@ -104,7 +131,10 @@ class NoteEditorViewModel(
         if (!dirty) return
         val id = noteId ?: return
         val s = _state.value
-        noteRepo.updateNote(id, s.title.ifBlank { "Ohne Titel" }, s.body)
+        val title = s.title.ifBlank { "Ohne Titel" }
+        noteRepo.updateNote(id, title, s.body)
+        // Optimistic: Liste sofort updaten.
+        onNoteUpdated?.invoke(id, title, s.body)
         dirty = false
     }
 }

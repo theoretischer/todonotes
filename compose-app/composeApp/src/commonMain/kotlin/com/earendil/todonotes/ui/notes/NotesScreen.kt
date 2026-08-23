@@ -76,16 +76,22 @@ fun NotesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        NotesBreadcrumb(
-            crumbs = state.breadcrumbs,
-            onCrumb = notesVm::navigateToCrumb,
+        // Header-Box: umschließt nur die Breadcrumb (48dp oben). So ist
+        // die ROOT-Drop-Hitbox genau auf dem Root-Schriftzug.
+        Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .fillMaxWidth()
                 .zIndex(5f)
                 .onGloballyPositioned { coords ->
                     folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
                 }
-        )
+        ) {
+            NotesBreadcrumb(
+                crumbs = state.breadcrumbs,
+                onCrumb = notesVm::navigateToCrumb
+            )
+        }
 
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
             EmptyNotesHint()
@@ -142,7 +148,9 @@ fun NotesScreen(
                             onReorderEnd = { notesVm.commitNoteReorder() },
                             folderBounds = folderBounds,
                             onDropOnFolder = { noteId, folderId ->
-                                notesVm.moveNote(noteId, folderId)
+                                // ROOT_DROP_KEY (Breadcrumb) bedeutet Root-Ordner = null
+                                val targetFolderId = if (folderId == ROOT_DROP_KEY) null else folderId
+                                notesVm.moveNote(noteId, targetFolderId)
                             }
                         ) {
                             NoteRow(

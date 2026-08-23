@@ -19,13 +19,16 @@ enum class ReorderKind { FOLDER, NOTE }
  * Zustand einer laufenden Reorder-Geste.
  *
  * [draggedId] die gezogene Zeile, [kind] ihre Art, [index] ihr aktueller
- * Index innerhalb der gleichartigen Zeilen und [accumPx] der noch nicht in
- * einen Tausch umgerechnete vertikale Fingerweg (Rest, < 1 Zeilenhöhe).
+ * Index innerhalb der gleichartigen Zeilen, [startIndex] der Index beim
+ * Drag-Start (fuer die visuelle Offset-Berechnung) und [accumPx] der noch
+ * nicht in einen Tausch umgerechnete vertikale Fingerweg (Rest, < 1 Zeilen-
+ * hoehe).
  */
 data class ReorderSession(
     val draggedId: String,
     val kind: ReorderKind,
     val index: Int,
+    val startIndex: Int,
     val accumPx: Float
 )
 

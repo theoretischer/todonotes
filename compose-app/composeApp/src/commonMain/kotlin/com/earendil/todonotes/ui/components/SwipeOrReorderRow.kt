@@ -96,6 +96,11 @@ fun SwipeOrReorderRow(
     var dragOffsetY by remember { mutableStateOf(0f) }
     var session by remember { mutableStateOf<ReorderSession?>(null) }
     var nodeRoot by remember { mutableStateOf(Offset.Zero) }
+    // Y-Position der Row beim Drag-Start. Wird mit nodeRoot (aktuelle
+    // Position via onGloballyPositioned) verglichen, um die tatsaechliche
+    // Listen-Verschiebung zu berechnen — immer exakt, unabhaengig von
+    // Row-Hoehe oder Spacing (kein Drift ueber lange Drags).
+    var nodeRootStartY by remember { mutableStateOf(0f) }
 
     Box(
         modifier = modifier
@@ -138,9 +143,14 @@ fun SwipeOrReorderRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset {
+                    // Position-basierte Korrektur: Die tatsaechliche Listen-
+                    // Verschiebung = nodeRoot.y (jetzt) - nodeRootStartY (Start).
+                    // Immer exakt, unabhaengig von Row-Hoehe oder spacedBy.
+                    // Die Row folgt dem Finger 1:1 (kein Drift).
+                    val indexCorrection = if (isReordering) nodeRoot.y - nodeRootStartY else 0f
                     IntOffset(
                         offsetX.value.toInt(),
-                        if (isReordering) dragOffsetY.toInt() else 0
+                        if (isReordering) (dragOffsetY - indexCorrection).toInt() else 0
                     )
                 }
                 .background(MaterialTheme.colorScheme.surface)
@@ -153,7 +163,8 @@ fun SwipeOrReorderRow(
                                 isReordering = true
                                 val idx = currentRepos.indexOf(itemId)
                                 if (idx >= 0) {
-                                    session = ReorderSession(itemId, ReorderKind.NOTE, idx, 0f)
+                                    nodeRootStartY = nodeRoot.y
+                                    session = ReorderSession(itemId, ReorderKind.NOTE, idx, idx, 0f)
                                     onReorderBegin()
                                 }
                             }
@@ -165,10 +176,16 @@ fun SwipeOrReorderRow(
                                 )
                             }
                         } else if (isReordering) {
+                            // dragOffsetY = reine Finger-Verschiebung seit Drag-Start.
+                            // KEINE Korrektur bei Swaps — die visuelle Korrektur
+                            // passiert zur Render-Zeit (siehe offset-Modifier unten).
+                            // Das verhindert Rubberbanding: nodeRoot (onGlobally-
+                            // Positioned) und dragOffsetY sind um einen Frame
+                            // versetzt auf Wasm — wenn beide im handleDrag korri-
+                            // giert werden, springt die Row.
                             dragOffsetY += dragAmount.y
                             val s = session
                             if (s != null) {
-                                val oldIndex = s.index
                                 val step = reorderStep(
                                     session = s,
                                     repositories = currentRepos,
@@ -176,15 +193,7 @@ fun SwipeOrReorderRow(
                                     dragAmountPx = dragAmount.y,
                                     onSwap = currentOnSwap
                                 )
-                                session = ReorderSession(itemId, ReorderKind.NOTE, step.newIndex, step.newAccumPx)
-                                // Visuelle Korrektur: nach einem Swap wandert die Row in der
-                                // Liste eins weiter — dragOffsetY muss um eine Zeilenhöhe
-                                // zurückgesetzt werden, damit die Row mit dem Finger verbunden
-                                // bleibt (sonst springt sie eins zu weit).
-                                val swaps = step.newIndex - oldIndex
-                                if (swaps != 0 && currentHeight > 0) {
-                                    dragOffsetY -= swaps * currentHeight.toFloat()
-                                }
+                                session = ReorderSession(itemId, ReorderKind.NOTE, step.newIndex, s.startIndex, step.newAccumPx)
                             }
                         }
                     }
@@ -196,16 +205,27 @@ fun SwipeOrReorderRow(
                                 offsetX.animateTo(target, tween(250))
                                 if (target == 0f) isSwipeDeleting = false
                             } else if (isReordering) {
-                                // Prüfen ob über einem Ordner losgelassen wurde.
-                                val fingerGlobal = nodeRoot + Offset(0f, dragOffsetY)
+                                // Finger-Position in Root-Koordinaten:
+                                // nodeRootStartY (Row-Oberkante beim Start)
+                                // + dragOffsetY (Finger-Verschiebung seit Start)
+                                // + currentHeight/2 (Row-Mitte — der Finger greift
+                                // die Row typischerweise in der Mitte, nicht an
+                                // der Oberkante). So trifft man die Breadcrumb
+                                // wenn man die Notiz AUF den Schriftzug zieht.
+                                val fingerY = nodeRootStartY + dragOffsetY + currentHeight.toFloat() / 2f
                                 val hitId = currentBounds.entries.firstOrNull { (_, rect) ->
-                                    rect.contains(fingerGlobal)
+                                    fingerY in rect.top..rect.bottom
                                 }?.key
                                 if (hitId != null && hitId != itemId) {
                                     currentDropFolder(itemId, hitId)
+                                    // WICHTIG: Bei Folder-Drop KEIN onReorderEnd —
+                                    // moveNote() macht den DB-Write, commitReorder
+                                    // wuerde die alte Reihenfolge persistieren.
+                                    session = null
+                                } else {
+                                    session = null
+                                    onReorderEnd()
                                 }
-                                session = null
-                                onReorderEnd()
                             }
                             // WICHTIG: Resets ERST nach den Checks oben,
                             // innerhalb des Coroutines. Sonst sind sie schon

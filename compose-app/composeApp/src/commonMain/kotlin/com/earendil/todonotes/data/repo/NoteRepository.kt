@@ -1,5 +1,6 @@
 package com.earendil.todonotes.data.repo
 
+import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
@@ -93,8 +94,15 @@ class NoteRepository(private val db: TodoNotesDatabase) {
     suspend fun applyOrder(ids: List<String>) {
         if (ids.isEmpty()) return
         val now = nowMs()
-        ids.forEachIndexed { index, id ->
-            dao.setPosition(id, (index + 1).toLong() * 10, now)
+        // Transaktion: alle setPosition atomar — die Invalidation-
+        // Tracker feuert erst EINMAL am Ende (nicht nach jedem setPosition).
+        // Auf Wasm sonst: N×postMessage + N×Flow-Update mit Zwischen-
+        // reihenfolgen → Rubberbanding. Und bei Neuladen vor Abschluss
+        // wuerde eine unvollstaendige Reihenfolge persistieren.
+        db.withWriteTransaction {
+            ids.forEachIndexed { index, id ->
+                dao.setPosition(id, (index + 1).toLong() * 10, now)
+            }
         }
     }
 
