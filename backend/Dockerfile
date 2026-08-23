@@ -21,6 +21,9 @@ COPY --from=builder /install /usr/local
 # App-Code
 COPY app/ ./app/
 
+# Web-App (Wasm-dist, per deploy-web.sh hereinkopiert und committet)
+COPY web/ ./web/
+
 # Daten-Volume (SQLite-Datei liegt hier, überlebt Container-Rebuilds)
 VOLUME ["/app/data"]
 ENV DB_PATH=/app/data/todonotes.db
