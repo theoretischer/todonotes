@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -60,7 +62,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.Key
@@ -116,6 +121,10 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var quotingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    // Inline-Titel-Edit: Tap auf Titel → direkt editierbar.
+    var isEditingTitle by remember { mutableStateOf(false) }
+    var titleText by remember { mutableStateOf("") }
+    val titleFocusRequester = remember { FocusRequester() }
 
     val messageMap = remember(messages) { messages.associateBy { it.id } }
     val listItems = remember(messages) { buildChatListItems(messages) }
@@ -132,16 +141,51 @@ fun ChatScreen(
         }
     }
 
+    // Fokus auf Titel-Feld wenn Edit-Modus startet.
+    LaunchedEffect(isEditingTitle) {
+        if (isEditingTitle) titleFocusRequester.requestFocus()
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        state.title.ifBlank { "Chat" },
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    if (isEditingTitle) {
+                        BasicTextField(
+                            value = titleText,
+                            onValueChange = { titleText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(titleFocusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    // Enter (ohne Shift) = speichern + Fokus weg
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
+                                        vm.updateTitle(titleText.ifBlank { "Chat" })
+                                        isEditingTitle = false
+                                        true
+                                    } else false
+                                },
+                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            singleLine = true
+                        )
+                    } else {
+                        Text(
+                            state.title.ifBlank { "Chat" },
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    titleText = state.title
+                                    isEditingTitle = true
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -492,11 +536,21 @@ private fun ChatInputBar(
                 // Shift+Enter = neue Zeile (ueberall).
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
-                        if (!isTouch && !event.isShiftPressed) {
-                            if (text.isNotBlank()) onSend()
-                            true  // Enter konsumiert (nicht als Newline)
-                        } else {
-                            false  // Shift+Enter oder Touch → neue Zeile
+                        when {
+                            // Desktop ohne Shift: senden
+                            !isTouch && !event.isShiftPressed -> {
+                                if (text.isNotBlank()) onSend()
+                                true
+                            }
+                            // Desktop mit Shift: manuell Newline einfuegen
+                            // (onPreviewKeyEvent return false laesst auf Wasm
+                            // die Newline nicht zuverlaessig durch)
+                            !isTouch && event.isShiftPressed -> {
+                                onTextChange(text + "\n")
+                                true
+                            }
+                            // Touch: default (Tastatur-Enter = Newline)
+                            else -> false
                         }
                     } else false
                 },
