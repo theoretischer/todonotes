@@ -77,6 +77,8 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.ChatMessage
@@ -118,7 +120,7 @@ fun ChatScreen(
         onBack()
     }
 
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var quotingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     // Inline-Titel-Edit: Tap auf Titel → direkt editierbar.
@@ -168,7 +170,8 @@ fun ChatScreen(
                                     } else false
                                 },
                             textStyle = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             ),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             singleLine = true
@@ -210,9 +213,9 @@ fun ChatScreen(
                     text = inputText,
                     onTextChange = { inputText = it },
                     onSend = {
-                        if (inputText.isNotBlank()) {
-                            vm.sendMessage(inputText, quotingMessage?.id)
-                            inputText = ""
+                        if (inputText.text.isNotBlank()) {
+                            vm.sendMessage(inputText.text, quotingMessage?.id)
+                            inputText = TextFieldValue("")
                             quotingMessage = null
                         }
                     }
@@ -516,8 +519,8 @@ private fun QuotePreviewBar(
 
 @Composable
 private fun ChatInputBar(
-    text: String,
-    onTextChange: (String) -> Unit,
+    text: TextFieldValue,
+    onTextChange: (TextFieldValue) -> Unit,
     onSend: () -> Unit
 ) {
     val isTouch = getPlatform().isTouch
@@ -533,20 +536,23 @@ private fun ChatInputBar(
             modifier = Modifier
                 .weight(1f)
                 // Enter (ohne Shift) senden auf Desktop, nicht auf Touch.
-                // Shift+Enter = neue Zeile (ueberall).
+                // Shift+Enter = neue Zeile an Cursor-Position (ueberall).
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                         when {
                             // Desktop ohne Shift: senden
                             !isTouch && !event.isShiftPressed -> {
-                                if (text.isNotBlank()) onSend()
+                                if (text.text.isNotBlank()) onSend()
                                 true
                             }
-                            // Desktop mit Shift: manuell Newline einfuegen
-                            // (onPreviewKeyEvent return false laesst auf Wasm
-                            // die Newline nicht zuverlaessig durch)
+                            // Desktop mit Shift: Newline an Cursor-Position
                             !isTouch && event.isShiftPressed -> {
-                                onTextChange(text + "\n")
+                                val cursor = text.selection.start
+                                val newText = text.text.substring(0, cursor) + "\n" + text.text.substring(cursor)
+                                onTextChange(TextFieldValue(
+                                    text = newText,
+                                    selection = TextRange(cursor + 1)
+                                ))
                                 true
                             }
                             // Touch: default (Tastatur-Enter = Newline)
@@ -564,12 +570,12 @@ private fun ChatInputBar(
         Spacer(Modifier.padding(start = 4.dp))
         IconButton(
             onClick = onSend,
-            enabled = text.isNotBlank()
+            enabled = text.text.isNotBlank()
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.Send,
                 contentDescription = "Senden",
-                tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
+                tint = if (text.text.isNotBlank()) MaterialTheme.colorScheme.primary
                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
         }
