@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
@@ -45,7 +44,10 @@ import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.notes.NoteEditorScreen
 import com.earendil.todonotes.ui.notes.NotesScreen
+import com.earendil.todonotes.ui.settings.SettingsScreen
 import com.earendil.todonotes.ui.todos.TodosScreen
+import com.earendil.todonotes.ui.components.AvatarImage
+import com.earendil.todonotes.ui.components.rememberImageBitmap
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
@@ -114,6 +116,11 @@ fun TodoNotesApp(
     }
 
     var currentTab by remember { mutableStateOf(Tab.Todos) }
+    var showSettings by remember { mutableStateOf(false) }
+
+    // Profil-Daten für Avatar oben rechts.
+    val profile by authVm.profile.collectAsState()
+    val avatarBytes by authVm.avatarBytes.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -184,15 +191,30 @@ fun TodoNotesApp(
                 )
             }
 
-            // Profil-Icon oben rechts (öffnet Settings — M7d)
-            UserCircleIcon(
-                onClick = { /* M7d-3: SettingsScreen */ },
+            // Avatar oben rechts → öffnet Settings
+            AvatarTopRight(
+                avatarBytes = avatarBytes,
+                displayName = profile?.displayName ?: profile?.username,
+                onClick = { showSettings = true },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
                     .padding(end = 12.dp, top = 8.dp)
             )
         }
+    }
+
+    // Settings als Fullscreen-Overlay
+    if (showSettings) {
+        SettingsScreen(
+            vm = authVm,
+            onBack = { showSettings = false },
+            onLogout = {
+                showSettings = false
+                authVm.logout()
+                isAuthenticated = false
+            }
+        )
     }
 
     // Editor/Chat als Fullscreen-Overlay über dem Scaffold
@@ -244,26 +266,25 @@ private fun ComingSoon(label: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** User-Icon als unabhaengiger Kreis oben rechts (ohne TopAppBar). */
+/** Avatar oben rechts: Profilbild oder Initialen. */
 @Composable
-private fun UserCircleIcon(
+private fun AvatarTopRight(
+    avatarBytes: ByteArray?,
+    displayName: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val bitmap = rememberImageBitmap(avatarBytes)
     Surface(
         onClick = onClick,
         modifier = modifier.size(40.dp),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
         shadowElevation = 2.dp
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Filled.AccountCircle,
-                contentDescription = "Profil",
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(24.dp)
-            )
-        }
+        AvatarImage(
+            bitmap = bitmap,
+            displayName = displayName,
+            sizeDp = 40
+        )
     }
 }

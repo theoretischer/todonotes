@@ -61,6 +61,10 @@ class AuthViewModel(
     private val _settings = MutableStateFlow<SettingsResponse?>(null)
     val settings: StateFlow<SettingsResponse?> = _settings.asStateFlow()
 
+    /** Avatar-Bytes (roh) für die Anzeige. null = kein Avatar. */
+    private val _avatarBytes = MutableStateFlow<ByteArray?>(null)
+    val avatarBytes: StateFlow<ByteArray?> = _avatarBytes.asStateFlow()
+
     /** Beim Start prüfen: Token + Setup-Status.
      *  Wenn keine serverUrl: NeedsServerUrl (außer Web hat defaultServerUrl). */
     fun checkAuth() {
@@ -173,13 +177,13 @@ class AuthViewModel(
 
     private suspend fun loadProfile() {
         try {
-            _profile.value = authManager.getProfile()
-            val p = _profile.value
-            if (p?.isAdmin == true) {
+            val p = authManager.getProfile()
+            _profile.value = p
+            // Avatar laden (falls vorhanden).
+            _avatarBytes.value = authManager.fetchAvatarBytes(p.userId)
+            if (p.isAdmin == true) {
                 _adminUsers.value = authManager.adminListUsers()
-                _settings.value = SettingsResponse(
-                    authManager.adminUpdateSettings(null).openRegistration
-                )
+                _settings.value = authManager.adminUpdateSettings(null)
             }
         } catch (_: Exception) { }
     }
@@ -201,6 +205,7 @@ class AuthViewModel(
             try {
                 authManager.uploadAvatar(bytes, ext)
                 _profile.value = authManager.getProfile()
+                _avatarBytes.value = bytes // sofort anzeigen
             } catch (e: Exception) {
                 _error.value = e.message
             }
@@ -212,6 +217,7 @@ class AuthViewModel(
     fun logout() {
         authManager.logout()
         _profile.value = null
+        _avatarBytes.value = null
         _adminUsers.value = emptyList()
         _settings.value = null
         checkAuth()

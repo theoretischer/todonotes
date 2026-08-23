@@ -162,6 +162,17 @@ class AuthManager(
         return "${prefs.serverUrl}/avatars/$userId"
     }
 
+    /** Avatar-Bytes für einen User abrufen. null bei 404/Fehler. */
+    suspend fun fetchAvatarBytes(userId: String): ByteArray? {
+        return try {
+            val response = httpClient.get("${prefs.serverUrl}/avatars/$userId")
+            if (response.status.value !in 200..299) return null
+            response.body<ByteArray>()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // --- Admin ---
 
     /** Alle User auflisten (Admin only). */
