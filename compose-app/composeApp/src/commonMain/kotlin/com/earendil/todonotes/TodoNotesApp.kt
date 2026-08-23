@@ -70,7 +70,14 @@ fun TodoNotesApp(
     val authVm = remember { AuthViewModel(container.authManager, container.syncManager, container.syncPrefs, container.appScope) }
     var isAuthenticated by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { authVm.checkAuth() }
+    LaunchedEffect(Unit) {
+        // Web: defaultServerUrl = window.location.origin → automatisch gesetzt.
+        // App: defaultServerUrl = "" → NeedsServerUrl.
+        if (container.syncPrefs.serverUrl.isBlank() && getPlatform().defaultServerUrl.isNotBlank()) {
+            container.syncPrefs.serverUrl = getPlatform().defaultServerUrl
+        }
+        authVm.checkAuth()
+    }
 
     if (!isAuthenticated) {
         AuthGate(vm = authVm, onAuthenticated = { isAuthenticated = true })

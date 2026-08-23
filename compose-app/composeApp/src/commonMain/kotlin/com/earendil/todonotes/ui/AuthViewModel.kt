@@ -21,6 +21,8 @@ import kotlinx.coroutines.launch
 sealed class AuthUiState {
     /** Server-Status wird geladen. */
     data object Loading : AuthUiState()
+    /** Keine Server-URL gesetzt → User muss IP eingeben (nur App). */
+    data object NeedsServerUrl : AuthUiState()
     /** Noch kein Admin → Setup-Bildschirm. */
     data class NeedsSetup(val openRegistration: Boolean) : AuthUiState()
     /** Admin existiert, User nicht eingeloggt → Login. */
@@ -59,14 +61,14 @@ class AuthViewModel(
     private val _settings = MutableStateFlow<SettingsResponse?>(null)
     val settings: StateFlow<SettingsResponse?> = _settings.asStateFlow()
 
-    /** Beim Start prüfen: Token + Setup-Status. */
+    /** Beim Start prüfen: Token + Setup-Status.
+     *  Wenn keine serverUrl: NeedsServerUrl (außer Web hat defaultServerUrl). */
     fun checkAuth() {
         _error.value = null
         vmScope.launch {
+            // serverUrl pruefen (Web hat defaultServerUrl aus window.location).
             if (prefs.serverUrl.isBlank()) {
-                // Keine Server-URL → kann nicht prüfen. NeedsLogin als Default
-                // (User muss URL + Login eingeben).
-                _state.value = AuthUiState.NeedsLogin(false)
+                _state.value = AuthUiState.NeedsServerUrl
                 return@launch
             }
             if (prefs.isLoggedIn) {
@@ -77,10 +79,10 @@ class AuthViewModel(
                     _state.value = AuthUiState.Authenticated
                     return@launch
                 } catch (_: Exception) {
-                    // Token ungültig → NeedsLogin.
+                    // Token ungültig → weiter zu setup-status pruefung.
                 }
             }
-            // Kein gültiges Token → setup-status prüfen.
+            // Kein gueltiges Token → setup-status pruefen.
             try {
                 val status = authManager.getSetupStatus()
                 if (status.adminExists) {
@@ -90,15 +92,34 @@ class AuthViewModel(
                 }
             } catch (e: Exception) {
                 _error.value = "Server nicht erreichbar: ${e.message}"
-                _state.value = AuthUiState.NeedsLogin(false)
+                _state.value = AuthUiState.NeedsServerUrl
             }
         }
     }
 
-    /** Server-URL setzen (wird vor checkAuth benötigt). */
+    /** Server-URL setzen (ohne checkAuth — fuer Login/Setup-Flow). */
     fun setServerUrl(url: String) {
         prefs.serverUrl = url
-        checkAuth()
+    }
+
+    /** Server-URL setzen + setup-status pruefen → NeedsSetup oder NeedsLogin. */
+    fun connectToServer(url: String) {
+        _error.value = null
+        prefs.serverUrl = url
+        _state.value = AuthUiState.Loading
+        vmScope.launch {
+            try {
+                val status = authManager.getSetupStatus()
+                if (status.adminExists) {
+                    _state.value = AuthUiState.NeedsLogin(status.openRegistration)
+                } else {
+                    _state.value = AuthUiState.NeedsSetup(status.openRegistration)
+                }
+            } catch (e: Exception) {
+                _error.value = "Server nicht erreichbar: ${e.message}"
+                _state.value = AuthUiState.NeedsServerUrl
+            }
+        }
     }
 
     // --- Setup (erster Admin) ---
