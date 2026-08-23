@@ -168,7 +168,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             bodyJson  TEXT NOT NULL,
             createdAt INTEGER NOT NULL,
             updatedAt INTEGER NOT NULL,
-            deletedAt INTEGER
+            deletedAt INTEGER,
+            position  INTEGER NOT NULL DEFAULT 0
             -- kein FK auf folderId: Sync darf Notiz vor Ordner annehmen
         );
         CREATE INDEX IF NOT EXISTS idx_notes_folderId ON notes(folderId);
@@ -211,6 +212,9 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     # Block H: notes.type (NOTE/CHAT, default NOTE für bestehende Notizen).
     _add_column("notes", "type", "type TEXT NOT NULL DEFAULT 'NOTE'")
+
+    # M7d: notes.position — Reihenfolge der Notizen im Ordner (Sync der Reorder).
+    _add_column("notes", "position", "position INTEGER NOT NULL DEFAULT 0")
 
     # Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
     _add_column("chat_messages", "quotedMessageId", "quotedMessageId TEXT")

@@ -209,11 +209,11 @@ class SyncManager(
     private fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)
     private fun FolderDTO.toEntity() = Folder(id, parentId, name, createdAt, updatedAt, deletedAt, userId = userId)
 
-    private fun Note.toDTO() = NoteDTO(id, folderId, type.name, title, bodyJson, createdAt, updatedAt, deletedAt)
+    private fun Note.toDTO() = NoteDTO(id, folderId, type.name, title, bodyJson, createdAt, updatedAt, deletedAt, position)
     private fun NoteDTO.toEntity() = Note(
         id, folderId,
         runCatching { NoteType.valueOf(type) }.getOrDefault(NoteType.NOTE),
-        title, bodyJson, createdAt, updatedAt, deletedAt, userId = userId
+        title, bodyJson, createdAt, updatedAt, deletedAt, position, userId = userId
     )
 
     private fun ChatMessage.toDTO() = ChatMessageDTO(

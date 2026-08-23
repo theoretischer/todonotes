@@ -94,6 +94,7 @@ class NoteDTO(BaseModel):
     createdAt: int
     updatedAt: int
     deletedAt: int | None = None
+    position: int = 0           # Reihenfolge im Ordner (Sync der Reorder)
 
 
 class ChatMessageDTO(BaseModel):
