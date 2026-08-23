@@ -38,12 +38,18 @@ function openRequest(id, requestData) {
         let newDatabase;
         if (sahpool) {
             newDatabase = new sahpool.OpfsSAHPoolDb(requestData.fileName);
-        } else {
+        } else if (sqlite3.oo1 && sqlite3.oo1.OpfsDb) {
             // Fallback: alter OPFS-VFS (langsamer, aber überall verfügbar wo OpfsDb geht).
             newDatabase = new sqlite3.oo1.OpfsDb(requestData.fileName);
             // Perf: Defaults (journal_mode=DELETE, synchronous=FULL) sind extrem
             // langsam auf OPFS — ~900ms pro Commit gemessen.
             newDatabase.exec("PRAGMA synchronous=NORMAL;");
+        } else {
+            // OPFS gar nicht verfügbar (z.B. Firefox privat / fehlende
+            // COOP/COEP-Header) → klassischer JS-WebSQL-artiger Speicher:
+            // best effort mit "kvvfs" (localStorage, ~5MB Limit).
+            console.warn('[sqlite-worker] OPFS nicht verfügbar — kvvfs (localStorage, ~5MB).');
+            newDatabase = new sqlite3.oo1.DB(requestData.fileName, 'kvvfs');
         }
         databases.set(newDatabaseId, newDatabase);
         postMessage({'id': id, data: {'databaseId': newDatabaseId}});

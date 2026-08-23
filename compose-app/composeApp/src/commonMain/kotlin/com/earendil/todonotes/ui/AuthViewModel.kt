@@ -1,6 +1,7 @@
 package com.earendil.todonotes.ui
 
 import com.earendil.todonotes.data.sync.AdminUserResponse
+import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.data.sync.AuthManager
 import com.earendil.todonotes.data.sync.AuthResult
 import com.earendil.todonotes.data.sync.SettingsResponse
@@ -66,14 +67,24 @@ class AuthViewModel(
     val avatarBytes: StateFlow<ByteArray?> = _avatarBytes.asStateFlow()
 
     /** Beim Start prüfen: Token + Setup-Status.
-     *  Wenn keine serverUrl: NeedsServerUrl (außer Web hat defaultServerUrl). */
+     *  Wenn keine serverUrl: NeedsServerUrl (außer Web hat defaultServerUrl).
+     *
+     *  Selbstheilung auf Wasm: Ist eine gespeicherte serverUrl NICHT erreichbar
+     *  (z.B. versehentlich falsch eingegeben, s. Produktions-Test), wird sie
+     *  verworfen und durch die defaultServerUrl (window.location.origin) ersetzt.
+     *  Der Nutzer einer Web-App soll NIE eine URL eingeben müssen — die App
+     *  kommt ja von genau diesem Server. */
     fun checkAuth() {
         _error.value = null
         vmScope.launch {
             // serverUrl pruefen (Web hat defaultServerUrl aus window.location).
             if (prefs.serverUrl.isBlank()) {
-                _state.value = AuthUiState.NeedsServerUrl
-                return@launch
+                if (getPlatform().defaultServerUrl.isNotBlank()) {
+                    prefs.serverUrl = getPlatform().defaultServerUrl
+                } else {
+                    _state.value = AuthUiState.NeedsServerUrl
+                    return@launch
+                }
             }
             if (prefs.isLoggedIn) {
                 // Token vorhanden → Profil + Avatar + Admin-Daten laden.
@@ -94,6 +105,23 @@ class AuthViewModel(
                     _state.value = AuthUiState.NeedsSetup(status.openRegistration)
                 }
             } catch (e: Throwable) {
+                // Server UNERREICHBAR: Auf Web mit defaultServerUrl pruefen, ob
+                // die Origin der Seite stattdessen funktioniert (Selbstheilung).
+                val fallback = getPlatform().defaultServerUrl
+                if (fallback.isNotBlank() && fallback != prefs.serverUrl) {
+                    try {
+                        prefs.serverUrl = fallback
+                        val status = authManager.getSetupStatus()
+                        if (status.adminExists) {
+                            _state.value = AuthUiState.NeedsLogin(status.openRegistration)
+                        } else {
+                            _state.value = AuthUiState.NeedsSetup(status.openRegistration)
+                        }
+                        return@launch
+                    } catch (_: Throwable) {
+                        // Auch die Origin geht nicht → normale Fehlerbehandlung.
+                    }
+                }
                 _error.value = "Server nicht erreichbar: ${e.message}"
                 _state.value = AuthUiState.NeedsServerUrl
             }
