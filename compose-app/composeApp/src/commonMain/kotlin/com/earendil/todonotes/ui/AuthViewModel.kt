@@ -76,10 +76,9 @@ class AuthViewModel(
                 return@launch
             }
             if (prefs.isLoggedIn) {
-                // Token vorhanden → Profil abrufen zur Validierung.
+                // Token vorhanden → Profil + Avatar + Admin-Daten laden.
                 try {
-                    val p = authManager.getProfile()
-                    _profile.value = p
+                    loadProfile()
                     _state.value = AuthUiState.Authenticated
                     return@launch
                 } catch (_: Exception) {
@@ -135,7 +134,7 @@ class AuthViewModel(
                 is AuthResult.Success -> {
                     // Nach Setup: initialen Sync vom Server (Legacy-Daten holen).
                     syncManager.sync()
-                    loadProfile()
+                    try { loadProfile() } catch (_: Exception) { }
                     _state.value = AuthUiState.Authenticated
                 }
                 is AuthResult.Error -> _error.value = r.message
@@ -151,7 +150,7 @@ class AuthViewModel(
             when (val r = authManager.login(username, password)) {
                 is AuthResult.Success -> {
                     syncManager.sync()
-                    loadProfile()
+                    try { loadProfile() } catch (_: Exception) { }
                     _state.value = AuthUiState.Authenticated
                 }
                 is AuthResult.Error -> _error.value = r.message
@@ -165,7 +164,7 @@ class AuthViewModel(
             when (val r = authManager.register(username, password)) {
                 is AuthResult.Success -> {
                     syncManager.sync()
-                    loadProfile()
+                    try { loadProfile() } catch (_: Exception) { }
                     _state.value = AuthUiState.Authenticated
                 }
                 is AuthResult.Error -> _error.value = r.message
@@ -175,17 +174,17 @@ class AuthViewModel(
 
     // --- Profil ---
 
+    /** Lädt Profil + Avatar + (falls Admin) User-Liste/Settings.
+     *  Wirft bei Fehler (z.B. Token ungültig). Aufrufer muss fangen. */
     private suspend fun loadProfile() {
-        try {
-            val p = authManager.getProfile()
-            _profile.value = p
-            // Avatar laden (falls vorhanden).
-            _avatarBytes.value = authManager.fetchAvatarBytes(p.userId)
-            if (p.isAdmin == true) {
-                _adminUsers.value = authManager.adminListUsers()
-                _settings.value = authManager.adminUpdateSettings(null)
-            }
-        } catch (_: Exception) { }
+        val p = authManager.getProfile()
+        _profile.value = p
+        // Avatar laden (falls vorhanden).
+        _avatarBytes.value = authManager.fetchAvatarBytes(p.userId)
+        if (p.isAdmin == true) {
+            _adminUsers.value = authManager.adminListUsers()
+            _settings.value = authManager.adminUpdateSettings(null)
+        }
     }
 
     fun updateProfile(displayName: String? = null, password: String? = null) {
