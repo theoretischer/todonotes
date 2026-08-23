@@ -52,6 +52,9 @@ class SyncManager(
         explicitNulls = false
     }
 
+    /** Aktuelle userId für lokale Entities (aus prefs, nicht hardcoded). */
+    private val userId get() = prefs.userId
+
     /** Auto-Sync: debounced. Wenn lokale Änderung → markDirty() →
      *  nach 300ms sync(). Mehrere schnelle Änderungen werden gebündelt. */
     private val _dirty = MutableStateFlow(0)
@@ -150,60 +153,53 @@ class SyncManager(
         if (bundle.chat_messages.isNotEmpty()) db.chatMessageDao().upsertAll(bundle.chat_messages.map { it.toEntity() })
     }
 
-    companion object {
-        // --- Mapper Todo <-> DTO ---
-        fun Todo.toDTO() = TodoDTO(
-            id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory
-        )
+    // --- Mapper (Instanz-Methoden, userId aus prefs) ---
 
-        fun TodoDTO.toEntity() = Todo(
-            id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory, userId = "legacy-user"
-        )
+    private fun Todo.toDTO() = TodoDTO(
+        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory
+    )
 
-        // --- Mapper Habit <-> DTO ---
-        fun Habit.toDTO() = HabitDTO(
-            id, title, notes, cadenceType.name, interval, resetWeekday, resetAnchorDay,
-            resetAnchorMonth, goalCount, startDate, logToHistory, lastLoggedPeriodStart,
-            createdAt, updatedAt, deletedAt
-        )
+    private fun TodoDTO.toEntity() = Todo(
+        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory, userId = userId
+    )
 
-        fun HabitDTO.toEntity() = Habit(
-            id, title, notes, CadenceType.valueOf(cadenceType), interval, resetWeekday,
-            resetAnchorDay, resetAnchorMonth, goalCount, startDate, logToHistory,
-            lastLoggedPeriodStart, createdAt, updatedAt, deletedAt, userId = "legacy-user"
-        )
+    private fun Habit.toDTO() = HabitDTO(
+        id, title, notes, cadenceType.name, interval, resetWeekday, resetAnchorDay,
+        resetAnchorMonth, goalCount, startDate, logToHistory, lastLoggedPeriodStart,
+        createdAt, updatedAt, deletedAt
+    )
 
-        // --- Mapper HabitLog <-> DTO ---
-        fun HabitLog.toDTO() = HabitLogDTO(id, habitId, timestamp, note)
-        fun HabitLogDTO.toEntity() = HabitLog(id, habitId, timestamp, note, userId = "legacy-user")
+    private fun HabitDTO.toEntity() = Habit(
+        id, title, notes, CadenceType.valueOf(cadenceType), interval, resetWeekday,
+        resetAnchorDay, resetAnchorMonth, goalCount, startDate, logToHistory,
+        lastLoggedPeriodStart, createdAt, updatedAt, deletedAt, userId = userId
+    )
 
-        // --- Mapper HabitHistoryEntry <-> DTO ---
-        fun HabitHistoryEntry.toDTO() = HabitHistoryEntryDTO(
-            id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt
-        )
+    private fun HabitLog.toDTO() = HabitLogDTO(id, habitId, timestamp, note)
+    private fun HabitLogDTO.toEntity() = HabitLog(id, habitId, timestamp, note, userId = userId)
 
-        fun HabitHistoryEntryDTO.toEntity() = HabitHistoryEntry(
-            id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt, userId = "legacy-user"
-        )
+    private fun HabitHistoryEntry.toDTO() = HabitHistoryEntryDTO(
+        id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt
+    )
 
-        // --- Mapper Folder <-> DTO ---
-        fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)
-        fun FolderDTO.toEntity() = Folder(id, parentId, name, createdAt, updatedAt, deletedAt, userId = "legacy-user")
+    private fun HabitHistoryEntryDTO.toEntity() = HabitHistoryEntry(
+        id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt, userId = userId
+    )
 
-        // --- Mapper Note <-> DTO ---
-        fun Note.toDTO() = NoteDTO(id, folderId, type.name, title, bodyJson, createdAt, updatedAt, deletedAt)
-        fun NoteDTO.toEntity() = Note(
-            id, folderId,
-            runCatching { NoteType.valueOf(type) }.getOrDefault(NoteType.NOTE),
-            title, bodyJson, createdAt, updatedAt, deletedAt, userId = "legacy-user"
-        )
+    private fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)
+    private fun FolderDTO.toEntity() = Folder(id, parentId, name, createdAt, updatedAt, deletedAt, userId = userId)
 
-        // --- Mapper ChatMessage <-> DTO ---
-        fun ChatMessage.toDTO() = ChatMessageDTO(
-            id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId
-        )
-        fun ChatMessageDTO.toEntity() = ChatMessage(
-            id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId, userId = "legacy-user"
-        )
-    }
+    private fun Note.toDTO() = NoteDTO(id, folderId, type.name, title, bodyJson, createdAt, updatedAt, deletedAt)
+    private fun NoteDTO.toEntity() = Note(
+        id, folderId,
+        runCatching { NoteType.valueOf(type) }.getOrDefault(NoteType.NOTE),
+        title, bodyJson, createdAt, updatedAt, deletedAt, userId = userId
+    )
+
+    private fun ChatMessage.toDTO() = ChatMessageDTO(
+        id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId
+    )
+    private fun ChatMessageDTO.toEntity() = ChatMessage(
+        id, noteId, text, createdAt, updatedAt, deletedAt, position, quotedMessageId, userId = userId
+    )
 }
