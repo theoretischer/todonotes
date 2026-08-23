@@ -20,7 +20,8 @@ data class TodoDTO(
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null,
-    val logToHistory: Boolean = true
+    val logToHistory: Boolean = true,
+    val notificationStyle: Int = 0
 )
 
 @Serializable

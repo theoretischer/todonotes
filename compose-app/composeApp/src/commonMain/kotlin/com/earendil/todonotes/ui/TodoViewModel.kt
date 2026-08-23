@@ -37,7 +37,8 @@ class TodoViewModel(
                 notes = form.notes,
                 dueAt = form.dueAt,
                 recurrence = form.recurrence,
-                logToHistory = form.logToHistory
+                logToHistory = form.logToHistory,
+                notificationStyle = form.notificationStyle
             )
         }
     }
@@ -50,7 +51,8 @@ class TodoViewModel(
                 notes = form.notes,
                 dueAt = form.dueAt,
                 recurrence = form.recurrence,
-                logToHistory = form.logToHistory
+                logToHistory = form.logToHistory,
+                notificationStyle = form.notificationStyle
             )
         }
     }

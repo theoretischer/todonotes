@@ -61,7 +61,11 @@ class AlarmReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "Aufgabe"
         val body = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_BODY) ?: ""
         val todoId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TODO_ID) ?: ""
-        Log.i("AlarmReceiver", "Alarm gefeuert: todo=$todoId title=$title")
+        val style = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_STYLE, 0)
+        Log.i("AlarmReceiver", "Alarm gefeuert: todo=$todoId style=$style title=$title")
+
+        // Stumm: gar keine Benachrichtigung — Alarm feuert nur intern.
+        if (style == 2) return
 
         NotificationHelper.ensureChannel(context)
 
@@ -106,10 +110,17 @@ class AlarmReceiver : BroadcastReceiver() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(
+                if (style == 1) NotificationCompat.PRIORITY_DEFAULT
+                else NotificationCompat.PRIORITY_MAX
+            )
+            .setCategory(
+                if (style == 1) NotificationCompat.CATEGORY_REMINDER
+                else NotificationCompat.CATEGORY_ALARM
+            )
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setFullScreenIntent(fullScreenPending, true)
+            // Vollbild nur bei style 0; style 1 = normale Benachrichtigung
+            .setFullScreenIntent(fullScreenPending, style == 0)
             .setContentIntent(openPending)
             .addAction(android.R.drawable.checkbox_on_background, "Erledigt", completePending)
             // Ongoing: bleibt im Benachrichtigungsmenü, bis die Aufgabe

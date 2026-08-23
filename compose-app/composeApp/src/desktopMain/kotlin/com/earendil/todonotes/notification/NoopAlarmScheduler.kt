@@ -6,7 +6,13 @@ package com.earendil.todonotes.notification
  * Implementierung (AlarmManager + NotificationHelper).
  */
 class NoopAlarmScheduler : AlarmScheduler {
-    override fun scheduleAlarm(dueAt: Long, todoId: String, title: String, notes: String?) {
+    override fun scheduleAlarm(
+        dueAt: Long,
+        todoId: String,
+        title: String,
+        notes: String?,
+        notificationStyle: Int
+    ) {
         // noop
     }
     override fun cancelAlarm(todoId: String, dueAt: Long) {

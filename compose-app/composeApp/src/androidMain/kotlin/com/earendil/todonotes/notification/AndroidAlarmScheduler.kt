@@ -22,15 +22,23 @@ class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
         const val EXTRA_TITLE = "title"
         const val EXTRA_BODY = "body"
         const val EXTRA_TRIGGER_AT = "trigger_at"
+        const val EXTRA_STYLE = "notification_style"
     }
 
-    override fun scheduleAlarm(dueAt: Long, todoId: String, title: String, notes: String?) {
+    override fun scheduleAlarm(
+        dueAt: Long,
+        todoId: String,
+        title: String,
+        notes: String?,
+        notificationStyle: Int
+    ) {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = ACTION_ALARM_FIRE
             putExtra(EXTRA_TODO_ID, todoId)
             putExtra(EXTRA_TITLE, title)
             putExtra(EXTRA_BODY, notes ?: "")
             putExtra(EXTRA_TRIGGER_AT, dueAt)
+            putExtra(EXTRA_STYLE, notificationStyle)
         }
 
         val requestCode = (dueAt / 1000).toInt()

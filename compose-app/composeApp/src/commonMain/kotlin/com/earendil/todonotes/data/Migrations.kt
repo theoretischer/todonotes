@@ -234,6 +234,14 @@ object Migrations {
         }
     }
 
+    /** v10 → v11: notificationStyle auf todos (M8 — 0=Vollbild, 1=nur
+     *  Benachrichtigung, 2=stumm). Default 0 = bisheriges Verhalten. */
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override suspend fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("ALTER TABLE todos ADD COLUMN notificationStyle INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -244,6 +252,7 @@ object Migrations {
         MIGRATION_6_7,
         MIGRATION_7_8,
         MIGRATION_8_9,
-        MIGRATION_9_10
+        MIGRATION_9_10,
+        MIGRATION_10_11
     )
 }

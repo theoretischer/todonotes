@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.earendil.todonotes.data.entity.NotificationStyle
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.data.repo.formatDateGerman
 import com.earendil.todonotes.ui.components.RecurrenceCodec
@@ -32,7 +34,8 @@ data class TodoFormData(
     val notes: String,
     val dueAt: Long?,
     val recurrence: String?,
-    val logToHistory: Boolean
+    val logToHistory: Boolean,
+    val notificationStyle: Int = NotificationStyle.FULLSCREEN.value
 )
 
 /**
@@ -56,6 +59,9 @@ fun TodoEditDialog(
     var notes by remember { mutableStateOf(existing?.notes ?: "") }
     var hasDate by remember { mutableStateOf(existing?.dueAt != null) }
     var logToHistory by remember { mutableStateOf(existing?.logToHistory ?: true) }
+    var notificationStyle by remember {
+        mutableStateOf(existing?.notificationStyle ?: NotificationStyle.FULLSCREEN.value)
+    }
 
     // Wiederholung (UI-State)
     var recurrenceState by remember {
@@ -134,7 +140,8 @@ fun TodoEditDialog(
                                 notes = notes.trim(),
                                 dueAt = dueAt,
                                 recurrence = rrule,
-                                logToHistory = logToHistory
+                                logToHistory = logToHistory,
+                                notificationStyle = notificationStyle
                             )
                         )
                     }
@@ -203,6 +210,14 @@ fun TodoEditDialog(
 
                 HorizontalDivider()
 
+                // Benachrichtigungs-Stil (M8)
+                NotificationStyleDropdown(
+                    selected = notificationStyle,
+                    onSelect = { notificationStyle = it }
+                )
+
+                HorizontalDivider()
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -220,4 +235,48 @@ fun TodoEditDialog(
             }
         }
     )
+}
+
+
+/** Dropdown für den Benachrichtigungs-Stil (Vollbild / Benachrichtigung / Stumm). */
+@Composable
+fun NotificationStyleDropdown(selected: Int, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf(
+        NotificationStyle.FULLSCREEN to "Vollbild",
+        NotificationStyle.NOTIFICATION to "Benachrichtigung",
+        NotificationStyle.SILENT to "Stumm"
+    )
+    val selectedName = options.first { it.first.value == selected }.second
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Default.Notifications,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Benachrichtigung", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Wie du erinnert wirst",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        TextButton(onClick = { expanded = true }) {
+            Text(selectedName)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (style, name) ->
+                DropdownMenuItem(
+                    text = { Text(name) },
+                    onClick = { onSelect(style.value); expanded = false }
+                )
+            }
+        }
+    }
 }

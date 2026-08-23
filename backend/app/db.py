@@ -96,7 +96,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             createdAt    INTEGER NOT NULL,
             updatedAt    INTEGER NOT NULL,
             deletedAt    INTEGER,
-            logToHistory INTEGER NOT NULL
+            logToHistory INTEGER NOT NULL,
+            notificationStyle INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_todos_updatedAt ON todos(updatedAt);
 
@@ -209,6 +210,9 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
     def _add_column(table: str, col: str, ddl: str) -> None:
         if not _has_column(table, col):
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+    # M8: todos.notificationStyle (0=Vollbild, 1=nur Notification, 2=stumm).
+    _add_column("todos", "notificationStyle", "notificationStyle INTEGER NOT NULL DEFAULT 0")
 
     # Block H: notes.type (NOTE/CHAT, default NOTE für bestehende Notizen).
     _add_column("notes", "type", "type TEXT NOT NULL DEFAULT 'NOTE'")

@@ -23,6 +23,7 @@ class TodoDTO(BaseModel):
     updatedAt: int
     deletedAt: int | None = None
     logToHistory: bool = True
+    notificationStyle: int = 0    # 0=Vollbild, 1=nur Notification, 2=stumm
 
 
 class HabitDTO(BaseModel):

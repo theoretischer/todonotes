@@ -2,6 +2,7 @@ package com.earendil.todonotes.data.repo
 
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Todo
+import com.earendil.todonotes.data.entity.NotificationStyle
 import com.earendil.todonotes.data.sync.SyncManager
 import com.earendil.todonotes.notification.AlarmScheduler
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +35,8 @@ class TodoRepository(
         notes: String = "",
         dueAt: Long?,
         recurrence: String? = null,
-        logToHistory: Boolean = true
+        logToHistory: Boolean = true,
+        notificationStyle: Int = NotificationStyle.FULLSCREEN.value
     ): Todo {
         val now = nowMs()
         val todo = Todo(
@@ -45,7 +47,8 @@ class TodoRepository(
             recurrence = recurrence,
             createdAt = now,
             updatedAt = now,
-            logToHistory = logToHistory
+            logToHistory = logToHistory,
+            notificationStyle = notificationStyle
         )
         dao.upsert(todo)
         scheduleAlarmFor(todo)
@@ -120,7 +123,8 @@ class TodoRepository(
         notes: String,
         dueAt: Long?,
         recurrence: String?,
-        logToHistory: Boolean
+        logToHistory: Boolean,
+        notificationStyle: Int = NotificationStyle.FULLSCREEN.value
     ) {
         val existing = dao.getById(id) ?: return
         val oldDue = existing.dueAt ?: nowMs()
@@ -131,6 +135,7 @@ class TodoRepository(
             dueAt = dueAt,
             recurrence = recurrence,
             logToHistory = logToHistory,
+            notificationStyle = notificationStyle,
             updatedAt = nowMs()
         )
         dao.upsert(updated)
@@ -140,6 +145,6 @@ class TodoRepository(
 
     private fun scheduleAlarmFor(todo: Todo) {
         val due = todo.dueAt ?: return
-        alarmScheduler.scheduleAlarm(due, todo.id, todo.title, todo.notes)
+        alarmScheduler.scheduleAlarm(due, todo.id, todo.title, todo.notes, todo.notificationStyle)
     }
 }

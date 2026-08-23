@@ -30,7 +30,7 @@ import com.earendil.todonotes.data.entity.Todo
 @Database(
     entities = [Todo::class, Habit::class, HabitLog::class, HabitHistoryEntry::class,
         Folder::class, Note::class, ChatMessage::class],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @ColumnTypeConverters(IntSetConverter::class, NoteTypeConverter::class)

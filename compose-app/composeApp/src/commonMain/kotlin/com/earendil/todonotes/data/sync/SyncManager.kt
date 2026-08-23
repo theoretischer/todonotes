@@ -207,11 +207,13 @@ class SyncManager(
     // --- Mapper (Instanz-Methoden, userId aus prefs) ---
 
     private fun Todo.toDTO() = TodoDTO(
-        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory
+        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt,
+        logToHistory, notificationStyle
     )
 
     private fun TodoDTO.toEntity() = Todo(
-        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt, logToHistory, userId = userId
+        id, title, notes, dueAt, recurrence, completedAt, createdAt, updatedAt, deletedAt,
+        logToHistory, notificationStyle, userId = userId
     )
 
     private fun Habit.toDTO() = HabitDTO(

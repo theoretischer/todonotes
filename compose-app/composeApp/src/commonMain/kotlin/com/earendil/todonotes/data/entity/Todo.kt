@@ -13,6 +13,8 @@ import androidx.room3.PrimaryKey
  * - deletedAt: Soft-Delete
  * - updatedAt: Last-Write-Wins beim Sync
  * - logToHistory: Nutzer-Setting pro Todo "Nach Abschluss in Verlauf eintragen"
+ * - notificationStyle: wie bei Fälligkeit benachrichtigt wird (0=Vollbild,
+ *   1=nur Benachrichtigung, 2=stumm) — siehe [NotificationStyle]
  * - userId: Multi-User (M1). Default "legacy-user" bei Migration v9→v10.
  */
 @Entity(tableName = "todos")
@@ -28,6 +30,7 @@ data class Todo(
     val updatedAt: Long,
     val deletedAt: Long? = null,
     val logToHistory: Boolean = true,
+    val notificationStyle: Int = NotificationStyle.FULLSCREEN.value,
     val userId: String = "legacy-user"
 ) {
     val isOpen: Boolean get() = completedAt == null && deletedAt == null
