@@ -3,6 +3,7 @@ package com.earendil.todonotes.data.dao
 import androidx.room3.Dao
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
+import androidx.room3.Upsert
 import androidx.room3.Query
 import androidx.room3.Update
 import com.earendil.todonotes.data.entity.Todo
@@ -55,7 +56,7 @@ interface TodoDao {
     @Query("SELECT * FROM todos")
     suspend fun getAllOnce(): List<Todo>
 
-    /** Server-Änderungen einspielen (REPLACE — Server ist Quelle der Wahrheit). */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Server-Änderungen einspielen (@Upsert — kein DELETE/CASCADE). */
+    @Upsert
     suspend fun upsertAll(todos: List<Todo>)
 }

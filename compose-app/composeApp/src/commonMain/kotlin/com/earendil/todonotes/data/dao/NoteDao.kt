@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Update
+import androidx.room3.Upsert
 import com.earendil.todonotes.data.entity.Note
 import kotlinx.coroutines.flow.Flow
 
@@ -46,6 +47,6 @@ interface NoteDao {
     @Query("SELECT * FROM notes")
     suspend fun getAllForSync(): List<Note>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(notes: List<Note>)
 }

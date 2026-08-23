@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Update
+import androidx.room3.Upsert
 import com.earendil.todonotes.data.entity.ChatMessage
 import kotlinx.coroutines.flow.Flow
 
@@ -37,6 +38,6 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages")
     suspend fun getAllForSync(): List<ChatMessage>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(messages: List<ChatMessage>)
 }

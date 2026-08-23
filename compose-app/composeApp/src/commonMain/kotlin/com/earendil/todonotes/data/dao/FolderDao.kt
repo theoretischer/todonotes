@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Update
+import androidx.room3.Upsert
 import com.earendil.todonotes.data.entity.Folder
 import kotlinx.coroutines.flow.Flow
 
@@ -66,6 +67,6 @@ interface FolderDao {
     @Query("SELECT * FROM folders")
     suspend fun getAllForSync(): List<Folder>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun upsertAll(folders: List<Folder>)
 }

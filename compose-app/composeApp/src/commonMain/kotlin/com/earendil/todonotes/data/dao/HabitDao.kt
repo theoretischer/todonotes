@@ -3,6 +3,7 @@ package com.earendil.todonotes.data.dao
 import androidx.room3.Dao
 import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
+import androidx.room3.Upsert
 import androidx.room3.Query
 import androidx.room3.Update
 import com.earendil.todonotes.data.entity.Habit
@@ -90,24 +91,25 @@ interface HabitDao {
     @Query("SELECT * FROM habits")
     suspend fun getAllHabitsForSync(): List<Habit>
 
-    /** Server-Änderungen einspielen. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Server-Änderungen einspielen. @Upsert = INSERT OR UPDATE (kein DELETE,
+     *  kein CASCADE auf habit_logs/history). */
+    @Upsert
     suspend fun upsertAllHabits(habits: List<Habit>)
 
     /** Alle Logs einmalig (für Sync-Upstream). */
     @Query("SELECT * FROM habit_logs")
     suspend fun getAllLogsForSync(): List<HabitLog>
 
-    /** Server-Logs einspielen (REPLACE — id-PK). */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Server-Logs einspielen (@Upsert — kein DELETE/CASCADE). */
+    @Upsert
     suspend fun upsertAllLogs(logs: List<HabitLog>)
 
     /** Alle History-Einträge einmalig. */
     @Query("SELECT * FROM habit_history")
     suspend fun getAllHistoryForSync(): List<HabitHistoryEntry>
 
-    /** Server-History einspielen. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /** Server-History einspielen (@Upsert — kein DELETE/CASCADE). */
+    @Upsert
     suspend fun upsertAllHistory(entries: List<HabitHistoryEntry>)
 
     /** Alle aktiven Habits einmalig (nicht reaktiv). */

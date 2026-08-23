@@ -110,8 +110,12 @@ def _upsert_row(
             return  # append-only
         if existing["userId"] is not None and existing["userId"] != user_id:
             return  # fremde Daten
-        if existing[change_field] > new_change:
-            return  # existing (server) neuer als incoming (client) → skip stale
+        if existing[change_field] >= new_change:
+            # incoming <= existing → skip. Wichtig: >= (nicht >), damit
+            # unveränderte Zeilen (incoming == existing, vom letzten Sync)
+            # NICHT neu angewandt werden. Sonst bump't jeder Full-Sync alle
+            # updatedAt → Server liefert immer ALLE Daten zurück → Churn.
+            return
         # incoming >= existing → apply. Server-Zeit als updatedAt.
         data[change_field] = server_now
         if "userId" in data:
