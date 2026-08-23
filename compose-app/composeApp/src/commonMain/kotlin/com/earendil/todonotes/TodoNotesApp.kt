@@ -33,11 +33,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.earendil.todonotes.ui.AuthViewModel
 import com.earendil.todonotes.ui.ChatViewModel
 import com.earendil.todonotes.ui.HabitViewModel
 import com.earendil.todonotes.ui.NoteEditorViewModel
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.TodoViewModel
+import com.earendil.todonotes.ui.auth.AuthGate
 import com.earendil.todonotes.ui.chat.ChatScreen
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
@@ -64,6 +66,17 @@ import androidx.compose.foundation.layout.navigationBars
 fun TodoNotesApp(
     container: AppContainer
 ) {
+    // Auth-Gate: prüft beim Start ob eingeloggt → sonst Login/Setup.
+    val authVm = remember { AuthViewModel(container.authManager, container.syncManager, container.syncPrefs, container.appScope) }
+    var isAuthenticated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { authVm.checkAuth() }
+
+    if (!isAuthenticated) {
+        AuthGate(vm = authVm, onAuthenticated = { isAuthenticated = true })
+        return
+    }
+
     val todoVm = remember { TodoViewModel(container.todoRepository, container.appScope) }
     val openTodos by todoVm.openTodos.collectAsState()
     val completedTodos by todoVm.completedTodos.collectAsState()

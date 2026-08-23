@@ -116,17 +116,20 @@ def update_me(
 
 
 @app.post("/auth/me/avatar")
-async def upload_avatar(
-    file: UploadFile = File(...),
+def upload_avatar(
+    req: dict,
     user_id: str = Depends(verify_token),
 ) -> dict:
-    """Profilbild hochladen."""
+    """Profilbild hochladen (Base64-JSON)."""
+    import base64
     avatars_dir = Path(os.environ.get("DATA_DIR", "data")) / "avatars"
     avatars_dir.mkdir(parents=True, exist_ok=True)
-    ext = Path(file.filename or "").suffix or ".png"
+    ext = req.get("ext", ".png")
+    if not ext.startswith("."):
+        ext = "." + ext
     filename = f"{user_id}{ext}"
     filepath = avatars_dir / filename
-    content = await file.read()
+    content = base64.b64decode(req["data"])
     filepath.write_bytes(content)
     auth.set_profile_picture(user_id, filename)
     return {"filename": filename}

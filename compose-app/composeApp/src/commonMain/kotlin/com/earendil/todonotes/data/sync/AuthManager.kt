@@ -2,6 +2,10 @@ package com.earendil.todonotes.data.sync
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -76,6 +80,99 @@ class AuthManager(
     /** Logout: token + userId + username löschen. */
     fun logout() {
         prefs.logout()
+    }
+
+    // --- M7d-3: Setup + Profil + Admin ---
+
+
+    /** Public: Setup-Status abrufen (admin_exists, open_registration). */
+    suspend fun getSetupStatus(): SetupStatusResponse {
+        return httpClient.get("${prefs.serverUrl}/auth/setup-status").body()
+    }
+
+    /** Ersten Admin erstellen + Legacy-Daten migrieren.
+     *  Nur möglich wenn noch kein Admin existiert. */
+    suspend fun setupAdmin(username: String, password: String, displayName: String): AuthResult {
+        return try {
+            val response = httpClient.post("${prefs.serverUrl}/auth/setup") {
+                contentType(ContentType.Application.Json)
+                setBody(SetupRequest(username, password, displayName))
+            }
+            val auth: AuthResponse = response.body()
+            saveAuth(auth, username)
+            AuthResult.Success(auth)
+        } catch (e: Exception) {
+            AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
+        }
+    }
+
+    /** Eigenes Profil abrufen. */
+    suspend fun getProfile(): UserProfileResponse {
+        return httpClient.get("${prefs.serverUrl}/auth/me") {
+            bearerAuth(prefs.token)
+        }.body()
+    }
+
+    /** Eigenes Profil bearbeiten (display_name und/oder passwort). */
+    suspend fun updateProfile(displayName: String? = null, password: String? = null): UserProfileResponse {
+        return httpClient.patch("${prefs.serverUrl}/auth/me") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateProfileRequest(displayName, password))
+        }.body()
+    }
+
+    /** Profilbild hochladen (Bytes als Base64-JSON). */
+    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+    suspend fun uploadAvatar(bytes: ByteArray, ext: String): String {
+        val base64 = kotlin.io.encoding.Base64.encode(bytes)
+        val response: AvatarUploadResponse = httpClient.post("${prefs.serverUrl}/auth/me/avatar") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(AvatarUploadRequest(base64, ext))
+        }.body()
+        return response.filename
+    }
+
+    /** Avatar-URL für einen User (relativ zur serverUrl). */
+    fun avatarUrl(userId: String): String {
+        return "${prefs.serverUrl}/avatars/$userId"
+    }
+
+    // --- Admin ---
+
+    /** Alle User auflisten (Admin only). */
+    suspend fun adminListUsers(): List<AdminUserResponse> {
+        return httpClient.get("${prefs.serverUrl}/admin/users") {
+            bearerAuth(prefs.token)
+        }.body()
+    }
+
+    /** User anlegen (Admin only). */
+    suspend fun adminCreateUser(
+        username: String, password: String, displayName: String, isAdmin: Boolean
+    ): AdminUserResponse {
+        return httpClient.post("${prefs.serverUrl}/admin/users") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(AdminCreateUserRequest(username, password, displayName, isAdmin))
+        }.body()
+    }
+
+    /** User löschen (Admin only, nicht sich selbst). */
+    suspend fun adminDeleteUser(userId: String) {
+        httpClient.delete("${prefs.serverUrl}/admin/users/$userId") {
+            bearerAuth(prefs.token)
+        }
+    }
+
+    /** open_registration setzen (Admin only). */
+    suspend fun adminUpdateSettings(openRegistration: Boolean?): SettingsResponse {
+        return httpClient.patch("${prefs.serverUrl}/admin/settings") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(UpdateSettingsRequest(openRegistration))
+        }.body()
     }
 
     private fun saveAuth(auth: AuthResponse, username: String) {

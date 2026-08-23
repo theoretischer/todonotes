@@ -39,3 +39,72 @@ data class HealthResponse(
     val status: String,
     val time: Long
 )
+
+// --- M7d-3: Setup + Profil + Admin ---
+
+@Serializable
+data class SetupStatusResponse(
+    @SerialName("admin_exists") val adminExists: Boolean,
+    @SerialName("open_registration") val openRegistration: Boolean
+)
+
+@Serializable
+data class SetupRequest(
+    val username: String,
+    val password: String,
+    @SerialName("display_name") val displayName: String = ""
+)
+
+@Serializable
+data class UserProfileResponse(
+    @SerialName("user_id") val userId: String,
+    val username: String,
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("is_admin") val isAdmin: Boolean,
+    @SerialName("profile_picture") val profilePicture: String? = null
+)
+
+@Serializable
+data class UpdateProfileRequest(
+    @SerialName("display_name") val displayName: String? = null,
+    val password: String? = null
+)
+
+@Serializable
+data class AdminUserResponse(
+    @SerialName("user_id") val userId: String,
+    val username: String,
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("is_admin") val isAdmin: Boolean,
+    @SerialName("created_at") val createdAt: Long
+)
+
+@Serializable
+data class AdminCreateUserRequest(
+    val username: String,
+    val password: String,
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("is_admin") val isAdmin: Boolean = false
+)
+
+@Serializable
+data class UpdateSettingsRequest(
+    @SerialName("open_registration") val openRegistration: Boolean? = null
+)
+
+@Serializable
+data class SettingsResponse(
+    @SerialName("open_registration") val openRegistration: Boolean
+)
+
+/** Avatar-Upload: Bild als Base64-String + Dateiendung. */
+@Serializable
+data class AvatarUploadRequest(
+    val data: String,
+    val ext: String
+)
+
+@Serializable
+data class AvatarUploadResponse(
+    val filename: String
+)
