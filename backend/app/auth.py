@@ -64,6 +64,7 @@ def register_user(username: str, password: str) -> tuple[str, str]:
     """Account erstellen + Token erzeugen.
 
     Liefert (user_id, token). Wirft 409 wenn username belegt.
+    Wirft 403 wenn open_registration deaktiviert.
     """
     if not username or not password:
         raise HTTPException(
@@ -79,6 +80,13 @@ def register_user(username: str, password: str) -> tuple[str, str]:
     user_id = secrets.token_urlsafe(16)
     password_hash = _hash_password(password)
     with db.db() as conn:
+        # Open Registration prüfen.
+        open_reg = db.get_setting(conn, "open_registration", "0") == "1"
+        if not open_reg and _admin_exists(conn):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Registrierung ist deaktiviert",
+            )
         # Username eindeutig?
         cur = conn.execute(
             "SELECT id FROM users WHERE username = ?", (username,)
@@ -205,3 +213,242 @@ def verify_request_token(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid token",
     )
+
+
+# --- M7d-3: Setup, Profil, Admin ---
+
+def _admin_exists(conn) -> bool:
+    """Prüft ob mindestens ein Admin-Account existiert."""
+    cur = conn.execute("SELECT 1 FROM users WHERE is_admin = 1 LIMIT 1")
+    return cur.fetchone() is not None
+
+
+def setup_status() -> dict:
+    """Liefert Setup-Status (ohne Login): admin_exists, open_registration."""
+    with db.db() as conn:
+        return {
+            "admin_exists": _admin_exists(conn),
+            "open_registration": db.get_setting(conn, "open_registration", "0") == "1",
+        }
+
+
+def setup_admin(username: str, password: str, display_name: str = "") -> tuple[str, str]:
+    """Ersten Admin-Account erstellen + Legacy-Daten migrieren.
+
+    Nur erlaubt wenn noch kein Admin existiert. Legacy-Daten werden auf
+    den neuen Admin übertragen (damit bestehende Todos/Notizen erhalten
+    bleiben).
+    """
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username und password dürfen nicht leer sein",
+        )
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwort muss mindestens 6 Zeichen lang sein",
+        )
+    now = int(time.time() * 1000)
+    user_id = secrets.token_urlsafe(16)
+    password_hash = _hash_password(password)
+    with db.db() as conn:
+        if _admin_exists(conn):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Admin existiert bereits",
+            )
+        cur = conn.execute(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        )
+        if cur.fetchone() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="username bereits vergeben",
+            )
+        conn.execute(
+            "INSERT INTO users (id, username, password_hash, created_at, is_legacy, is_admin, display_name) "
+            "VALUES (?, ?, ?, ?, 0, 1, ?)",
+            (user_id, username, password_hash, now, display_name or username),
+        )
+        token = _create_token(conn, user_id)
+        # Legacy-Daten auf den neuen Admin übertragen.
+        for table in (
+            "todos", "habits", "habit_logs", "habit_history",
+            "folders", "notes", "chat_messages",
+        ):
+            conn.execute(
+                f"UPDATE {table} SET userId = ? WHERE userId = ?",
+                (user_id, db.LEGACY_USER_ID),
+            )
+    return user_id, token
+
+
+def get_user_profile(user_id: str) -> dict:
+    """Liefert Profil des eingeloggten Users."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT id, username, display_name, is_admin, profile_picture "
+            "FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="user nicht gefunden",
+            )
+        return {
+            "user_id": row["id"],
+            "username": row["username"],
+            "display_name": row["display_name"] or row["username"],
+            "is_admin": bool(row["is_admin"]),
+            "profile_picture": row["profile_picture"],
+        }
+
+
+def update_profile(
+    user_id: str,
+    display_name: str | None = None,
+    password: str | None = None,
+) -> None:
+    """Eigenes Profil bearbeiten: display_name und/oder passwort ändern."""
+    with db.db() as conn:
+        if display_name is not None:
+            if not display_name.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="display_name darf nicht leer sein",
+                )
+            conn.execute(
+                "UPDATE users SET display_name = ? WHERE id = ?",
+                (display_name.strip(), user_id),
+            )
+        if password is not None:
+            if len(password) < 6:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Passwort muss mindestens 6 Zeichen lang sein",
+                )
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (_hash_password(password), user_id),
+            )
+
+
+def set_profile_picture(user_id: str, filename: str) -> None:
+    """Profilbild-Dateiname für einen User setzen."""
+    with db.db() as conn:
+        conn.execute(
+            "UPDATE users SET profile_picture = ? WHERE id = ?",
+            (filename, user_id),
+        )
+
+
+def get_profile_picture_filename(user_id: str) -> str | None:
+    """Profilbild-Dateiname eines Users lesen (für /avatars/{userId})."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT profile_picture FROM users WHERE id = ?",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        return row["profile_picture"] if row is not None else None
+
+
+def require_admin(user_id: str) -> None:
+    """Wirft 403 wenn user_id kein Admin ist."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT is_admin FROM users WHERE id = ?", (user_id,)
+        )
+        row = cur.fetchone()
+        if row is None or not row["is_admin"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="admin-rechte erforderlich",
+            )
+
+
+def admin_list_users() -> list[dict]:
+    """Alle User auflisten (Admin only)."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT id, username, display_name, is_admin, created_at "
+            "FROM users WHERE is_legacy = 0 ORDER BY created_at ASC"
+        )
+        return [
+            {
+                "user_id": r["id"],
+                "username": r["username"],
+                "display_name": r["display_name"] or r["username"],
+                "is_admin": bool(r["is_admin"]),
+                "created_at": r["created_at"],
+            }
+            for r in cur.fetchall()
+        ]
+
+
+def admin_create_user(
+    username: str, password: str, display_name: str = "", is_admin: bool = False
+) -> str:
+    """User durch Admin anlegen (ohne open_registration-Prüfung).
+    Liefert user_id."""
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="username und password dürfen nicht leer sein",
+        )
+    if len(password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwort muss mindestens 6 Zeichen lang sein",
+        )
+    now = int(time.time() * 1000)
+    user_id = secrets.token_urlsafe(16)
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT id FROM users WHERE username = ?", (username,)
+        )
+        if cur.fetchone() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="username bereits vergeben",
+            )
+        conn.execute(
+            "INSERT INTO users (id, username, password_hash, created_at, is_legacy, is_admin, display_name) "
+            "VALUES (?, ?, ?, ?, 0, ?, ?)",
+            (user_id, username, _hash_password(password), now,
+             1 if is_admin else 0, display_name or username),
+        )
+    return user_id
+
+
+def admin_delete_user(user_id: str) -> None:
+    """User löschen (Admin only). darf sich nicht selbst löschen."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT is_admin, is_legacy FROM users WHERE id = ?", (user_id,)
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="user nicht gefunden",
+            )
+        if row["is_legacy"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="legacy-user kann nicht gelöscht werden",
+            )
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
+def update_settings(open_registration: bool | None = None) -> dict:
+    """App-Settings aktualisieren (Admin only)."""
+    with db.db() as conn:
+        if open_registration is not None:
+            db.set_setting(conn, "open_registration", "1" if open_registration else "0")
+        return {
+            "open_registration": db.get_setting(conn, "open_registration", "0") == "1",
+        }

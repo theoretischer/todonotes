@@ -62,7 +62,10 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             username      TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             created_at    INTEGER NOT NULL,
-            is_legacy     INTEGER NOT NULL DEFAULT 0
+            is_legacy     INTEGER NOT NULL DEFAULT 0,
+            is_admin      INTEGER NOT NULL DEFAULT 0,
+            display_name  TEXT,
+            profile_picture TEXT
         );
 
         CREATE TABLE IF NOT EXISTS tokens (
@@ -75,6 +78,12 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);
         CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens(user_id);
+
+        -- App-Einstellungen (Key-Value, z.B. open_registration).
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
 
         CREATE TABLE IF NOT EXISTS todos (
             id           TEXT PRIMARY KEY,
@@ -217,6 +226,16 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
             f"CREATE INDEX IF NOT EXISTS idx_{table}_userId ON {table}(userId)"
         )
 
+    # M7d-3: User-Profil erweitern (is_admin, display_name, profile_picture).
+    _add_column("users", "is_admin", "is_admin INTEGER NOT NULL DEFAULT 0")
+    _add_column("users", "display_name", "display_name TEXT")
+    _add_column("users", "profile_picture", "profile_picture TEXT")
+
+    # M7d-3: Default-Settings.
+    conn.execute(
+        "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('open_registration', '0')"
+    )
+
     # Legacy-User anlegen (einmalig, idempotent).
     # Alle bestehenden Daten ohne userId werden ihm zugeordnet.
     # Er ist nur via SYNC_TOKEN (Static-Secret) erreichbar — kein Login möglich.
@@ -224,6 +243,24 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
 LEGACY_USER_ID = "legacy-user"
 """User-ID des Legacy-Users (für Static-Token-Auth)."""
+
+
+def get_setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:
+    """Liest einen app_settings-Wert."""
+    cur = conn.execute(
+        "SELECT value FROM app_settings WHERE key = ?", (key,)
+    )
+    row = cur.fetchone()
+    return row["value"] if row is not None else default
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Schreibt einen app_settings-Wert (upsert)."""
+    conn.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
 
 def _ensure_legacy_user(conn: sqlite3.Connection) -> None:
     """Legt den Legacy-User an falls fehlt, ordnet alle Daten ohne userId ihm zu.

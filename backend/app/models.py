@@ -151,3 +151,48 @@ class AuthResponse(BaseModel):
 class MigrateLegacyRequest(BaseModel):
     username: str
     password: str
+
+
+# --- M7d-3: Setup + Profil + Admin ---
+
+class SetupStatusResponse(BaseModel):
+    admin_exists: bool
+    open_registration: bool
+
+
+class SetupRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+
+
+class UserProfileResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str = ""
+    is_admin: bool
+    profile_picture: str | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: str | None = None
+    password: str | None = None
+
+
+class AdminUserResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str = ""
+    is_admin: bool
+    created_at: int
+
+
+class AdminCreateUserRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+    is_admin: bool = False
+
+
+class UpdateSettingsRequest(BaseModel):
+    open_registration: bool | None = None

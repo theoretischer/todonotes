@@ -16,6 +16,7 @@ services:
       # Kann leer gesetzt werden, wenn alle Clients auf account-basierte Auth umgestellt sind.
       SYNC_TOKEN: ${SYNC_TOKEN:-}
       DB_PATH: /app/data/todonotes.db
+      DATA_DIR: /app/data
       WEB_DIR: /app/data/web
 
 volumes:
