@@ -1,7 +1,9 @@
 # Migrationsplan: Compose Multiplatform (CMP)
 
-**Status: PLAN — noch nicht mit Implementierung begonnen**
+**Status: M1–M9 ABGESCHLOSSEN — Android + Web (Wasm) laufen mit Echtzeit-Sync (<1s)**
+**Offen: M8 Notifications (Android-Alarme), M10 Desktop-Feinschliff, Produktions-Deploy**
 **Backup: Tag `backup-pre-cmp` + Branch `backup-pre-cmp-migration` (Stand `bdb89a8`)**
+**Sync-Restlatenz: ~1s pro Durchlauf (OPFS-Flush im apply-Block) — akzeptiert, siehe M9.3**
 
 ## Ziel
 
@@ -291,30 +293,71 @@ Nach Android-Login-Umstellung (M7/M8) → Token-basierter Sync mit richtigem `us
 - [x] Enter-to-Send (Desktop only): Enter=senden, Shift+Enter=neue Zeile an Cursor-Position
 - [x] Inline-Titel-Rename: Tap auf Titel → BasicTextField, Enter=speichern
 
-##### M7d-3 — Settings + Login
-- [ ] SyncViewModel (plain Kotlin)
-- [ ] SettingsScreen (Android permissions als expect/actual oder reduziert)
-- [ ] LoginScreen (neu für M1-Auth)
-- [ ] ProfileSheet
+##### M7d-3 — Settings + Login ✅
+- [x] AuthGate mit 3-Stufen-Flow: ServerUrlForm → (SetupForm | LoginForm) → Authenticated
+- [x] `AuthUiState` (Loading/NeedsServerUrl/NeedsSetup/NeedsLogin/Authenticated) + AuthViewModel
+- [x] Backend: Setup-Gate (`/auth/setup-status`, `/auth/setup` mit Legacy-Migration), Admin-Panel, Profil (`/auth/me` GET/PATCH), Avatar (`/auth/me/avatar` Base64-JSON)
+- [x] SettingsScreen: Profil (Anzeigename, Passwort, Avatar-Upload, Sync-Status, Logout) + Admin-Sektion (open_registration, User verwalten)
+- [x] `ImageDecoder` expect/actual (ByteArray → ImageBitmap: BitmapFactory / Skia)
+- [x] `FilePicker` expect/actual (GetContent / JFileChooser / HTML input[type=file])
+- [x] AvatarTopRight in TodoNotesApp (Profilbild oder Initialen)
+- [x] CORS-Middleware im Backend (lokale Dev: Web :8090, Backend :8001)
+- [x] Error-Handling: HTTP-Fehler werden als Klartext aus `{"detail":"..."}` extrahiert
 
-##### M7d-4 — TodoNotesApp Navigation
-- [ ] Chat/Settings/Login als Fullscreen-Overlays
+##### M7d-4 — TodoNotesApp Navigation ✅
+- [x] Chat/Settings als Fullscreen-Overlays
+- [x] Routing: Tabs (Todos/Habits/Notes/History) + Overlays (Chat, Settings) + Editor
 
-### Phase M8 — Notifications (expect/actual)
-- [ ] `expect class AlarmScheduler` → androidMain (heutiger Code 1:1), wasmJsMain (noop/Browser-Notification)
-- [ ] `expect class NotificationHelper` → androidMain (wie heute), wasmJsMain (noop)
-- [ ] `expect class WorkManagerSync` → androidMain (WorkManager), wasmJsMain (setTimeout/kein Auto-Sync)
+### Phase M8 — Notifications (expect/actual) — OFFEN
+- [ ] `AlarmScheduler` androidMain: echte Alarme (Port aus altem android/)
+- [ ] `NotificationHelper` androidMain (wie heute), wasmJsMain (noop)
+- [ ] `WorkManagerSync` androidMain (WorkManager), wasmJsMain (Auto-Sync läuft bereits via SSE)
 - [ ] **Test:** Android: Fullscreen-Alarm funktioniert wie vorher
 
-### Phase M9 — Web-Target
-- [ ] `wasmJsMain` Entry-Point (HTML-Template + main())
-- [ ] Build: `./gradlew :compose-app:wasmJsBrowserDistribution` → Wasm + JS + HTML
-- [ ] Wasm-Output ins Backend-Static-Verzeichnis kopieren (oder Docker-Build)
-- [ ] Docker: Web-Build wird ins Image kopiert
-- [ ] **Test:** Im Browser öffnen → Login → Sync → alle Features
+### Phase M9 — Web-Target ✅
+- [x] `wasmJsMain` Entry-Point + HTML-Template + main()
+- [x] Build: `./gradlew :composeApp:wasmJsBrowserDistribution`
+- [x] Persistent SQLite via OPFS (WebWorkerSQLiteDriver + lokales npm-Paket `@androidx/sqlite-web-worker`)
+- [x] Lokaler Dev-Server mit COOP/COEP-Headern (SharedArrayBuffer für OPFS)
+- [x] **Test:** Im Browser → Login → Sync → alle Features ✓
+- [x] Backend-Auslieferung in Produktion: noch offen (Docker kopiert dist/ — folgt mit Deploy)
+
+#### M9.1 — Echtzeit-Sync: Auto-Sync + SSE ✅
+- [x] Auto-Sync: `SyncManager.markDirty()` (Repositories rufen nach Schreibvorgängen) → debounce 100ms → sync()
+- [x] SSE-Endpoint `/sync/events` + `event_bus.py` (In-Memory pro user_id)
+- [x] `SseClient` (Ktor SSE Plugin, Token als Query-Param, Reconnect-Backoff 1s→30s)
+- [x] Ping-Pong-Vermeidung (3 Ebenen):
+  1. `except_client_id`: Sender wird nicht benachrichtigt
+  2. `notify`-Flag: SSE-getriggerte Pulls publizieren nicht
+  3. `newSyncedAt = server_now + 1`: kein Re-Delivery zum syncenden Client
+
+#### M9.2 — Sync-Konsolidierung (Bugfix-Runde) ✅
+Root-Causes die nacheinander gefunden wurden:
+- [x] **userId-Lösch-Bug**: `_upsert_row` leerte `userId` bei UPDATE (Client sendet keins) → Zeilen
+  wurden nie zurückgeliefert. Fix: userId aus data entfernen vor UPDATE.
+- [x] **LWW restauriert**: `existing.updatedAt >= incoming.updatedAt → skip` (inkl. `>=`, damit
+  unveränderte Zeilen beim Full-Sync keinen updatedAt-Bump auslösen — sonst Churn-Sturm).
+  Server setzt `updatedAt = server_now` NACH dem LWW-Check.
+- [x] **CASCADE-Bug**: `@Insert(REPLACE)` auf habits → DELETE+INSERT → ForeignKey-CASCADE
+  löschte ALLE habit_logs/history → Counts auf 0. Fix: `@Upsert` (INSERT OR UPDATE, kein
+  DELETE) für alle Sync-Upserts in allen DAOs.
+- [x] **notes.position fehlte im DTO**: Reorder ging verloren + Server-Echo setzte Position
+  auf 0 zurück. Fix: position in NoteDTO (KT+PY) + DB-Spalte + ALTER-Migration.
+- [x] **Clock-Skew**: `serverTimeOffset` (TimeHelpers) — SyncManager setzt Offset nach jedem
+  Sync; `nowMs()` liefert Server-adjustierte Zeit → LWW funktioniert trotz Uhrabweichung.
+
+#### M9.3 — Sync-Performance ✅
+- [x] Pull-only Syncs (SSE-getriggert) ohne pending lokale Änderungen laden nichts hoch
+  (`pendingPush`-Flag) — spart DB-Read + 34KB Serialisierung pro Pull
+- [x] `applyServerChanges` in EINER `withWriteTransaction` — ein postMessage-Roundtrip statt 7
+- [x] SQLite-OPFS: `opfs-sahpool` VFS statt altem `opfs`-VFS (alter VFS: ~900ms pro Commit
+  durch Thread-Grenze/Atomics pro VFS-Call; SAHPool verwaltet SyncAccessHandles direkt im
+  Worker). Einmalige Migration der Legacy-DB via `importDb()` beim Worker-Start.
+  **Gemessene Rest-Latenz: ~1s pro Sync-Durchlauf** (apply-Block enthält OPFS-Flush) — akzeptiert.
+- [x] Timing-Log `SYNC[push/pull]: collect/http/apply/rowsUp/rowsDown` für zukünftige Analyse
 
 ### Phase M10 — Desktop-Target (optional, später)
-- [ ] `desktopMain` Entry-Point (JVM)
+- [ ] `desktopMain` Entry-Point läuft bereits (Build grün), UI-Feinschliff fehlt
 - [ ] Ersetzt GTK4/Linux — gleiche Compose-UI, nativ auf Linux/Mac/Windows
 - [ ] **Test:** Auf Tower/Laptop laufen
 
