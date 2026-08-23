@@ -114,6 +114,10 @@ def _upsert_row(
             return
         # UPDATE: Server-Zeit als updatedAt (kein LWW-Check mehr —
         # der letzte Sync gewinnt, eliminiert Clock-Skew).
+        # userId NICHT aus dem DTO uebernehmen (Client kennt es nicht) —
+        # bestehendes userId bleibt erhalten.
+        if "userId" in data:
+            del data["userId"]
         _update_row(conn, table, data)
     else:
         # Neue Zeile: userId vom authentifizierten User setzen.
