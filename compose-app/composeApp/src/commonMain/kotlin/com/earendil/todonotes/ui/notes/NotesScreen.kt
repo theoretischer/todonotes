@@ -34,6 +34,7 @@ import androidx.compose.ui.zIndex
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
+import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
@@ -64,6 +65,13 @@ fun NotesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by notesVm.browserState.collectAsState()
+
+    // System-Back: einen Ordner hoch statt App beenden (nur wenn wir NICHT
+    // in der Wurzel sind). Registriert VOR den Overlays in TodoNotesApp —
+    // die Editor/Settings-Handler liegen darüber und gewinnen entsprechend.
+    BackHandler(enabled = state.currentFolderId != null) {
+        notesVm.goUp()
+    }
 
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Folder?>(null) }

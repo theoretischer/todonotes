@@ -39,6 +39,7 @@ import com.earendil.todonotes.ui.NoteEditorViewModel
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.TodoViewModel
 import com.earendil.todonotes.ui.auth.AuthGate
+import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.chat.ChatScreen
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
@@ -207,6 +208,12 @@ fun TodoNotesApp(
                     .padding(end = 12.dp, top = 8.dp)
             )
         }
+    }
+
+    // System-Back: Overlays schließen statt App zu beenden (Android-Back-Taste).
+    // Zuletzt registrierter Handler gewinnt — Overlays liegen über dem Scaffold.
+    BackHandler(enabled = editorState == null && showSettings) {
+        showSettings = false
     }
 
     // Settings als Fullscreen-Overlay
