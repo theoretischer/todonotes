@@ -57,6 +57,17 @@ app.add_middleware(
 )
 
 
+# COOP/COEP-Header auf ALLE Responses (auch statische Files).
+# Nötig für SharedArrayBuffer/Atomics → SQLite-Wasm-OPFS im Browser.
+# (Lokaler Dev-Server /tmp/opfs_server.py setzt dieselben Header.)
+@app.middleware("http")
+async def coop_coep_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    return response
+
+
 @app.on_event("startup")
 def _startup() -> None:
     db_path = os.environ.get("DB_PATH", "data/todonotes.db")
