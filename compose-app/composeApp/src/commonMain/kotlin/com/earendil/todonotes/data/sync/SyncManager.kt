@@ -1,6 +1,7 @@
 package com.earendil.todonotes.data.sync
 
 import com.earendil.todonotes.data.TodoNotesDatabase
+import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.ChatMessage
 import com.earendil.todonotes.data.entity.Folder
@@ -59,9 +60,13 @@ class SyncManager(
     private val userId get() = prefs.userId
 
     /** Auto-Sync: debounced. Wenn lokale Änderung → markDirty() →
-     *  nach 300ms sync(). Mehrere schnelle Änderungen werden gebündelt. */
+     *  nach 100ms sync(). Mehrere schnelle Änderungen werden gebündelt. */
     private val _dirty = MutableStateFlow(0)
     private var scope: CoroutineScope? = null
+
+    /** True wenn lokale Änderungen noch nicht gepusht wurden.
+     *  Pull-only Syncs (SSE) überspringen dann den Upload (34KB sparen). */
+    private var pendingPush = false
 
     /** Mutex: nur ein sync() zur Zeit (vermeidet SQLITE_BUSY auf Wasm
      *  mit single-connection-pool). Auto-Sync + SSE-Push konkurrieren sonst. */
@@ -71,6 +76,7 @@ class SyncManager(
      *  Triggert einen debounced Auto-Sync (300ms). */
     fun markDirty() {
         _dirty.value++
+        pendingPush = true
     }
 
     /** SSE-Push: Server hat neue Daten → sofort pullen (ohne notify,
@@ -106,10 +112,17 @@ class SyncManager(
             return false
         }
         return try {
+            val t0 = Clock.System.now().toEpochMilliseconds()
+            // Upload nur wenn nötig: lokale Änderungen pending ODER Push-Sync
+            // (manuell). Pull-only (SSE-getriggert) ohne pending Änderungen
+            // lädt nichts hoch — spart DB-Read + 34KB Serialisierung.
+            val dirtyAtStart = _dirty.value
+            val changes = if (notify || pendingPush) collectLocalChanges() else ChangesBundle()
+            val tCollect = Clock.System.now().toEpochMilliseconds()
             val request = SyncRequest(
                 lastSyncedAt = prefs.lastSyncedAt,
                 clientId = prefs.clientId,
-                changes = collectLocalChanges(),
+                changes = changes,
                 notify = notify
             )
             val response: SyncResponse = httpClient.post("${prefs.serverUrl}/sync") {
@@ -117,13 +130,25 @@ class SyncManager(
                 bearerAuth(prefs.token)
                 setBody(request)
             }.body()
+            val tHttp = Clock.System.now().toEpochMilliseconds()
             applyServerChanges(response.serverChanges)
             prefs.lastSyncedAt = response.newSyncedAt
             prefs.lastSyncAt = Clock.System.now().toEpochMilliseconds()
             prefs.lastSyncResult = "OK"
+            // Push erfolgreich — außer es kam währenddessen eine neue
+            // lokale Änderung rein (Counter differs → pendingPush bleibt).
+            if (_dirty.value == dirtyAtStart) pendingPush = false
             // Server-Zeit-Offset aktualisieren: nowMs() liefert ab jetzt
             // Server-Zeit → LWW-Check funktioniert auch bei Clock-Skew.
             serverTimeOffset = response.newSyncedAt - Clock.System.now().toEpochMilliseconds()
+            val tEnd = Clock.System.now().toEpochMilliseconds()
+            val upCount = changes.todos.size + changes.habits.size + changes.habit_logs.size +
+                changes.habit_history.size + changes.folders.size + changes.notes.size + changes.chat_messages.size
+            val downCount = response.serverChanges.todos.size + response.serverChanges.habits.size +
+                response.serverChanges.habit_logs.size + response.serverChanges.habit_history.size +
+                response.serverChanges.folders.size + response.serverChanges.notes.size +
+                response.serverChanges.chat_messages.size
+            println("SYNC[${if (notify) "push" else "pull"}]: collect=${tCollect - t0}ms http=${tHttp - tCollect}ms apply=${tEnd - tHttp}ms rowsUp=$upCount rowsDown=$downCount")
             true
         } catch (e: Exception) {
             prefs.lastSyncResult = "Fehler: ${e.message ?: e::class.simpleName}"
@@ -164,13 +189,19 @@ class SyncManager(
     // --- DTO → lokal (Server gewinnt bei Konflikt) ---
 
     private suspend fun applyServerChanges(bundle: ChangesBundle) {
-        if (bundle.todos.isNotEmpty()) db.todoDao().upsertAll(bundle.todos.map { it.toEntity() })
-        if (bundle.habits.isNotEmpty()) db.habitDao().upsertAllHabits(bundle.habits.map { it.toEntity() })
-        if (bundle.habit_logs.isNotEmpty()) db.habitDao().upsertAllLogs(bundle.habit_logs.map { it.toEntity() })
-        if (bundle.habit_history.isNotEmpty()) db.habitDao().upsertAllHistory(bundle.habit_history.map { it.toEntity() })
-        if (bundle.folders.isNotEmpty()) db.folderDao().upsertAll(bundle.folders.map { it.toEntity() })
-        if (bundle.notes.isNotEmpty()) db.noteDao().upsertAll(bundle.notes.map { it.toEntity() })
-        if (bundle.chat_messages.isNotEmpty()) db.chatMessageDao().upsertAll(bundle.chat_messages.map { it.toEntity() })
+        // Eine Transaktion für alles: auf Wasm ist jeder DAO-Call ein
+        // postMessage-Roundtrip zum Worker — 7 separate Calls sind teuer
+        // und feuern die Invalidation-Tracker 7× (Flow-Sturm).
+        // Eine Transaktion = ein Roundtrip + EIN Flow-Update.
+        db.withWriteTransaction {
+            if (bundle.todos.isNotEmpty()) db.todoDao().upsertAll(bundle.todos.map { it.toEntity() })
+            if (bundle.habits.isNotEmpty()) db.habitDao().upsertAllHabits(bundle.habits.map { it.toEntity() })
+            if (bundle.habit_logs.isNotEmpty()) db.habitDao().upsertAllLogs(bundle.habit_logs.map { it.toEntity() })
+            if (bundle.habit_history.isNotEmpty()) db.habitDao().upsertAllHistory(bundle.habit_history.map { it.toEntity() })
+            if (bundle.folders.isNotEmpty()) db.folderDao().upsertAll(bundle.folders.map { it.toEntity() })
+            if (bundle.notes.isNotEmpty()) db.noteDao().upsertAll(bundle.notes.map { it.toEntity() })
+            if (bundle.chat_messages.isNotEmpty()) db.chatMessageDao().upsertAll(bundle.chat_messages.map { it.toEntity() })
+        }
     }
 
     // --- Mapper (Instanz-Methoden, userId aus prefs) ---

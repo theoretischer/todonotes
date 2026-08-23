@@ -46,28 +46,22 @@ class SseClient(
                 continue
             }
             try {
-                println("SSE: verbinde mit ${prefs.serverUrl}/sync/events")
                 httpClient.sse(
                     request = {
                         url("${prefs.serverUrl}/sync/events?token=${prefs.token}&client_id=${prefs.clientId}")
                     }
                 ) {
                     // Verbindung steht — Backoff zurücksetzen.
-                    println("SSE: verbunden, warte auf events")
                     backoff = 1000L
                     // Events empfangen (blockiert bis Verbindung schließt).
                     incoming.collect { event ->
-                        println("SSE: event empfangen: ${event.event}=${event.data}")
                         // Jedes Event = "sync" → sofort pullen.
                         syncManager.onRemoteChanged()
                     }
-                    println("SSE: incoming flow beendet")
                 }
-                println("SSE: sse-block beendet, reconnect in ${backoff}ms")
                 // Verbindung normal geschlossen → reconnect.
                 delay(backoff)
             } catch (e: Exception) {
-                println("SSE: fehler: ${e.message}")
                 // Fehler (Netzwerk, Server down) → Backoff.
                 delay(backoff)
                 backoff = (backoff * 2).coerceAtMost(30000L)
