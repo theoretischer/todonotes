@@ -39,3 +39,21 @@ internal fun defaultNoteTitle(): String = "Neue Notiz vom ${formatDateGerman(now
 
 /** Default-Titel: "Neuer Chat vom dd.MM.yyyy". */
 internal fun defaultChatTitle(): String = "Neuer Chat vom ${formatDateGerman(nowMs())}"
+
+/** Formatiert eine Uhrzeit als "HH:mm" in der lokalen System-TimeZone.
+ *  Ersatz für SimpleDateFormat("HH:mm", Locale.GERMAN). */
+internal fun formatTimeGerman(millis: Long): String {
+    val ldt = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
+        .toLocalDateTime(TimeZone.currentSystemDefault())
+    val h = ldt.hour.toString().padStart(2, '0')
+    val min = ldt.minute.toString().padStart(2, '0')
+    return "$h:$min"
+}
+
+/** Liefert (dayOfYear, year) für einen Zeitstempel — für Tageswechsel-
+ *  Erkennung in der Chat-Liste. Ersatz für Calendar.get(DAY_OF_YEAR)/YEAR. */
+internal fun dayOfYearAndYear(millis: Long): Pair<Int, Int> {
+    val ldt = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
+        .toLocalDateTime(TimeZone.currentSystemDefault())
+    return ldt.dayOfYear to ldt.year
+}

@@ -33,10 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.earendil.todonotes.ui.ChatViewModel
 import com.earendil.todonotes.ui.HabitViewModel
 import com.earendil.todonotes.ui.NoteEditorViewModel
 import com.earendil.todonotes.ui.NotesViewModel
 import com.earendil.todonotes.ui.TodoViewModel
+import com.earendil.todonotes.ui.chat.ChatScreen
 import com.earendil.todonotes.ui.habits.HabitsScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.notes.NoteEditorScreen
@@ -78,12 +80,16 @@ fun TodoNotesApp(
     // Editor-Overlay-State (M7d-4 verkabelt Settings/Chat später)
     var editorState by remember { mutableStateOf<EditorTarget?>(null) }
     val editorVm = remember { NoteEditorViewModel(container.noteRepository, container.appScope) }
+    val chatVm = remember { ChatViewModel(container.chatMessageRepository, container.noteRepository, container.appScope) }
 
-    // Optimistic UI: wenn der Editor eine Notiz speichert, die Liste sofort
+    // Optimistic UI: wenn der Editor/Chat eine Notiz speichert, die Liste sofort
     // (ohne DB-Roundtrip) updaten — der neue Titel/Body erscheint sofort.
-    LaunchedEffect(editorVm) {
+    LaunchedEffect(editorVm, chatVm) {
         editorVm.onNoteUpdated = { id, title, body ->
             notesVm.updateNoteOptimistic(id, title, body)
+        }
+        chatVm.onNoteUpdated = { id, title ->
+            notesVm.updateNoteOptimistic(id, title, notesVm.browserState.value.notes.firstOrNull { it.id == id }?.bodyJson ?: "")
         }
     }
 
@@ -171,7 +177,14 @@ fun TodoNotesApp(
 
     // Editor/Chat als Fullscreen-Overlay über dem Scaffold
     editorState?.let { target ->
-        if (!target.isChat) {
+        if (target.isChat) {
+            ChatScreen(
+                noteId = target.id,
+                initialTitle = target.initialTitle,
+                vm = chatVm,
+                onBack = { editorState = null }
+            )
+        } else {
             NoteEditorScreen(
                 noteId = target.id,
                 isNew = target.isNew,
