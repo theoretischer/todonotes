@@ -37,6 +37,9 @@ class AuthManager(
                 contentType(ContentType.Application.Json)
                 setBody(RegisterRequest(username, password))
             }
+            if (response.status.value !in 200..299) {
+                return AuthResult.Error(extractErrorMessage(response))
+            }
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
@@ -52,6 +55,9 @@ class AuthManager(
             val response = httpClient.post("${prefs.serverUrl}/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(username, password))
+            }
+            if (response.status.value !in 200..299) {
+                return AuthResult.Error(extractErrorMessage(response))
             }
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
@@ -69,11 +75,25 @@ class AuthManager(
                 contentType(ContentType.Application.Json)
                 setBody(MigrateLegacyRequest(username, password))
             }
+            if (response.status.value !in 200..299) {
+                return AuthResult.Error(extractErrorMessage(response))
+            }
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
             AuthResult.Success(auth)
         } catch (e: Exception) {
             AuthResult.Error(e.message ?: e::class.simpleName ?: "Unbekannter Fehler")
+        }
+    }
+
+    /** Extrahiert die Fehlermeldung aus einer HTTP-Response.
+     *  FastAPI liefert {"detail": "..."} bei Fehlern. */
+    private suspend fun extractErrorMessage(response: io.ktor.client.statement.HttpResponse): String {
+        return try {
+            val body: Map<String, String> = response.body()
+            body["detail"] ?: "HTTP ${response.status.value}"
+        } catch (e: Exception) {
+            "HTTP ${response.status.value}"
         }
     }
 
@@ -97,6 +117,9 @@ class AuthManager(
             val response = httpClient.post("${prefs.serverUrl}/auth/setup") {
                 contentType(ContentType.Application.Json)
                 setBody(SetupRequest(username, password, displayName))
+            }
+            if (response.status.value !in 200..299) {
+                return AuthResult.Error(extractErrorMessage(response))
             }
             val auth: AuthResponse = response.body()
             saveAuth(auth, username)
