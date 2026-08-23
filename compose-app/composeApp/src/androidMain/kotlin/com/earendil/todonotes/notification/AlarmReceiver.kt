@@ -49,6 +49,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     container.syncManager.sync()
                     Log.i("AlarmReceiver", "Todo $todoId abgehakt via Notification-Action")
                 }
+                // Notification erst JETZT entfernen — sie bleibt bis zur
+                // Erledigung im Benachrichtigungsmenü liegen (ongoing).
                 NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
                 return
             }
@@ -110,7 +112,10 @@ class AlarmReceiver : BroadcastReceiver() {
             .setFullScreenIntent(fullScreenPending, true)
             .setContentIntent(openPending)
             .addAction(android.R.drawable.checkbox_on_background, "Erledigt", completePending)
-            .setAutoCancel(true)
+            // Ongoing: bleibt im Benachrichtigungsmenü, bis die Aufgabe
+            // abgeschlossen ist ("Erledigt") — nicht wegswipbar.
+            .setOngoing(true)
+            .setAutoCancel(false)
             .build()
 
         try {
