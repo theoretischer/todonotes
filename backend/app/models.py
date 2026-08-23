@@ -124,6 +124,7 @@ class SyncRequest(BaseModel):
     last_synced_at: int = 0          # 0 = initialer Pull (alles)
     client_id: str                   # Identifikation des Clients (für Logging)
     changes: ChangesBundle = ChangesBundle()
+    notify: bool = True              # false = SSE-Pull (kein Ping-Pong)
 
 
 class SyncResponse(BaseModel):

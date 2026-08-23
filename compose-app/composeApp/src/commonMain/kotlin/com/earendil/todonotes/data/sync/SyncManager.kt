@@ -72,9 +72,10 @@ class SyncManager(
         _dirty.value++
     }
 
-    /** SSE-Push: Server hat neue Daten → sofort pullen. */
+    /** SSE-Push: Server hat neue Daten → sofort pullen (ohne notify,
+     *  sonst Ping-Pong zwischen 2 Clients). */
     fun onRemoteChanged() {
-        scope?.launch { sync() }
+        scope?.launch { sync(notify = false) }
     }
 
     /** Auto-Sync starten. Einmal nach Login aufrufen. */
@@ -89,12 +90,16 @@ class SyncManager(
     }
 
     /** Führt einen Sync aus. Liefert true bei Erfolg, false bei Fehler
-     *  (Fehlermeldung steht dann in prefs.lastSyncResult). */
-    suspend fun sync(): Boolean {
-        return syncMutex.withLock { syncInternal() }
+     *  (Fehlermeldung steht dann in prefs.lastSyncResult).
+     *
+     *  notify: true (default) = lokale Änderungen pushen + andere Clients
+     *  benachrichtigen. false = nur pullen (SSE-getriggert), kein notify
+     *  → verhindert Ping-Pong zwischen 2 Clients. */
+    suspend fun sync(notify: Boolean = true): Boolean {
+        return syncMutex.withLock { syncInternal(notify) }
     }
 
-    private suspend fun syncInternal(): Boolean {
+    private suspend fun syncInternal(notify: Boolean): Boolean {
         if (!prefs.isConfigured) {
             prefs.lastSyncResult = "Nicht konfiguriert (Server-URL/Token fehlt)"
             return false
@@ -103,7 +108,8 @@ class SyncManager(
             val request = SyncRequest(
                 lastSyncedAt = prefs.lastSyncedAt,
                 clientId = prefs.clientId,
-                changes = collectLocalChanges()
+                changes = collectLocalChanges(),
+                notify = notify
             )
             val response: SyncResponse = httpClient.post("${prefs.serverUrl}/sync") {
                 contentType(ContentType.Application.Json)

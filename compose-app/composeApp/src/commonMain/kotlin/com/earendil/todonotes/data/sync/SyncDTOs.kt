@@ -111,7 +111,10 @@ data class ChangesBundle(
 data class SyncRequest(
     @SerialName("last_synced_at") val lastSyncedAt: Long = 0,
     @SerialName("client_id") val clientId: String,
-    val changes: ChangesBundle = ChangesBundle()
+    val changes: ChangesBundle = ChangesBundle(),
+    /** false = SSE-getriggerter Pull (kein notify an andere Clients,
+     *  verhindert Ping-Pong zwischen 2 Clients). */
+    val notify: Boolean = true
 )
 
 @Serializable

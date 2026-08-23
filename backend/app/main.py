@@ -220,10 +220,12 @@ def sync_endpoint(
     server_changes = sync.sync(req.last_synced_at, req.changes, user_id)
     new_synced_at = int(time.time() * 1000)
     # Andere verbundene Clients benachrichtigen → die pullen sofort.
-    # except_client_id: den syncenden Client NICHT benachrichtigen
-    # (sonst Ping-Pong-Endlosschleife: sync → SSE → sync → ...).
-    from .event_bus import event_bus
-    event_bus.publish(user_id, except_client_id=req.client_id or "")
+    # Aber NUR wenn der Client lokale Aenderungen gepusht hat (notify=true).
+    # SSE-getriggerte Pulls (notify=false) wuerden sonst Ping-Pong
+    # zwischen 2 Clients ausloesen (A pullt → B notified → B pullt → ...).
+    if req.notify:
+        from .event_bus import event_bus
+        event_bus.publish(user_id, except_client_id=req.client_id or "")
     return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes)
 
 
