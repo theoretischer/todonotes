@@ -2,7 +2,7 @@
  * Copyright 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * you may not use this file except in compliance with the License");
  * You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
@@ -17,6 +17,12 @@
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
 
 let sqlite3 = null;
+// Perf: opfs-sahpool VFS (3-4x schneller als der alte "opfs"-VFS, der
+// pro VFS-Call eine Thread-Grenze via Atomics überqueren muss — gemessen
+// ~900ms pro Commit). SAHPool verwaltet die DB-Dateien direkt über
+// SyncAccessHandles ohne separaten Proxy-Thread.
+// null = SAHPool nicht verfügbar → Fallback auf OpfsDb (alter VFS).
+let sahpool = null;
 
 // Maps to track active database connections and prepared statements by their unique IDs.
 const databases = new Map(); // stores databaseId -> SQLiteDbObject
@@ -29,15 +35,16 @@ let nextStatementId = 0;
 function openRequest(id, requestData) {
     try {
         const newDatabaseId = nextDatabaseId++;
-        const newDatabase = new sqlite3.oo1.OpfsDb(requestData.fileName);
-        // Perf: Standard (journal_mode=DELETE, synchronous=FULL) macht bei
-        // JEDEM Write teuere OPFS-Sync-Operations (gemessen ~900ms fuer 1
-        // Zeile!). WAL + synchronous=NORMAL: Commits werden asynchron
-        // geschrieben, nur Checkpoints syncen — Faktor ~50 schneller.
-        // NORMAL ist bei WAL sicher (kein Corruption bei Crash, max. der
-        // letzte Commit kann verloren gehen — genau was ein Sync eh heilt).
-        newDatabase.exec("PRAGMA journal_mode=WAL;");
-        newDatabase.exec("PRAGMA synchronous=NORMAL;");
+        let newDatabase;
+        if (sahpool) {
+            newDatabase = new sahpool.OpfsSAHPoolDb(requestData.fileName);
+        } else {
+            // Fallback: alter OPFS-VFS (langsamer, aber überall verfügbar wo OpfsDb geht).
+            newDatabase = new sqlite3.oo1.OpfsDb(requestData.fileName);
+            // Perf: Defaults (journal_mode=DELETE, synchronous=FULL) sind extrem
+            // langsam auf OPFS — ~900ms pro Commit gemessen.
+            newDatabase.exec("PRAGMA synchronous=NORMAL;");
+        }
         databases.set(newDatabaseId, newDatabase);
         postMessage({'id': id, data: {'databaseId': newDatabaseId}});
     } catch (error) {
@@ -172,8 +179,53 @@ onmessage = (e) => {
     }
 };
 
-sqlite3InitModule().then(instance => {
+/**
+ * Migriert eine bestehende DB-Datei des alten "opfs"-VFS (liegt im
+ * OPFS-Root unter <fileName>) in den SAHPool (sofern dort noch keine
+ * Datei mit diesem Namen existiert). Einmalige Migration beim Start.
+ */
+async function migrateLegacyDbToSahpool(fileName) {
+    if (sahpool.getFileNames().includes(fileName)) return; // schon migriert
+    const dh = await navigator.storage.getDirectory();
+    let file;
+    try {
+        const fh = await dh.getFileHandle(fileName);
+        file = await fh.getFile();
+    } catch (e) {
+        return; // keine Legacy-DB vorhanden
+    }
+    if (file.size === 0) return;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.length === 0) return;
+    sahpool.importDb(fileName, bytes);
+    console.log('[sqlite-worker] Legacy-DB migriert nach opfs-sahpool:', fileName,
+        '(' + bytes.length + ' bytes)');
+    // Alte Datei im OPFS-Root entfernen — sie wird ab jetzt ignoriert.
+    // (Backup verbleibt bis zum naechsten Reload im Dateisystem? Nein —
+    // removeEntry ist endgueltig. Aber die Daten sind ja jetzt im Pool,
+    // und ein fehlgeschlagener Import haette geworfen bevor wir hier ankommen.)
+    try {
+        await dh.removeEntry(fileName);
+    } catch (e) { /* egal */ }
+}
+
+sqlite3InitModule().then(async instance => {
     sqlite3 = instance;
+    try {
+        sahpool = await sqlite3.installOpfsSAHPoolVfs();
+    } catch (e) {
+        console.warn('[sqlite-worker] opfs-sahpool nicht verfügbar, '
+            + 'Fallback auf langsameren opfs-VFS:', e);
+        sahpool = null;
+    }
+    if (sahpool) {
+        // Einmalige Migration: bestehende User-Daten in den Pool übernehmen.
+        try {
+            await migrateLegacyDbToSahpool('todonotes.db');
+        } catch (e) {
+            console.warn('[sqlite-worker] Legacy-Migration fehlgeschlagen:', e);
+        }
+    }
     while (messageQueue.length > 0) {
         handleMessage(messageQueue.shift());
     }
