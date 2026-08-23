@@ -84,7 +84,7 @@ class SyncManager(
         s.launch {
             _dirty
                 .filter { it > 0 }
-                .debounce(300)
+                .debounce(100)
                 .collect { sync() }
         }
     }

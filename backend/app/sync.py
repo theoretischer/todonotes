@@ -44,20 +44,24 @@ def sync(
     last_synced_at: int,
     changes: ChangesBundle,
     user_id: str,
+    server_now: int,
 ) -> ChangesBundle:
     """Wendet Client-Änderungen an und liefert Server-Änderungen seit
     last_synced_at. Liefert nie None — leere Bundle wenn nichts da.
 
     user_id: alle Änderungen werden auf diesen User eingeschränkt.
+    server_now: Server-Zeit (ms) — wird als updatedAt für alle angewendeten
+    Änderungen gesetzt (Source of Truth, eliminiert Clock-Skew).
     """
-    _apply_changes(changes, user_id)
+    _apply_changes(changes, user_id, server_now)
     return _collect_server_changes(last_synced_at, user_id)
 
 
 # ----- Client -> Server (Apply) -----
 
-def _apply_changes(changes: ChangesBundle, user_id: str) -> None:
-    """Client-Änderungen einspielen. Last-Write-Wins pro Zeile.
+def _apply_changes(changes: ChangesBundle, user_id: str, server_now: int) -> None:
+    """Client-Änderungen einspielen. Server setzt updatedAt = server_now
+    (Server-Zeit als Source of Truth, eliminiert Clock-Skew).
 
     user_id: alle eingefügten/aktualisierten Zeilen bekommen diese userId.
     Bestehende Zeilen eines anderen Users werden nicht überschrieben
@@ -76,21 +80,26 @@ def _apply_changes(changes: ChangesBundle, user_id: str) -> None:
         for table, dto_cls, _pk, change_field, _change_col in _SYNC_TABLES:
             rows = bundle_map[table]
             for dto in rows:
-                _upsert_row(conn, table, dto_cls, dto, change_field, user_id)
+                _upsert_row(conn, table, dto_cls, dto, change_field, user_id, server_now)
 
 
 def _upsert_row(
-    conn, table: str, dto_cls, dto, change_field: str, user_id: str
+    conn, table: str, dto_cls, dto, change_field: str, user_id: str, server_now: int
 ) -> None:
-    """Upsert mit Last-Write-Wins: nur überschreiben, wenn dto neuer ist.
+    """Upsert: Client-Änderung anwenden, updatedAt = server_now setzen.
+
+    Kein LWW-Check mehr (Client-Uhren können skewed sein). Der Server
+    als Source of Truth setzt updatedAt = server_now → eliminiert
+    Clock-Skew-Probleme zwischen Geräten.
 
     user_id: neue Zeilen bekommen diese userId. Bestehende Zeilen werden nur
     aktualisiert, wenn sie demselben user_id gehören (Sicherheit: fremde Daten
     werden nicht überschrieben).
     """
     data = dto.model_dump()
+    # Server-Zeit als Source of Truth (nicht Client-Zeit → kein Clock-Skew).
+    data[change_field] = server_now
     pk = data["id"]
-    new_change = data[change_field]
     # Bestehendes updated_at lesen (falls Zeile existiert).
     cur = conn.execute(
         f"SELECT {change_field}, userId FROM {table} WHERE id = ?", (pk,)
@@ -103,9 +112,8 @@ def _upsert_row(
         # Fremde Daten? Nicht überschreiben (Multi-User-Sicherheit).
         if existing["userId"] is not None and existing["userId"] != user_id:
             return
-        if existing[change_field] > new_change:
-            return
-        # Sonst: UPDATE (Client gewinnt). userId bleibt unverändert.
+        # UPDATE: Server-Zeit als updatedAt (kein LWW-Check mehr —
+        # der letzte Sync gewinnt, eliminiert Clock-Skew).
         _update_row(conn, table, data)
     else:
         # Neue Zeile: userId vom authentifizierten User setzen.

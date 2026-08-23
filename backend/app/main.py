@@ -217,8 +217,14 @@ def sync_endpoint(
 
     user_id kommt vom verify_token-Dependency (DB-Token oder Legacy-User).
     """
-    server_changes = sync.sync(req.last_synced_at, req.changes, user_id)
-    new_synced_at = int(time.time() * 1000)
+    server_now = int(time.time() * 1000)
+    server_changes = sync.sync(req.last_synced_at, req.changes, user_id, server_now)
+    # newSyncedAt = server_now + 1: stellt sicher dassupdatedAt (= server_now)
+    # > lastSyncedAt auf dem naechsten Sync des ANDEREN Clients ist.
+    # Der syncende Client selbst bekommt lastSyncedAt = server_now + 1,
+    # also wird updatedAt = server_now NICHT wieder an ihn geliefert
+    # (server_now < server_now + 1) → kein Re-Delivery.
+    new_synced_at = server_now + 1
     # Andere verbundene Clients benachrichtigen → die pullen sofort.
     # Aber NUR wenn der Client lokale Aenderungen gepusht hat (notify=true).
     # SSE-getriggerte Pulls (notify=false) wuerden sonst Ping-Pong
