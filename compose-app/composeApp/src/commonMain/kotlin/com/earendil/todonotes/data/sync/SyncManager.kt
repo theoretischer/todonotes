@@ -25,6 +25,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -73,11 +75,26 @@ class SyncManager(
      *  mit single-connection-pool). Auto-Sync + SSE-Push konkurrieren sonst. */
     private val syncMutex = Mutex()
 
+    /** Reaktiver Sync-Zustand für die UI (Save-Indikator oben rechts).
+     *  - lastSyncAt: wann der letzte erfolgreiche Sync war (ms epoch)
+     *  - syncing: gerade am Syncen
+     *  - hasError: letzter Sync fehlgeschlagen
+     *  - pending: lokale Änderungen noch nicht gepusht */
+    data class SyncState(
+        val lastSyncAt: Long = 0L,
+        val syncing: Boolean = false,
+        val hasError: Boolean = false,
+        val pending: Boolean = false
+    )
+    private val _syncState = MutableStateFlow(SyncState(lastSyncAt = prefs.lastSyncAt))
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
     /** Wird aufgerufen wenn lokale Daten geändert wurden (Repositories).
      *  Triggert einen debounced Auto-Sync (300ms). */
     fun markDirty() {
         _dirty.value++
         pendingPush = true
+        _syncState.value = _syncState.value.copy(pending = true)
     }
 
     /** SSE-Push: Server hat neue Daten → sofort pullen (ohne notify,
@@ -124,6 +141,7 @@ class SyncManager(
             prefs.lastSyncResult = "Nicht konfiguriert (Server-URL/Token fehlt)"
             return false
         }
+        _syncState.value = _syncState.value.copy(syncing = true)
         return try {
             val t0 = Clock.System.now().toEpochMilliseconds()
             // Upload nur wenn nötig: lokale Änderungen pending ODER Push-Sync
@@ -174,6 +192,12 @@ class SyncManager(
                 response.serverChanges.folders.size + response.serverChanges.notes.size +
                 response.serverChanges.chat_messages.size
             println("SYNC[${if (notify) "push" else "pull"}]: collect=${tCollect - t0}ms http=${tHttp - tCollect}ms apply=${tEnd - tHttp}ms rowsUp=$upCount rowsDown=$downCount")
+            _syncState.value = SyncState(
+                lastSyncAt = Clock.System.now().toEpochMilliseconds(),
+                syncing = false,
+                hasError = false,
+                pending = pendingPush
+            )
             true
         } catch (e: Throwable) {
             // CancellationException darf NICHT geschluckt werden — sonst
@@ -181,6 +205,7 @@ class SyncManager(
             if (e is kotlinx.coroutines.CancellationException) throw e
             println("SYNC[error]: ${e::class.simpleName}: ${e.message}")
             prefs.lastSyncResult = "Fehler: ${e.message ?: e::class.simpleName}"
+            _syncState.value = _syncState.value.copy(syncing = false, hasError = true)
             false
         }
     }

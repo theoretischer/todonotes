@@ -201,7 +201,9 @@ fun NoteEditorScreen(
     vm: NoteEditorViewModel,
     onBack: () -> Unit,
     initialTitle: String? = null,
-    initialBody: String? = null
+    initialBody: String? = null,
+    syncState: com.earendil.todonotes.data.sync.SyncManager.SyncState =
+        com.earendil.todonotes.data.sync.SyncManager.SyncState()
 ) {
     val state by vm.state.collectAsState()
 
@@ -410,6 +412,12 @@ fun NoteEditorScreen(
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                     }
+                },
+                actions = {
+                    com.earendil.todonotes.ui.components.SyncIndicator(
+                        syncState = syncState,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
                 }
             )
         },

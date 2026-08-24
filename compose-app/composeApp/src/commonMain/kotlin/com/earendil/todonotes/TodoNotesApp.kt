@@ -147,6 +147,8 @@ fun TodoNotesApp(
     // Profil-Daten für Avatar oben rechts.
     val profile by authVm.profile.collectAsState()
     val avatarBytes by authVm.avatarBytes.collectAsState()
+    // Sync-Indikator für Editor/Chat (Save-Icon + Sekunden-Anzeige).
+    val syncState by container.syncManager.syncState.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -270,7 +272,8 @@ fun TodoNotesApp(
                 noteId = target.id,
                 initialTitle = target.initialTitle,
                 vm = chatVm,
-                onBack = { editorState = null }
+                onBack = { editorState = null },
+                syncState = syncState
             )
         } else {
             NoteEditorScreen(
@@ -279,7 +282,8 @@ fun TodoNotesApp(
                 initialTitle = target.initialTitle,
                 initialBody = target.initialBody,
                 vm = editorVm,
-                onBack = { editorState = null }
+                onBack = { editorState = null },
+                syncState = syncState
             )
         }
     }
