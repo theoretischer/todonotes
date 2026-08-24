@@ -65,11 +65,17 @@ async def coop_coep_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
-    # index.html nie cachen: verweist auf hash-benannte Bundle-Dateien —
-    # ein gecachtes index.html servt nach einem Deploy die ALTEN Bundles
-    # (bzw. verpasst die neuen Hashes). Hash-Dateien selbst dürfen ewig cachen.
-    if request.url.path in ("/", "/index.html"):
+    # index.html + alle .js-Dateien nie cachen: composeApp.js und die
+    # Zahlen-Chunks (229.js ...) haben stabile Namen, ändern aber ihren
+    # Inhalt bei jedem Build → würden sonst tagelang die alte App-Logik
+    # liefern (NPM "Cache Assets" setzt sonst max-age=~14h drauf).
+    # .wasm-Dateien sind echte Hash-Namen (ändern sich mit dem Inhalt) →
+    # dürfen ewig gecacht werden (schnellere Ladezeiten).
+    path = request.url.path
+    if path in ("/", "/index.html") or path.endswith(".js") or path.endswith(".html"):
         response.headers["Cache-Control"] = "no-cache"
+    elif path.endswith(".wasm"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return response
 
 
