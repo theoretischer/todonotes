@@ -135,4 +135,14 @@ interface HabitDao {
     /** Alle Verlaufseinträge aller Habits, neueste zuerst. */
     @Query("SELECT * FROM habit_history ORDER BY loggedAt DESC")
     fun observeHabitHistory(): Flow<List<HabitHistoryEntry>>
+
+    /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
+    @Query("DELETE FROM habits")
+    suspend fun clearAllHabits()
+
+    @Query("DELETE FROM habit_logs")
+    suspend fun clearAllLogs()
+
+    @Query("DELETE FROM habit_history")
+    suspend fun clearAllHistory()
 }

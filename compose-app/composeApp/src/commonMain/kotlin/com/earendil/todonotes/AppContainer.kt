@@ -13,6 +13,7 @@ import com.earendil.todonotes.data.sync.SseClient
 import com.earendil.todonotes.data.sync.SyncPrefs
 import com.earendil.todonotes.data.sync.createHttpClient
 import com.earendil.todonotes.notification.AlarmScheduler
+import androidx.room3.withWriteTransaction
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -52,5 +53,21 @@ class AppContainer(
     /** Aufräumen (z.B. HttpClient schließen). Bei App-Shutdown. */
     fun close() {
         httpClient.close()
+    }
+
+    /** Lokale DB komplett leeren (nach Server-Wipe).
+     *  Verhindert, dass der nächste Sync alte Daten wieder hochpusht. */
+    suspend fun clearAllLocalData() {
+        database.withWriteTransaction {
+            database.todoDao().clearAll()
+            database.habitDao().clearAllHabits()
+            database.habitDao().clearAllLogs()
+            database.habitDao().clearAllHistory()
+            database.noteDao().clearAll()
+            database.folderDao().clearAll()
+            database.chatMessageDao().clearAll()
+        }
+        // lastSyncedAt zurücksetzen → beim nächsten Login full-sync (leer).
+        syncPrefs.lastSyncedAt = 0L
     }
 }

@@ -209,6 +209,32 @@ class AuthManager(
         }.body()
     }
 
+    /** Eigene Daten löschen (Account bleibt, Inhalt weg).
+     *  Wirft bei falschem Passwort. */
+    suspend fun wipeMyData(password: String) {
+        val resp = httpClient.delete("${prefs.serverUrl}/me/data") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(PasswordConfirmRequest(password))
+        }
+        if (!resp.status.value.toString().startsWith("2")) {
+            throw RuntimeException(extractErrorMessage(resp))
+        }
+    }
+
+    /** Alle Daten + alle User löschen (Factory-Reset, Admin only).
+     *  Wirft bei falschem Passwort oder fehlenden Admin-Rechten. */
+    suspend fun wipeAllData(password: String) {
+        val resp = httpClient.delete("${prefs.serverUrl}/admin/wipe-all") {
+            bearerAuth(prefs.token)
+            contentType(ContentType.Application.Json)
+            setBody(PasswordConfirmRequest(password))
+        }
+        if (!resp.status.value.toString().startsWith("2")) {
+            throw RuntimeException(extractErrorMessage(resp))
+        }
+    }
+
     private fun saveAuth(auth: AuthResponse, username: String) {
         prefs.token = auth.token
         prefs.userId = auth.userId

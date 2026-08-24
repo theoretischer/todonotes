@@ -22,6 +22,7 @@ from .models import (
     AuthResponse,
     LoginRequest,
     MigrateLegacyRequest,
+    PasswordConfirmRequest,
     RegisterRequest,
     SetupRequest,
     SetupStatusResponse,
@@ -226,6 +227,67 @@ def admin_update_settings_endpoint(
     """App-Settings ändern (Admin only)."""
     auth.require_admin(user_id)
     return auth.update_settings(req.open_registration)
+
+
+# --- Daten-Löschen (mit Passwort-Bestätigung) ---
+
+@app.delete("/me/data")
+def wipe_my_data(
+    req: PasswordConfirmRequest,
+    user_id: str = Depends(verify_token),
+) -> dict:
+    """Löscht ALLE Daten des eingeloggten Users (Account bleibt).
+
+    Todos, Habits, Habit-Logs/History, Notizen, Chat-Nachrichten, Folder.
+    User-Account + Passwort bleiben erhalten → danach neu einloggen.
+    """
+    if not auth.verify_user_password(user_id, req.password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="falsches passwort",
+        )
+    with db.db() as conn:
+        conn.execute("DELETE FROM chat_messages WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM notes WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM folders WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM habit_history WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM habit_logs WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM habits WHERE userId = ?", (user_id,))
+        conn.execute("DELETE FROM todos WHERE userId = ?", (user_id,))
+    return {"ok": True}
+
+
+@app.delete("/admin/wipe-all")
+def wipe_all_data(
+    req: PasswordConfirmRequest,
+    user_id: str = Depends(verify_token),
+) -> dict:
+    """Löscht ALLE Daten ALLER User + alle User-Accounts (Factory-Reset).
+
+    Nur Admin. Nach Aufruf: Setup-Screen (neuer Admin nötig).
+    app_settings (open_registration) bleibt erhalten.
+    """
+    auth.require_admin(user_id)
+    if not auth.verify_user_password(user_id, req.password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="falsches passwort",
+        )
+    # Avatars auf Disk löschen.
+    avatars_dir = Path(os.environ.get("DATA_DIR", "data")) / "avatars"
+    if avatars_dir.exists():
+        for f in avatars_dir.iterdir():
+            if f.is_file():
+                f.unlink()
+    with db.db() as conn:
+        # Alle Daten-Tabellen leeren (User + Inhalte).
+        for table in (
+            "chat_messages", "notes", "folders",
+            "habit_history", "habit_logs", "habits",
+            "todos", "tokens", "users",
+        ):
+            conn.execute(f"DELETE FROM {table}")
+    return {"ok": True}
 
 
 # --- Sync-Endpoint ---

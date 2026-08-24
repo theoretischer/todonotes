@@ -97,6 +97,17 @@ data class SettingsResponse(
     @SerialName("open_registration") val openRegistration: Boolean
 )
 
+/** Passwort-Bestätigung für destruktive Aktionen (Daten löschen). */
+@Serializable
+data class PasswordConfirmRequest(
+    val password: String
+)
+
+@Serializable
+data class SimpleResult(
+    val ok: Boolean = false
+)
+
 /** Avatar-Upload: Bild als Base64-String + Dateiendung. */
 @Serializable
 data class AvatarUploadRequest(

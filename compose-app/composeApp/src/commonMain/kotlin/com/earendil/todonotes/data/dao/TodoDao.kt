@@ -59,4 +59,8 @@ interface TodoDao {
     /** Server-Änderungen einspielen (@Upsert — kein DELETE/CASCADE). */
     @Upsert
     suspend fun upsertAll(todos: List<Todo>)
+
+    /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
+    @Query("DELETE FROM todos")
+    suspend fun clearAll()
 }

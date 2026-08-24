@@ -49,4 +49,8 @@ interface NoteDao {
 
     @Upsert
     suspend fun upsertAll(notes: List<Note>)
+
+    /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
+    @Query("DELETE FROM notes")
+    suspend fun clearAll()
 }

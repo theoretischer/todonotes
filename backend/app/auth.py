@@ -378,6 +378,18 @@ def require_admin(user_id: str) -> None:
             )
 
 
+def verify_user_password(user_id: str, password: str) -> bool:
+    """Passwort eines Users verifizieren (für Löschen-Aktionen)."""
+    with db.db() as conn:
+        cur = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?", (user_id,)
+        )
+        row = cur.fetchone()
+    if row is None:
+        return False
+    return _verify_password(password, row["password_hash"])
+
+
 def admin_list_users() -> list[dict]:
     """Alle User auflisten (Admin only)."""
     with db.db() as conn:

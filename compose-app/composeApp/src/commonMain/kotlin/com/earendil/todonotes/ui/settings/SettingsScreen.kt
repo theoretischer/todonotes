@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -76,7 +77,8 @@ import com.earendil.todonotes.ui.components.rememberImageBitmap
 fun SettingsScreen(
     vm: AuthViewModel,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onWipeComplete: () -> Unit = {}
 ) {
     val profile by vm.profile.collectAsState()
     val error by vm.error.collectAsState()
@@ -151,6 +153,16 @@ fun SettingsScreen(
                         currentUserId = profile?.userId ?: ""
                     )
                 }
+
+                DangerZoneSection(
+                    isAdmin = profile?.isAdmin == true,
+                    onWipeMyData = { password ->
+                        vm.wipeMyData(password) { onWipeComplete() }
+                    },
+                    onWipeAll = { password ->
+                        vm.wipeAllData(password) { onWipeComplete() }
+                    }
+                )
 
                 error?.let { e ->
                     Text(
@@ -560,6 +572,146 @@ private fun CreateUserDialog(
                 onClick = { onCreate(username, password, displayName, isAdmin) },
                 enabled = username.isNotBlank() && password.length >= 6
             ) { Text("Erstellen") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        }
+    )
+}
+
+// ---- Danger-Zone (Daten löschen) ----
+
+@Composable
+private fun DangerZoneSection(
+    isAdmin: Boolean,
+    onWipeMyData: (String) -> Unit,
+    onWipeAll: (String) -> Unit
+) {
+    var dialogMode by remember { mutableStateOf<DangerMode?>(null) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Gefahrenzone",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+
+            OutlinedButton(
+                onClick = { dialogMode = DangerMode.MY_DATA },
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.height(4.dp))
+                Text("Meine Daten löschen")
+            }
+
+            if (isAdmin) {
+                OutlinedButton(
+                    onClick = { dialogMode = DangerMode.ALL },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.height(4.dp))
+                    Text("Alle Daten löschen (Admin)")
+                }
+            }
+        }
+    }
+
+    dialogMode?.let { mode ->
+        PasswordConfirmDialog(
+            mode = mode,
+            onDismiss = { dialogMode = null },
+            onConfirm = { password ->
+                when (mode) {
+                    DangerMode.MY_DATA -> onWipeMyData(password)
+                    DangerMode.ALL -> onWipeAll(password)
+                }
+                dialogMode = null
+            }
+        )
+    }
+}
+
+private enum class DangerMode {
+    MY_DATA,
+    ALL
+}
+
+@Composable
+private fun PasswordConfirmDialog(
+    mode: DangerMode,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+
+    val title = when (mode) {
+        DangerMode.MY_DATA -> "Meine Daten löschen?"
+        DangerMode.ALL -> "Alle Daten löschen?"
+    }
+    val message = when (mode) {
+        DangerMode.MY_DATA ->
+            "Alle deine Todos, Gewohnheiten, Notizen und Chats werden unwiderruflich gelöscht. Dein Account bleibt bestehen."
+        DangerMode.ALL ->
+            "WARNUNG: Alle Daten ALLER Benutzer sowie alle Accounts werden unwiderruflich gelöscht. Danach muss ein neuer Admin eingerichtet werden."
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Passwort zur Bestätigung") },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { showPassword = !showPassword }) {
+                            Text(if (showPassword) "Verbergen" else "Zeigen")
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(password) },
+                enabled = password.isNotBlank(),
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) { Text("Löschen") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Abbrechen") }

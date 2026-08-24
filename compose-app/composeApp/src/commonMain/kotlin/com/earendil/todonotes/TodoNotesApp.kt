@@ -51,6 +51,7 @@ import com.earendil.todonotes.ui.todos.TodosScreen
 import com.earendil.todonotes.ui.components.AvatarImage
 import com.earendil.todonotes.ui.components.rememberImageBitmap
 import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -232,6 +233,14 @@ fun TodoNotesApp(
             onLogout = {
                 showSettings = false
                 container.sseClient.stop()
+                authVm.logout()
+                isAuthenticated = false
+            },
+            onWipeComplete = {
+                // Nach Wipe: lokale DB leeren + ausloggen.
+                showSettings = false
+                container.sseClient.stop()
+                container.appScope.launch { container.clearAllLocalData() }
                 authVm.logout()
                 isAuthenticated = false
             }

@@ -40,4 +40,8 @@ interface ChatMessageDao {
 
     @Upsert
     suspend fun upsertAll(messages: List<ChatMessage>)
+
+    /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
+    @Query("DELETE FROM chat_messages")
+    suspend fun clearAll()
 }

@@ -203,3 +203,8 @@ class AdminCreateUserRequest(BaseModel):
 
 class UpdateSettingsRequest(BaseModel):
     open_registration: bool | None = None
+
+
+class PasswordConfirmRequest(BaseModel):
+    """Passwort-Bestätigung für destruktive Aktionen (Daten löschen)."""
+    password: str

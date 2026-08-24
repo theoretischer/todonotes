@@ -69,4 +69,8 @@ interface FolderDao {
 
     @Upsert
     suspend fun upsertAll(folders: List<Folder>)
+
+    /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
+    @Query("DELETE FROM folders")
+    suspend fun clearAll()
 }

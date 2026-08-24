@@ -263,6 +263,10 @@ class AuthViewModel(
         _avatarBytes.value = null
         _adminUsers.value = emptyList()
         _settings.value = null
+        // WICHTIG: State SYNCHRON auf Loading setzen, bevor checkAuth() its
+        // Coroutine startet. Sonst ist _state noch Authenticated → AuthGate
+        // ruft sofort onAuthenticated() auf → man landet wieder in der App.
+        _state.value = AuthUiState.Loading
         checkAuth()
     }
 
@@ -303,6 +307,34 @@ class AuthViewModel(
         vmScope.launch {
             try {
                 _settings.value = authManager.adminUpdateSettings(open)
+            } catch (e: Throwable) {
+                _error.value = e.message
+            }
+        }
+    }
+
+    // --- Daten löschen ---
+
+    /** Eigene Daten löschen (Passwort-bestätigt). Ruft onSuccess bei Erfolg. */
+    fun wipeMyData(password: String, onSuccess: () -> Unit) {
+        _error.value = null
+        vmScope.launch {
+            try {
+                authManager.wipeMyData(password)
+                onSuccess()
+            } catch (e: Throwable) {
+                _error.value = e.message
+            }
+        }
+    }
+
+    /** Alle Daten + alle User löschen (Admin, Passwort-bestätigt). */
+    fun wipeAllData(password: String, onSuccess: () -> Unit) {
+        _error.value = null
+        vmScope.launch {
+            try {
+                authManager.wipeAllData(password)
+                onSuccess()
             } catch (e: Throwable) {
                 _error.value = e.message
             }
