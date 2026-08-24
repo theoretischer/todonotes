@@ -110,12 +110,25 @@ def _upsert_row(
 
     Das verhindert dass Client B (stale, hat A's Loeschung noch nicht)
     durch seinen Full-Sync A's Loeschung ueberschreibt.
+
+    Anti-Resurrektion: wenn der Server ein Item als geloescht hat
+    (deletedAt != null) und der Client eine nicht-geloeschte Version
+    schickt (deletedAt = null), wird das Update SKIPED — egal wie neu
+    die client-Zeit ist. Sonst wuerde ein stale Client geloeschte Items
+    wiederherstellen (z.B. wenn serverTimeOffset beim Page-Load = 0 ist
+    und nowMs() in der Zukunft liegt → incoming.updatedAt > existing).
     """
     data = dto.model_dump()
     new_change = data[change_field]  # client's updatedAt (vor LWW-Check)
     pk = data["id"]
+    # deletedAt fuer Anti-Resurrektion-Check mitselektieren (nur Tabellen
+    # die das Feld haben).
+    has_deleted_at = "deletedAt" in data
+    select_cols = f"{change_field}, userId"
+    if has_deleted_at:
+        select_cols += ", deletedAt"
     cur = conn.execute(
-        f"SELECT {change_field}, userId FROM {table} WHERE id = ?", (pk,)
+        f"SELECT {select_cols} FROM {table} WHERE id = ?", (pk,)
     )
     existing = cur.fetchone()
     if existing is not None:
@@ -123,6 +136,12 @@ def _upsert_row(
             return  # append-only
         if existing["userId"] is not None and existing["userId"] != user_id:
             return  # fremde Daten
+        # Anti-Resurrektion: Server hat Item als geloescht, Client schickt
+        # nicht-geloeschte Version → SKIP (egal wie neu die client-Zeit ist).
+        # Einmal geloescht = geloescht, bis ein Client explizit deletedAt
+        # neu setzt (aktuell kein "Wiederherstellen"-Feature).
+        if has_deleted_at and existing["deletedAt"] is not None and data.get("deletedAt") is None:
+            return
         if existing[change_field] >= new_change:
             # incoming <= existing → skip. Wichtig: >= (nicht >), damit
             # unveränderte Zeilen (incoming == existing, vom letzten Sync)

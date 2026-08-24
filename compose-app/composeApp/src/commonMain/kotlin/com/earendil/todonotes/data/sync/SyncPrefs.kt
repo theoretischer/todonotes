@@ -68,6 +68,13 @@ class SyncPrefs(private val settings: Settings = Settings()) {
         get() = settings.getLongOrNull(KEY_WIPE_EPOCH) ?: 0L
         set(value) = settings.putLong(KEY_WIPE_EPOCH, value)
 
+    /** Offset zwischen Client-Uhr und Server-Uhr (ms). Wird nach jedem Sync
+     *  aktualisiert. Persistiert, damit beim Page-Load nicht 0 ist (sonst
+     *  wäre nowMs() = Client-Zeit, die ahead sein könnte → LWW-Probleme). */
+    var serverTimeOffset: Long
+        get() = settings.getLongOrNull(KEY_SERVER_TIME_OFFSET) ?: 0L
+        set(value) = settings.putLong(KEY_SERVER_TIME_OFFSET, value)
+
     /** True, wenn der User per Login authentifiziert ist (nicht Static-Secret). */
     val isLoggedIn: Boolean
         get() = username.isNotBlank() && token.isNotBlank()
@@ -99,5 +106,6 @@ class SyncPrefs(private val settings: Settings = Settings()) {
         private const val KEY_LAST_RESULT = "last_sync_result"
         private const val KEY_LAST_SYNC_AT = "last_sync_at_wallclock"
         private const val KEY_WIPE_EPOCH = "wipe_epoch"
+        private const val KEY_SERVER_TIME_OFFSET = "server_time_offset"
     }
 }

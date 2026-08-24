@@ -62,6 +62,13 @@ class SyncManager(
     /** Aktuelle userId für lokale Entities (aus prefs, nicht hardcoded). */
     private val userId get() = prefs.userId
 
+    init {
+        // Persistierten serverTimeOffset beim Start laden — sonst wäre nowMs()
+        // = Client-Zeit bis zum ersten Sync (kann ahead sein → LWW-Probleme,
+        // gelöschte Items mit zukünftigem updatedAt → Resurrektion).
+        com.earendil.todonotes.data.repo.serverTimeOffset = prefs.serverTimeOffset
+    }
+
     /** Auto-Sync: debounced. Wenn lokale Änderung → markDirty() →
      *  nach 100ms sync(). Mehrere schnelle Änderungen werden gebündelt. */
     private val _dirty = MutableStateFlow(0)
@@ -181,9 +188,14 @@ class SyncManager(
             // Push erfolgreich — außer es kam währenddessen eine neue
             // lokale Änderung rein (Counter differs → pendingPush bleibt).
             if (_dirty.value == dirtyAtStart) pendingPush = false
-            // Server-Zeit-Offset aktualisieren: nowMs() liefert ab jetzt
-            // Server-Zeit → LWW-Check funktioniert auch bei Clock-Skew.
-            serverTimeOffset = response.newSyncedAt - Clock.System.now().toEpochMilliseconds()
+            // Server-Zeit-Offset aktualisieren + persistieren: nowMs() liefert
+            // ab jetzt Server-Zeit → LWW-Check funktioniert auch bei Clock-Skew.
+            // Persistiert, damit beim Page-Load nicht 0 ist (sonst nowMs() =
+            // Client-Zeit, die ahead sein könnte → gelöschte Items würden
+            // mit zukünftigem updatedAt gepusht → Resurrektion).
+            val offset = response.newSyncedAt - Clock.System.now().toEpochMilliseconds()
+            serverTimeOffset = offset
+            prefs.serverTimeOffset = offset
             val tEnd = Clock.System.now().toEpochMilliseconds()
             val upCount = changes.todos.size + changes.habits.size + changes.habit_logs.size +
                 changes.habit_history.size + changes.folders.size + changes.notes.size + changes.chat_messages.size
