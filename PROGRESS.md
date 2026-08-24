@@ -32,7 +32,6 @@ Details/Architektur: **`MIGRATION-CMP.md`** (technische Referenz) und
 ## Offene Punkte
 
 Funktional:
-- [ ] **Sync-A+ – Notiz-Sync bombenfest** (In Progress, siehe unten)
 - [ ] **M10 – Desktop-Feinschliff** (rein funktional: Fenstergröße/-titel,
       Scroll-Verhalten, Speichern beim Schließen — KEIN visuelles Styling)
 - [ ] **F7 – Bilder in Notizen** (Picker, downsamplen, PNG lokal, `ImageBlock`)
@@ -58,73 +57,58 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Produktions-Deploy: Docker, Domain + HTTPS via NPM, Web-Dist im Repo
   (`deploy-web.sh`), COOP/COEP-Header, Self-Healing bei falscher Server-URL
 
-## Sync-A+ – Notiz-Sync bombenfest (In Progress)
+## Sync-A+ – Notiz-Sync bombenfest (Erledigt)
 
-**Problem:** Notiz-Sync ist datenverlustgefährdet. Konkrete Bugs:
-1. Editor ist "blind" für Sync-Änderungen — lädt einmal, schreibt beim
-   Verlassen drüber, sogar über gelöschte Notizen (`getById` statt
-   `getLiveById`, kein `deletedAt`-Filter).
-2. `flush()` liest eine potenziell veraltete DB-Version → `note.copy()`
-   bewahrt `deletedAt` → Body in gelöschte Notiz = Datenverlust.
-3. LWW auf ganze Notiz → bei gleichzeitigen Edits verschiedener Felder
-   (Titel/Body) gewinnt eines, das andere geht verloren.
-4. Löschen pflanzt sich nicht zum offenen Editor fort → Handy-Editor
-   zeigt gelöschte Notiz, beim Verlassen überschreibt er sie.
-5. `collectLocalChanges()` schickt jedes Mal ALLE Notizen.
+**Problem:** Notiz-Sync war datenverlustgefährdet. Konkrete Bugs:
+1. Editor war "blind" für Sync-Änderungen → beim Verlassen wurde die
+   DB-Version überschrieben (evtl. gelöschte Notiz = Datenverlust).
+2. `flush()` nutzte `getById` (inkl. `deletedAt`) → Body in gelöschte Notiz.
+3. `collectLocalChanges()` schickte ALLE Notizen jedes Mal (Race-Conditions).
+4. `@Upsert` generiert auf Wasm `EntityUpsertAdapter`, der bei PK-Konflikt
+   INSERT → Exception → UPDATE macht → **Transaktionsleck**
+   ("cannot start a transaction within a transaction") → Sync auf Web
+   komplett tot. Notiz-Erstellung/Updates kamen nie an.
 
 **Lösung (Ansatz A+, evolutionär — kein OT/CRDT):**
 
-### Schritt 1: `NoteDao` — reaktive Beobachtung
-- `observeNote(id): Flow<Note>` hinzufügen (`SELECT * WHERE id = :id`,
-  Room-Flow feuert bei UPDATE). Wird vom Editor beobachtet.
+### Reaktiver Editor (Live-Mitsehen)
+- `NoteDao.observeNote(id): Flow<Note?>` — Editor beobachtet Notiz.
+- `NoteEditorViewModel` sammelt `observeNote(id)`. Kommt Sync-Update rein:
+  - Editor nicht dirty → Body/Titel übernehmen → **Live-Mitsehen am Handy!**
+  - Editor dirty → skip (Nutzer gewinnt, LWW Stufe 1).
+  - Notiz gelöscht → `state.deleted = true` → Editor schließt sich.
+- `NoteEditorState`: `deleted` + `remoteUpdate` Felder.
+- `NoteEditorScreen`: `LaunchedEffect(state.deleted)` → Editor schließt.
+  `LaunchedEffect(state.remoteUpdate)` → Body neu parsen, ABER nur wenn
+  Nutzer nicht aktiv tippt (kein Cursor-Sprung).
+- Auto-Save 500ms (vorher 1s) für Live-Gefühl.
 
-### Schritt 2: `NoteRepository.updateNote` — sicher
-- `getLiveById` statt `getById` (filtert `deletedAt`).
-- Wenn `null` → Notiz wurde gelöscht → `flush` bricht ab, Editor schließt.
-- Expliziter Update: `dao.updateBody(id, title, bodyJson, now)` statt
-  `note.copy()` (bewahrt `deletedAt` nicht versehentlich).
-- `NoteDao.updateBody(id, title, bodyJson, updatedAt)` Query hinzufügen.
+### Safe Flush (kein Datenverlust)
+- `NoteDao.updateBody(id, title, bodyJson, now)` — sicheres Update mit
+  `WHERE deletedAt IS NULL` → gelöschte Notizen werden NICHT überschrieben.
+- `NoteRepository.updateNote()` nutzt `updateBody` (kein `note.copy()`).
+- `flush()` bricht ab wenn `state.deleted` (kein Überschreiben).
 
-### Schritt 3: `NoteEditorViewModel` — reaktiv
-- Beobachte `observeNote(id)` neben `load()`. Kommt Sync-Änderung rein:
-  - Editor nicht dirty (Nutzer nicht am Tippen) → `_state` aktualisieren
-    (Body/Titel), Cursor ans Ende. → **Live-Mitsehen am Handy!**
-  - Editor dirty → puffern, nach flush mergen. (Stufe 1: überschreiben
-    akzeptieren, Stufe 2 später: Konflikt-Dialog.)
-- Bei gelöschter Notiz (`observeNote` liefert null oder `deletedAt != null`)
-  → `_state.deleted = true` → Editor zeigt "Notiz wurde gelöscht" +
-  schließt beim Verlassen.
-- `NoteEditorState` um `deleted: Boolean = false` erweitern.
+### Atomare Sync-Upserts (Wasm-Transaktionsleck-Fix)
+- `@Upsert` ersetzt durch atomare Single-Statement-Queries:
+  - notes/todos/folders/chat_messages: `@Insert(onConflict=REPLACE)`
+    (`INSERT OR REPLACE` — atomar, keine FK/CASCADE → sicher).
+  - habit_logs/habit_history: `@Insert(onConflict=REPLACE)` (keine Childs).
+  - habits: `INSERT(IGNORE)` + `UPDATE` — kein DELETE, kein CASCADE auf
+    habit_logs/history (REPLACE würde CASCADE auslösen → Datenverlust).
 
-### Schritt 4: `NoteEditorScreen` — reaktiv
-- `LaunchedEffect` auf VM-State: bei `state.deleted` → Toast/Dialog +
-  `onBack()` (Editor schließt sich).
-- Bei Body/Titel-Änderung aus Sync (nicht dirty) → `lines` neu parsen +
-  Cursor ans Ende. NUR wenn der Nutzer nicht gerade tippt
-  (`activeLineId` im selben Feld, keine Selektion).
-- Auto-Save-Intervall auf 500ms (statt 1s) für Live-Gefühl.
-
-### Schritt 5: `SyncManager` — nur geänderte Notizen pushen
-- `collectLocalChanges` reduziert: Notizen mit `updatedAt > lastPushedAt`
-  (pro Notiz gemerkt, global statt pro-Note reicht: `lastPushedAt =
-  max(updatedAt aller gepushten Notizen)`).
-- Alternativ: einfach `lastSyncedAt`-basiert (schon da) — Notizen mit
-  `updatedAt > lastSyncedAt` pushen. Braucht keine neue Spalte.
-  → `NoteDao.getAllForSyncSince(since): List<Note>` Query.
-- Gleiche Logik für alle Tabellen (Todos, Habits, etc.) — Stufe 2.
-
-### Schritt 6: LWW pro Feld (Stufe 2, optional später)
-- Backend `_upsert_row` für Notes: Titel/Body separat vergleichen.
-- Wenn incoming.title.updatedAt > existing.title.updatedAt → nur Titel.
-- Braucht `titleUpdatedAt` + `bodyUpdatedAt` Spalten — oder einzeln
-  2 Endpoints. Komplex, erst wenn Feld-Level-Konflikte real auftreten.
+### Effizienter Sync-Push
+- `collectLocalChanges` schickt nur Zeilen mit `updatedAt > lastSyncedAt`
+  (todos/habits/notes/folders/chat_messages). Append-only (habit_logs/
+  history) bleiben alle (klein, Server skippt Duplikate).
+- `getSince(since)` Queries in TodoDao, HabitDao, NoteDao, FolderDao,
+  ChatMessageDao.
 
 ### Garantien (nach A+):
 - **Kein Datenverlust durch Überschreiben gelöschter Notizen.**
 - **Live-Mitsehen** am Handy (Body poppt auf, wenn PC speichert).
 - **Editor schließt bei gelöschter Notiz** statt zu überschreiben.
-- **Gleichzeitige Edits verschiedener Felder** — Stufe 1: LWW auf
-  ganze Notiz (aktuell), Stufe 2: feldweise.
+- **Sync auf Web funktioniert** (kein Transaktionsleck mehr).
 - **Sync-Push effizienter** — nur geänderte Notizen.
 
 ### Nicht umgesetzt (bewusst):
@@ -133,4 +117,5 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Kein CRDT (Yjs/Automerge) — JS-Bibliotheken, Interop-Komplexität,
   Document-Größen-Wachstum.
 - Keine echten Dateien statt DB — verliert Multi-User/atomare Queries,
-  löst das LWW-Problem nicht (LWW pro Datei = LWW pro Notiz).
+  löst das LWW-Problem nicht.
+- Feld-Level-LWW (Stufe 2) — später optional, wenn real auftretend.
