@@ -153,6 +153,10 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     // Verlässt das Titel-Textfeld den Fokus → speichern + Edit-Modus beenden.
     // (Löst auf Android bei Tipp-weg und auf Desktop bei Tab/Esc aus.)
+    // Wichtig: onFocusChanged feuert auch beim ERSTEN Zeichnen mit
+    // isFocused=false (bevor der FocusRequester greift) — deshalb merken
+    // wir uns, ob das Feld VORHER fokussiert war. Nur echter Fokus-Verlust speichert.
+    var hadTitleFocus by remember { mutableStateOf(false) }
     fun commitTitleEdit() {
         vm.updateTitle(titleText.ifBlank { "Chat" })
         isEditingTitle = false
@@ -185,7 +189,10 @@ fun ChatScreen(
                                     } else false
                                 }
                                 .onFocusChanged { focusState ->
-                                    if (!focusState.isFocused) commitTitleEdit()
+                                    if (hadTitleFocus && !focusState.isFocused) {
+                                        commitTitleEdit()
+                                    }
+                                    hadTitleFocus = focusState.isFocused
                                 },
                             textStyle = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.SemiBold,
