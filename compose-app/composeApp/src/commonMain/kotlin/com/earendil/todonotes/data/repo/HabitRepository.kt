@@ -173,14 +173,17 @@ class HabitRepository(
         periodEndExclusive: Long,
         newCount: Int
     ) {
+        println("SET_PERIOD_COUNT: habit=$habitId start=${formatDateGerman(periodStart)} end=${formatDateGerman(periodEndExclusive)} newCount=$newCount")
         db.withWriteTransaction {
             val existing = dao.logsBetween(habitId, periodStart, periodEndExclusive)
+            println("SET_PERIOD_COUNT: existing=${existing.size} logs in range")
             when {
                 newCount > existing.size -> {
                     val toAdd = newCount - existing.size
                     val span = (periodEndExclusive - periodStart).coerceAtLeast(1L)
                     repeat(toAdd) { i ->
                         val ts = periodStart + (i + 1L) * span / (toAdd + 1)
+                        println("SET_PERIOD_COUNT: +log at ${formatDateGerman(ts)} ${formatTimeGerman(ts)} (in range? ${ts >= periodStart && ts < periodEndExclusive})")
                         dao.insertLog(
                             HabitLog(id = randomUuidString(), habitId = habitId, timestamp = ts)
                         )
