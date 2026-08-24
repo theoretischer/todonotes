@@ -80,6 +80,14 @@ interface HabitDao {
     @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until")
     suspend fun countBetween(habitId: String, from: Long, until: Long): Int
 
+    /** Alle Logs eines Habits im Zeitraum [from, until) — für Count-Korrektur. */
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until ORDER BY timestamp ASC")
+    suspend fun logsBetween(habitId: String, from: Long, until: Long): List<HabitLog>
+
+    /** Einzelnen Log per ID löschen (für Count-Korrektur). */
+    @Query("DELETE FROM habit_logs WHERE id = :id")
+    suspend fun deleteLogById(id: String)
+
     // ---- HabitHistory ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -88,6 +96,10 @@ interface HabitDao {
     /** Verlaufseintrag per id loeschen (fuer Swipe-to-delete im Verlauf-Tab). */
     @Query("DELETE FROM habit_history WHERE id = :id")
     suspend fun deleteHistoryEntry(id: String)
+
+    /** History-Einträge für ein Habit + Periodenstart (für Count-Korrektur). */
+    @Query("SELECT * FROM habit_history WHERE habitId = :habitId AND periodStart = :periodStart")
+    suspend fun historyByPeriod(habitId: String, periodStart: Long): List<HabitHistoryEntry>
 
     // ---- Sync ----
 

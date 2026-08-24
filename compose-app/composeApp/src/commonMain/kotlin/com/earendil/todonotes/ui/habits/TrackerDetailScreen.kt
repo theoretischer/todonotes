@@ -2,9 +2,11 @@ package com.earendil.todonotes.ui.habits
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -24,6 +26,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
@@ -54,6 +57,7 @@ fun TrackerDetailScreen(
     logs: List<HabitLog> = emptyList(),
     onRatingChange: (String, Int) -> Unit,
     onLogHabit: (String) -> Unit = {},
+    onSetPeriodCount: (String, Long, Long, Int) -> Unit = { _, _, _, _ -> },
     onEditHabit: (String, HabitFormData) -> Unit,
     onBack: () -> Unit
 ) {
@@ -100,7 +104,8 @@ fun TrackerDetailScreen(
                     habit = habit,
                     logs = logs,
                     history = history,
-                    onLogHabit = onLogHabit
+                    onLogHabit = onLogHabit,
+                    onSetPeriodCount = onSetPeriodCount
                 )
             } else {
                 SatisfactionSection(
@@ -142,8 +147,10 @@ private fun HabitPeriodSection(
     habit: Habit,
     logs: List<HabitLog>,
     history: List<HabitHistoryEntry>,
-    onLogHabit: (String) -> Unit
+    onLogHabit: (String) -> Unit,
+    onSetPeriodCount: (String, Long, Long, Int) -> Unit
 ) {
+    var editingPeriod by remember { mutableStateOf<PeriodStat?>(null) }
     val now = nowMs()
     val goal = habit.goalCount
 
@@ -274,10 +281,48 @@ private fun HabitPeriodSection(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (p.count >= goal) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clickable { editingPeriod = p }
                 )
             }
         }
+    }
+
+    editingPeriod?.let { p ->
+        var editValue by remember(p) { mutableStateOf(p.count.toString()) }
+        AlertDialog(
+            onDismissRequest = { editingPeriod = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    val n = editValue.toIntOrNull() ?: 0
+                    if (n >= 0 && n != p.count && p.endExclusive != null) {
+                        onSetPeriodCount(habit.id, p.start, p.endExclusive, n)
+                    }
+                    editingPeriod = null
+                }) { Text("Speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingPeriod = null }) { Text("Abbrechen") }
+            },
+            title = { Text("Anzahl korrigieren") },
+            text = {
+                Column {
+                    Text(
+                        "Zeitraum: ${periodRangeLabel(p)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editValue,
+                        onValueChange = { editValue = it.filter { c -> c.isDigit() } },
+                        label = { Text("Anzahl") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+        )
     }
 }
 

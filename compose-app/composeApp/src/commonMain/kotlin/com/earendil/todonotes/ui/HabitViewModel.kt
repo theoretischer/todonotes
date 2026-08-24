@@ -92,6 +92,11 @@ class HabitViewModel(
     fun observeLogs(habitId: String): Flow<List<HabitLog>> =
         repo.observeLogs(habitId).stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
+    /** Anzahl einer abgeschlossenen Periode korrigieren (vergessene Eintragung). */
+    fun setPeriodCount(habitId: String, periodStart: Long, periodEndExclusive: Long, newCount: Int) {
+        vmScope.launch { repo.setPeriodCount(habitId, periodStart, periodEndExclusive, newCount) }
+    }
+
     init {
         // dbFlow → _state (source of truth, überschreibt optimistic Updates).
         // Während Reorder: DB-Update zwischenspeichern, nicht anwenden.

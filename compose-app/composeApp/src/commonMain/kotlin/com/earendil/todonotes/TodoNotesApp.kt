@@ -272,6 +272,7 @@ fun TodoNotesApp(
                 logs = logs,
                 onRatingChange = habitVm::changeRating,
                 onLogHabit = habitVm::logHabit,
+                onSetPeriodCount = habitVm::setPeriodCount,
                 onEditHabit = habitVm::updateHabit,
                 onBack = { trackerDetailId = null }
             )

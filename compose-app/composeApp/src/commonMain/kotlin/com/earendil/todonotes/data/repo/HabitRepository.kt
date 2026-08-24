@@ -1,5 +1,6 @@
 package com.earendil.todonotes.data.repo
 
+import androidx.room3.withWriteTransaction
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
@@ -153,6 +154,48 @@ class HabitRepository(
     /** Schließt die aktuelle Periode für ALLE aktiven Habits ab. */
     suspend fun forceFinishAll(now: Long = nowMs()) {
         dao.getAllHabitsOnce().forEach { forceFinishCurrentPeriod(it.id, now) }
+    }
+
+    /**
+     * Korrigiert die Log-Anzahl einer abgeschlossenen Periode auf [newCount].
+     *
+     * - Fehlende Logs werden hinzugefügt (gleichmäßig über die Periode verteilt),
+     *   überschüssige Logs werden entfernt (die jüngsten zuerst).
+     * - Falls ein History-Eintrag für diese Periode existiert (manuelle /
+     *   automatische Periodenabschlüsse), wird dessen count ebenfalls angepasst,
+     *   damit max(logCount, histCount) = newCount ist.
+     *
+     * Atomar in einer Transaktion (Wasm: single-connection).
+     */
+    suspend fun setPeriodCount(
+        habitId: String,
+        periodStart: Long,
+        periodEndExclusive: Long,
+        newCount: Int
+    ) {
+        db.withWriteTransaction {
+            val existing = dao.logsBetween(habitId, periodStart, periodEndExclusive)
+            when {
+                newCount > existing.size -> {
+                    val toAdd = newCount - existing.size
+                    val span = (periodEndExclusive - periodStart).coerceAtLeast(1L)
+                    repeat(toAdd) { i ->
+                        val ts = periodStart + (i + 1L) * span / (toAdd + 1)
+                        dao.insertLog(
+                            HabitLog(id = randomUuidString(), habitId = habitId, timestamp = ts)
+                        )
+                    }
+                }
+                newCount < existing.size -> {
+                    existing.takeLast(existing.size - newCount).forEach { dao.deleteLogById(it.id) }
+                }
+            }
+            // History-Eintrag anpassen (nur HABIT-Einträge, nicht Satisfaction).
+            dao.historyByPeriod(habitId, periodStart)
+                .filter { it.newRating == null }
+                .forEach { entry -> dao.insertHistory(entry.copy(count = newCount)) }
+        }
+        dirty()
     }
 
     /** Aktueller Count in der Periode, die [now] enthält. */
