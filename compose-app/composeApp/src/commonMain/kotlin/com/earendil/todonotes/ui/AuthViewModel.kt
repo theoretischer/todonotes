@@ -273,7 +273,10 @@ class AuthViewModel(
     // --- Sync ---
 
     fun triggerSync() {
-        vmScope.launch { syncManager.sync() }
+        vmScope.launch {
+            try { syncManager.sync() }
+            catch (e: Throwable) { println("SYNC[manual]: ${e::class.simpleName}: ${e.message}") }
+        }
     }
 
     // --- Admin ---

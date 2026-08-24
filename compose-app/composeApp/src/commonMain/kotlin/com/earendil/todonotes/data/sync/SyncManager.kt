@@ -81,19 +81,31 @@ class SyncManager(
     }
 
     /** SSE-Push: Server hat neue Daten → sofort pullen (ohne notify,
-     *  sonst Ping-Pong zwischen 2 Clients). */
+     *  sonst Ping-Pong zwischen 2 Clients). Resilient: Exceptions werden
+     *  geloggt, killen aber nicht den Scope. */
     fun onRemoteChanged() {
-        scope?.launch { sync(notify = false) }
+        scope?.launch {
+            try { sync(notify = false) }
+            catch (e: Throwable) { println("SYNC[onRemoteChanged]: ${e::class.simpleName}: ${e.message}") }
+        }
     }
 
-    /** Auto-Sync starten. Einmal nach Login aufrufen. */
+    /** Auto-Sync starten. Einmal nach Login aufrufen.
+     *  Resilient: wenn sync() eine Exception wirft, wird sie geloggt und
+     *  die collect-Schleife läuft weiter (statt den ganzen auto-sync zu
+     *  killen — das war die Ursache für „sync kackt ab bis Neustart"). */
     fun startAutoSync(s: CoroutineScope) {
         scope = s
         s.launch {
             _dirty
                 .filter { it > 0 }
                 .debounce(100)
-                .collect { sync() }
+                .collect {
+                    try { sync() }
+                    catch (e: Throwable) {
+                        println("SYNC[auto]: ${e::class.simpleName}: ${e.message}")
+                    }
+                }
         }
     }
 
@@ -164,6 +176,10 @@ class SyncManager(
             println("SYNC[${if (notify) "push" else "pull"}]: collect=${tCollect - t0}ms http=${tHttp - tCollect}ms apply=${tEnd - tHttp}ms rowsUp=$upCount rowsDown=$downCount")
             true
         } catch (e: Throwable) {
+            // CancellationException darf NICHT geschluckt werden — sonst
+            // bricht Coroutine-Cancellation nicht mehr (Kotlin-Antipattern).
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            println("SYNC[error]: ${e::class.simpleName}: ${e.message}")
             prefs.lastSyncResult = "Fehler: ${e.message ?: e::class.simpleName}"
             false
         }
