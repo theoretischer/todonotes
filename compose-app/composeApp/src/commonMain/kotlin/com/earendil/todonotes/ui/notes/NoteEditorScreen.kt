@@ -255,6 +255,46 @@ fun NoteEditorScreen(
         focusTarget = lines.firstOrNull()?.id
     }
 
+    // Sync-A+: Notiz wurde von einem anderen Gerät gelöscht → Editor
+    // schließen (statt zu überschreiben = Datenverlust).
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) {
+            // Nicht flushen — die Notiz ist weg.
+            onBack()
+        }
+    }
+
+    // Sync-A+: Remote-Update (Sync hat Body/Titel geändert). Body neu
+    // parsen, aber NUR wenn der Nutzer nicht gerade im Editor tippt
+    // (kein aktiver Cursor/Selektion in einer Zeile). Sonst würde der
+    // Text unter dem Cursor wegspringen.
+    LaunchedEffect(state.remoteUpdate) {
+        if (state.remoteUpdate == 0) return@LaunchedEffect
+        if (!state.loaded || titleValue == null) return@LaunchedEffect
+        // Wenn der Nutzer gerade aktiv tippt (activeLineId gesetzt und
+        // eine Zeile hat eine Selektion != reiner Cursor am Ende),
+        // überspringen wir dieses Update — beim nächsten flush gewinnt
+        // der Nutzer (LWW). So keine Cursor-Sprünge.
+        val userActivelyEditing = activeLineId != null && lines.any {
+            it.id == activeLineId && it.value.selection.start != it.value.selection.end
+        }
+        if (userActivelyEditing) return@LaunchedEffect
+        val parsed = NoteTextBody.toLines(state.body)
+        lines = if (parsed.isEmpty()) {
+            listOf(EditLine(genId(), null, false, TextFieldValue("")))
+        } else {
+            parsed.map { li ->
+                EditLine(
+                    id = genId(),
+                    type = li.type,
+                    checked = li.checked,
+                    value = TextFieldValue(li.content, TextRange(li.content.length))
+                )
+            }
+        }
+        titleValue = TextFieldValue(state.title)
+    }
+
     // System-Back: speichern + schließen
     BackHandler(enabled = state.loaded) {
         vm.flushNow()

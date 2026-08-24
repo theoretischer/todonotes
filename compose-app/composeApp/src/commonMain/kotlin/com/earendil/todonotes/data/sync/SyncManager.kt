@@ -195,13 +195,19 @@ class SyncManager(
     // --- lokal → DTO ---
 
     private suspend fun collectLocalChanges(): ChangesBundle {
-        val todos = db.todoDao().getAllOnce().map { it.toDTO() }
-        val habits = db.habitDao().getAllHabitsForSync().map { it.toDTO() }
+        // Sync-A+: nur Zeilen schicken, die seit lastSyncedAt geändert wurden.
+        // Reduziert Bundle-Größe (statt ALLE Notizen jeder Tastenanschlag)
+        // und damit Race-Conditions. Append-only-Tabellen (habit_logs,
+        // habit_history) haben keinen updatedAt-Marker → immer alle schicken
+        // (Server skippt Duplikate via PK-Check, Menge ist klein).
+        val since = prefs.lastSyncedAt
+        val todos = db.todoDao().getSince(since).map { it.toDTO() }
+        val habits = db.habitDao().getHabitsSince(since).map { it.toDTO() }
         val logs = db.habitDao().getAllLogsForSync().map { it.toDTO() }
         val history = db.habitDao().getAllHistoryForSync().map { it.toDTO() }
-        val folders = db.folderDao().getAllForSync().map { it.toDTO() }
-        val notes = db.noteDao().getAllForSync().map { it.toDTO() }
-        val chatMessages = db.chatMessageDao().getAllForSync().map { it.toDTO() }
+        val folders = db.folderDao().getSince(since).map { it.toDTO() }
+        val notes = db.noteDao().getSince(since).map { it.toDTO() }
+        val chatMessages = db.chatMessageDao().getSince(since).map { it.toDTO() }
         return ChangesBundle(
             todos = todos,
             habits = habits,

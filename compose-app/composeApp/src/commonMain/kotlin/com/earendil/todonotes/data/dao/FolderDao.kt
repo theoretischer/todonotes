@@ -67,6 +67,10 @@ interface FolderDao {
     @Query("SELECT * FROM folders")
     suspend fun getAllForSync(): List<Folder>
 
+    /** Nur Folder, die seit :since geändert wurden (Sync-A+: effizienter Push). */
+    @Query("SELECT * FROM folders WHERE updatedAt > :since")
+    suspend fun getSince(since: Long): List<Folder>
+
     @Upsert
     suspend fun upsertAll(folders: List<Folder>)
 

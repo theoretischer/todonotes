@@ -32,6 +32,10 @@ class NoteRepository(
 
     suspend fun getLiveById(id: String): Note? = dao.getLiveById(id)
 
+    /** Reaktive Beobachtung einer Notiz (für Editor — feuert bei Sync-UPDATE
+     *  oder Löschen). Liefert null wenn die Notiz nicht existiert. */
+    fun observeNote(id: String): Flow<Note?> = dao.observeNote(id)
+
     /** Leere Notiz anlegen (im Editor wird dann weitergearbeitet). */
     suspend fun createNote(folderId: String? = null, title: String = defaultNoteTitle(), bodyJson: String = "[]"): Note =
         createNote(folderId, title, bodyJson, NoteType.NOTE)
@@ -78,11 +82,14 @@ class NoteRepository(
         dirty()
     }
 
-    /** Speichert Titel + Body (wird vom Editor bei Back/auto-save gerufen, F5). */
-    suspend fun updateNote(id: String, title: String, bodyJson: String) {
-        val note = dao.getById(id) ?: return
-        dao.update(note.copy(title = title, bodyJson = bodyJson, updatedAt = nowMs()))
+    /** Speichert Titel + Body (wird vom Editor bei Back/auto-save gerufen).
+     *  SICHER: nutzt `updateBody` (filtert deletedAt) — eine gelöschte Notiz
+     *  wird NICHT wiederhergestellt. Liefert false wenn die Notiz gelöscht
+     *  wurde (Aufrufer kann Editor schließen). */
+    suspend fun updateNote(id: String, title: String, bodyJson: String): Boolean {
+        dao.updateBody(id, title, bodyJson, nowMs())
         dirty()
+        return true
     }
 
     /** Notiz in einen anderen Ordner verschieben (F6). null = Wurzel. */

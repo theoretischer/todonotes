@@ -56,6 +56,10 @@ interface TodoDao {
     @Query("SELECT * FROM todos")
     suspend fun getAllOnce(): List<Todo>
 
+    /** Nur Todos, die seit :since geändert wurden (Sync-A+: effizienter Push). */
+    @Query("SELECT * FROM todos WHERE updatedAt > :since")
+    suspend fun getSince(since: Long): List<Todo>
+
     /** Server-Änderungen einspielen (@Upsert — kein DELETE/CASCADE). */
     @Upsert
     suspend fun upsertAll(todos: List<Todo>)

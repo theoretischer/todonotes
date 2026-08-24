@@ -107,6 +107,10 @@ interface HabitDao {
     @Query("SELECT * FROM habits")
     suspend fun getAllHabitsForSync(): List<Habit>
 
+    /** Nur Habits, die seit :since geändert wurden (Sync-A+: effizienter Push). */
+    @Query("SELECT * FROM habits WHERE updatedAt > :since")
+    suspend fun getHabitsSince(since: Long): List<Habit>
+
     /** Server-Änderungen einspielen. @Upsert = INSERT OR UPDATE (kein DELETE,
      *  kein CASCADE auf habit_logs/history). */
     @Upsert

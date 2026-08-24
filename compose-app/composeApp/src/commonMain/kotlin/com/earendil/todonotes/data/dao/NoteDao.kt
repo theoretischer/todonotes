@@ -32,6 +32,10 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id AND deletedAt IS NULL")
     suspend fun getLiveById(id: String): Note?
 
+    /** Reaktive Beobachtung einer Notiz (für Editor — feuert bei Sync-UPDATE). */
+    @Query("SELECT * FROM notes WHERE id = :id")
+    fun observeNote(id: String): Flow<Note?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(note: Note)
 
@@ -42,10 +46,19 @@ interface NoteDao {
     @Query("UPDATE notes SET deletedAt = :now, updatedAt = :now WHERE id = :id")
     suspend fun softDelete(id: String, now: Long)
 
+    /** Sicheres Update: nur Titel/Body/updatedAt, bewahrt deletedAt/folderId
+     *  etc. Verhindert dass ein flush eine gelöschte Notiz wiederherstellt. */
+    @Query("UPDATE notes SET title = :title, bodyJson = :bodyJson, updatedAt = :now WHERE id = :id AND deletedAt IS NULL")
+    suspend fun updateBody(id: String, title: String, bodyJson: String, now: Long)
+
     // ----- Sync-Queries (alle, inkl. gelöschte) -----
 
     @Query("SELECT * FROM notes")
     suspend fun getAllForSync(): List<Note>
+
+    /** Nur Notizen, die seit :since geändert wurden (Sync-A+: effizienter Push). */
+    @Query("SELECT * FROM notes WHERE updatedAt > :since")
+    suspend fun getSince(since: Long): List<Note>
 
     @Upsert
     suspend fun upsertAll(notes: List<Note>)

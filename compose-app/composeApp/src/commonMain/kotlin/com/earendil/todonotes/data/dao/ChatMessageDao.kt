@@ -38,6 +38,10 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages")
     suspend fun getAllForSync(): List<ChatMessage>
 
+    /** Nur Chat-Nachrichten, die seit :since geändert wurden (Sync-A+). */
+    @Query("SELECT * FROM chat_messages WHERE updatedAt > :since")
+    suspend fun getSince(since: Long): List<ChatMessage>
+
     @Upsert
     suspend fun upsertAll(messages: List<ChatMessage>)
 
