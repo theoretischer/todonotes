@@ -91,6 +91,10 @@ fun TodoNotesApp(
             // Auto-Sync + SSE starten (Echtzeit-Sync).
             container.syncManager.startAutoSync(container.appScope)
             container.sseClient.start(container.appScope)
+            // Initialer Sync beim App-Start/Login: Änderungen vom anderen
+            // Gerät sofort pullen (ON_RESUME feuert vor Callback-Registrierung
+            // → würde sonst beim ersten Öffnen verpasst).
+            container.appScope.launch { container.syncManager.sync() }
         })
         return
     }
