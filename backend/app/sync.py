@@ -123,7 +123,11 @@ def _upsert_row(
         _update_row(conn, table, data)
     else:
         data["userId"] = user_id
-        data[change_field] = server_now
+        # Append-only-Tabellen (habit_logs, habit_history): timestamp/loggedAt
+        # ist die echte Daten-Zeit, NICHT ein Sync-Marker → nicht überschreiben!
+        # Normale Tabellen: updatedAt = server_now (LWW-Marker).
+        if change_field not in ("timestamp", "loggedAt"):
+            data[change_field] = server_now
         _insert_row(conn, table, data)
 
 
