@@ -145,26 +145,6 @@ fun HabitEditDialog(
                     minLines = 2
                 )
 
-                HorizontalDivider()
-
-                // Typ-Auswahl: Gewohnheit vs. Zufriedenheits-Tracker
-                Text("Typ", style = MaterialTheme.typography.bodyMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = type == HabitType.HABIT,
-                        onClick = { type = HabitType.HABIT },
-                        label = { Text("Gewohnheit") }
-                    )
-                    FilterChip(
-                        selected = type == HabitType.SATISFACTION,
-                        onClick = { type = HabitType.SATISFACTION },
-                        label = { Text("Zufriedenheit") }
-                    )
-                }
-
                 if (type == HabitType.HABIT) {
                     HorizontalDivider()
 
