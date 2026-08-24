@@ -121,7 +121,7 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   löst das LWW-Problem nicht.
 - Feld-Level-LWW (Stufe 2) — später optional, wenn real auftretend.
 
-## Sync bombensicher — Full Up/Down-Sync (Erledigt)
+## Sync bombensicher — Full Up/Down-Sync (Erledigt ✓ vom Nutzer bestätigt)
 
 **Problem:** Todos/Habits/Folders/Chat verschwanden nach Web-Reload und
 tauchten scheinbar random wieder (auch alte Wipe-Daten). Notizen
