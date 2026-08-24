@@ -32,8 +32,7 @@ Details/Architektur: **`MIGRATION-CMP.md`** (technische Referenz) und
 ## Offene Punkte
 
 Funktional:
-- [ ] **SYNC-FIX – Todos/Habits/Folders/Chat syncen nicht zuverlässig**
-      (AKTUELLER BLOCKER — siehe unten, In Progress)
+- [ ] **M10 – Desktop-Feinschliff**
 - [ ] **M10 – Desktop-Feinschliff** (rein funktional: Fenstergröße/-titel,
       Scroll-Verhalten, Speichern beim Schließen — KEIN visuelles Styling)
 - [ ] **F7 – Bilder in Notizen** (Picker, downsamplen, PNG lokal, `ImageBlock`)
@@ -121,6 +120,41 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Keine echten Dateien statt DB — verliert Multi-User/atomare Queries,
   löst das LWW-Problem nicht.
 - Feld-Level-LWW (Stufe 2) — später optional, wenn real auftretend.
+
+## Sync bombensicher — Full Up/Down-Sync (Erledigt)
+
+**Problem:** Todos/Habits/Folders/Chat verschwanden nach Web-Reload und
+tauchten scheinbar random wieder (auch alte Wipe-Daten). Notizen
+funktionierten (reaktiver Editor).
+
+**Ursache:** `newSyncedAt = server_now + 1`. Server setzte angewendete
+Rows auf `updatedAt = server_now`, gab aber `newSyncedAt = server_now + 1`.
+`_collect_server_changes` liefert nur Rows mit `change_col > last_synced_at`.
+Ein Client mit `lastSyncedAt >= server_now` (z.B. Ersteller nach Reload)
+bekam die Row NICHT mehr — `server_now > server_now+1 = false`. Row war
+unsichtbar bis ein anderes Gerät sie editierte. Das `+1` sollte
+Re-Delivery an den Ersteller verhindern, brach aber die Zustellung an
+jeden Client mit `lastSyncedAt >= server_now`.
+
+**Warum Notizen funktionierten:** Der reaktive Editor beobachtet
+`observeNote(id)` direkt und reloadet aus der lokalen DB. Listen-Flows
+der Todos/Habits rely auf `lastSyncedAt`-basierte Zustellung.
+
+**Fix (Full Sync, bulletproof):**
+1. **DOWN:** Server liefert IMMER alle Rows des Users (full down-sync).
+   `_collect_all_server_changes(user_id)`. Selbstheilend: verlorene
+   lokale Rows werden bei jedem Sync wiederhergestellt.
+2. **UP:** Client pusht IMMER alle Rows (full up-sync, `getAllOnce` statt
+   `getSince`). Server LWW-skippt unveränderte (`existing.updatedAt >=
+   incoming → skip`).
+3. **`newSyncedAt = server_now`** (KEIN +1). `lastSyncedAt` nur noch für
+   `wipe_epoch`-Check.
+4. **SSE-Notify nur bei `applied_count > 0`** (tatsächlich geänderte
+   Rows). Verhindert Ping-Pong UND unnötige Pulls.
+
+`NoteEditorViewModel` sicher: skippt identische Daten. Full down-sync
+feuert Flow bei jedem Sync, Editor ignoriert unveränderte Notizen.
+Anti-Resurrektion bleibt (einmal gelöscht = gelöscht). (Commit `5d09c70`)
 
 ## SYNC-FIX – Todos/Habits/Folders/Chat syncen nicht zuverlässig (In Progress)
 
