@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
+import com.earendil.todonotes.data.entity.HabitType
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -32,6 +33,7 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun HabitEditDialog(
     existing: Habit? = null,
+    initialType: HabitType = HabitType.HABIT,
     onDismiss: () -> Unit,
     onSubmit: (HabitFormData) -> Unit
 ) {
@@ -49,6 +51,11 @@ fun HabitEditDialog(
 
     // Verlauf
     var logToHistory by remember { mutableStateOf(existing?.logToHistory ?: true) }
+
+    // Typ (Gewohnheit vs. Zufriedenheits-Tracker)
+    var type by remember { mutableStateOf(existing?.type ?: initialType) }
+    // Startwert für Satisfaction (0-10)
+    var rating by remember { mutableStateOf(existing?.currentRating ?: 5) }
 
     // Startdatum (bestimmt den Reset-Anchor)
     val tz = remember { TimeZone.currentSystemDefault() }
@@ -96,7 +103,9 @@ fun HabitEditDialog(
                                 interval = interval,
                                 goalCount = goalCount,
                                 startDate = startDateMillis,
-                                logToHistory = logToHistory
+                                logToHistory = logToHistory,
+                                type = type,
+                                rating = rating
                             )
                         )
                     }
@@ -105,7 +114,16 @@ fun HabitEditDialog(
             ) { Text(if (isEdit) "Speichern" else "Erstellen") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
-        title = { Text(if (isEdit) "Gewohnheit bearbeiten" else "Neue Gewohnheit", fontWeight = FontWeight.SemiBold) },
+        title = {
+            Text(
+                when {
+                    isEdit -> "Bearbeiten"
+                    type == HabitType.SATISFACTION -> "Neues Zufriedenheits-Tracking"
+                    else -> "Neue Gewohnheit"
+                },
+                fontWeight = FontWeight.SemiBold
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -127,46 +145,94 @@ fun HabitEditDialog(
                     minLines = 2
                 )
 
-                // Startdatum (Reset-Anchor)
-                OutlinedButton(
-                    onClick = { showDatePicker = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Schedule, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(formatDateLabel(startDate))
-                }
-
                 HorizontalDivider()
 
-                // Zeitraum (vereinfacht, inline n)
-                HabitCadencePicker(
-                    cadenceType = cadenceType,
-                    interval = interval,
-                    onCadenceChange = { cadenceType = it },
-                    onIntervalChange = { interval = it }
-                )
-
-                HorizontalDivider()
-
-                // Ziel-Anzahl pro Zeitraum
+                // Typ-Auswahl: Gewohnheit vs. Zufriedenheits-Tracker
+                Text("Typ", style = MaterialTheme.typography.bodyMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Ziel: ", style = MaterialTheme.typography.bodyMedium)
-                    OutlinedTextField(
-                        value = goalCount.toString(),
-                        onValueChange = { v ->
-                            val n = v.toIntOrNull()
-                            if (n != null && n in 1..9999) goalCount = n
-                        },
-                        modifier = Modifier.width(80.dp).height(48.dp),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium
+                    FilterChip(
+                        selected = type == HabitType.HABIT,
+                        onClick = { type = HabitType.HABIT },
+                        label = { Text("Gewohnheit") }
                     )
-                    Text(" mal", style = MaterialTheme.typography.bodyMedium)
+                    FilterChip(
+                        selected = type == HabitType.SATISFACTION,
+                        onClick = { type = HabitType.SATISFACTION },
+                        label = { Text("Zufriedenheit") }
+                    )
+                }
+
+                if (type == HabitType.HABIT) {
+                    HorizontalDivider()
+
+                    // Startdatum (Reset-Anchor)
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(formatDateLabel(startDate))
+                    }
+
+                    HorizontalDivider()
+
+                    // Zeitraum (vereinfacht, inline n)
+                    HabitCadencePicker(
+                        cadenceType = cadenceType,
+                        interval = interval,
+                        onCadenceChange = { cadenceType = it },
+                        onIntervalChange = { interval = it }
+                    )
+
+                    HorizontalDivider()
+
+                    // Ziel-Anzahl pro Zeitraum
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Ziel: ", style = MaterialTheme.typography.bodyMedium)
+                        OutlinedTextField(
+                            value = goalCount.toString(),
+                            onValueChange = { v ->
+                                val n = v.toIntOrNull()
+                                if (n != null && n in 1..9999) goalCount = n
+                            },
+                            modifier = Modifier.width(80.dp).height(48.dp),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(" mal", style = MaterialTheme.typography.bodyMedium)
+                    }
+                } else {
+                    // SATISFACTION: Startwert-Slider 0-10
+                    HorizontalDivider()
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Startwert", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "$rating / 10",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Slider(
+                            value = rating.toFloat(),
+                            onValueChange = { rating = it.toInt() },
+                            valueRange = 0f..10f,
+                            steps = 9
+                        )
+                    }
                 }
 
                 HorizontalDivider()
@@ -179,7 +245,10 @@ fun HabitEditDialog(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("In Verlauf eintragen", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "Pro abgelaufener Periode wird der Stand eingetragen",
+                            if (type == HabitType.SATISFACTION)
+                                "Jede Änderung (+/−) wird im Verlauf eingetragen"
+                            else
+                                "Pro abgelaufener Periode wird der Stand eingetragen",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

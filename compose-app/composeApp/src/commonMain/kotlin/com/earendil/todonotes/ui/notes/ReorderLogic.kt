@@ -12,8 +12,8 @@ package com.earendil.todonotes.ui.notes
  * damit die Tausch-Schritte Unit-getestet werden können.
  */
 
-/** Welcher Typ gerade neu sortiert wird — Ordner bzw. Notizen. */
-enum class ReorderKind { FOLDER, NOTE }
+/** Welcher Typ gerade neu sortiert wird — Ordner, Notizen oder Habits. */
+enum class ReorderKind { FOLDER, NOTE, HABIT }
 
 /**
  * Zustand einer laufenden Reorder-Geste.

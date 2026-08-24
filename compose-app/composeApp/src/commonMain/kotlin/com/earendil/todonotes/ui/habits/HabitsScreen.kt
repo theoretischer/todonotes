@@ -1,5 +1,7 @@
 package com.earendil.todonotes.ui.habits
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,19 +9,34 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
+import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.ui.HabitWithProgress
-import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+import com.earendil.todonotes.ui.components.SwipeOrReorderRow
 import com.earendil.todonotes.ui.components.Weekdays
+import com.earendil.todonotes.ui.notes.ReorderKind
 
+/**
+ * Gewohnheiten-Tab: klassische Habits (n-mal pro Periode) und
+ * Zufriedenheits-Tracker (0-10 Skala, +/−) in EINER Liste.
+ *
+ * - FAB `+`: Bottom-Sheet-Menü „Neue Gewohnheit" / „Neues Zufriedenheits-Tracking"
+ * - Long-Press + vertikal ziehen = Reorder (wie Notizen, SwipeOrReorderRow)
+ * - Swipe links = Löschen
+ * - Satisfaction-Karte antippen → Tracker-Detail (Grafik)
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HabitsScreen(
@@ -29,11 +46,21 @@ fun HabitsScreen(
     onLogHabit: (String) -> Unit,
     onDeleteHabit: (String) -> Unit,
     onFinishPeriod: (String) -> Unit,
+    onRatingChange: (String, Int) -> Unit,
+    onOpenTracker: (String) -> Unit,
+    onSwapHabits: (String, String) -> Unit,
+    onBeginHabitReorder: () -> Unit,
+    onCommitHabitReorder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showNewMenu by remember { mutableStateOf(false) }
+    var createType by remember { mutableStateOf(HabitType.HABIT) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var editingHabit by remember { mutableStateOf<Habit?>(null) }
     var finishConfirmHabit by remember { mutableStateOf<Habit?>(null) }
+
+    // Row-Höhen für die Reorder-Logik (Schwellwert = halbe Zeilenhöhe).
+    val rowHeights = remember { mutableStateMapOf<String, Int>() }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (habits.isEmpty()) {
@@ -42,10 +69,10 @@ fun HabitsScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Keine Gewohnheiten", style = MaterialTheme.typography.titleMedium)
+                    Text("Noch nichts zum Tracken", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Tippe auf + um eine neue Gewohnheit zu erstellen.",
+                        "Tippe auf + für eine neue Gewohnheit oder Zufriedenheits-Tracking.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -58,16 +85,45 @@ fun HabitsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(habits, key = { it.habit.id }) { hwp ->
-                    SwipeToDeleteRow(
-                        onDelete = { onDeleteHabit(hwp.habit.id) },
-                        onClick = { editingHabit = hwp.habit }
+                    val habit = hwp.habit
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onSizeChanged { rowHeights[habit.id] = it.height }
                     ) {
-                        HabitCard(
-                            hwp = hwp,
-                            onLog = { onLogHabit(hwp.habit.id) },
-                            onEdit = { editingHabit = hwp.habit },
-                            onFinishPeriod = { finishConfirmHabit = hwp.habit }
-                        )
+                        SwipeOrReorderRow(
+                            onDelete = { onDeleteHabit(habit.id) },
+                            onClick = {
+                                if (habit.type == HabitType.SATISFACTION) {
+                                    onOpenTracker(habit.id)
+                                } else {
+                                    editingHabit = habit
+                                }
+                            },
+                            reorderEnabled = true,
+                            reorderKind = ReorderKind.HABIT,
+                            itemId = habit.id,
+                            repositories = habits.map { it.habit.id },
+                            heightPx = rowHeights[habit.id] ?: 0,
+                            onSwap = onSwapHabits,
+                            onReorderBegin = onBeginHabitReorder,
+                            onReorderEnd = onCommitHabitReorder
+                        ) {
+                            if (habit.type == HabitType.SATISFACTION) {
+                                SatisfactionCard(
+                                    hwp = hwp,
+                                    onRatingDown = { onRatingChange(habit.id, -1) },
+                                    onRatingUp = { onRatingChange(habit.id, +1) }
+                                )
+                            } else {
+                                HabitCard(
+                                    hwp = hwp,
+                                    onLog = { onLogHabit(habit.id) },
+                                    onEdit = { editingHabit = habit },
+                                    onFinishPeriod = { finishConfirmHabit = habit }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -76,18 +132,56 @@ fun HabitsScreen(
         // FAB unten rechts (kein Scaffold nötig, kein navigationBarsPadding
         // — das umgebende Box hebt bereits über die NavBar).
         FloatingActionButton(
-            onClick = { showCreateDialog = true },
+            onClick = { showNewMenu = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Neue Gewohnheit")
+            Icon(Icons.Default.Add, contentDescription = "Neu")
+        }
+    }
+
+    // FAB-Menü: Typ-Auswahl (gleiche Bottom-Sheet-Optik wie bei Notizen).
+    if (showNewMenu) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showNewMenu = false },
+            sheetState = sheetState
+        ) {
+            Text(
+                "Neu erstellen",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 8.dp)
+            )
+            NewHabitMenuItem(
+                icon = { Icon(Icons.Default.Repeat, contentDescription = null) },
+                text = "Neue Gewohnheit",
+                subtitle = "n-mal pro Zeitraum tracken",
+                onClick = {
+                    showNewMenu = false
+                    createType = HabitType.HABIT
+                    showCreateDialog = true
+                }
+            )
+            NewHabitMenuItem(
+                icon = { Icon(Icons.Default.Timeline, contentDescription = null) },
+                text = "Neues Zufriedenheits-Tracking",
+                subtitle = "0–10 Skala, Verlauf als Grafik",
+                onClick = {
+                    showNewMenu = false
+                    createType = HabitType.SATISFACTION
+                    showCreateDialog = true
+                }
+            )
+            Spacer(Modifier.height(16.dp))
         }
     }
 
     if (showCreateDialog) {
         HabitEditDialog(
             existing = null,
+            initialType = createType,
             onDismiss = { showCreateDialog = false },
             onSubmit = { form ->
                 onCreateHabit(form)
@@ -130,6 +224,35 @@ fun HabitsScreen(
     }
 }
 
+/** Menü-Eintrag im FAB-Bottom-Sheet (mit Untertitel). */
+@Composable
+private fun NewHabitMenuItem(
+    icon: @Composable () -> Unit,
+    text: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 14.dp)
+            .combinedClickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon()
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(text, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Klassische Gewohnheit: 0/n + Balken + +1-Button. */
 @Composable
 private fun HabitCard(
     hwp: HabitWithProgress,
@@ -172,7 +295,7 @@ private fun HabitCard(
                     )
                 }
 
-                // Menü (Bearbeiten/Löschen)
+                // Menü (Bearbeiten/Periode abschließen)
                 Box {
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Optionen")
@@ -214,6 +337,75 @@ private fun HabitCard(
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(onClick = onLog) {
                     Icon(Icons.Default.Add, contentDescription = "+1")
+                }
+            }
+        }
+    }
+}
+
+/** Zufriedenheits-Tracker: aktueller Wert (x/10) + −/+ Buttons.
+ *  Tap auf die Karte (außer Buttons) öffnet die Verlaufs-Grafik. */
+@Composable
+private fun SatisfactionCard(
+    hwp: HabitWithProgress,
+    onRatingDown: () -> Unit,
+    onRatingUp: () -> Unit
+) {
+    val habit = hwp.habit
+    val rating = habit.currentRating ?: 0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = habit.title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (habit.notes.isNotBlank()) {
+                Text(
+                    text = habit.notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Aktueller Wert + −/+ Buttons
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$rating",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = " / 10",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 2.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                FilledIconButton(
+                    onClick = onRatingDown,
+                    enabled = rating > 0
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Weniger")
+                }
+                Spacer(Modifier.width(8.dp))
+                FilledIconButton(
+                    onClick = onRatingUp,
+                    enabled = rating < 10
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Mehr")
                 }
             }
         }

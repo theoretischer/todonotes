@@ -42,6 +42,7 @@ import com.earendil.todonotes.ui.auth.AuthGate
 import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.chat.ChatScreen
 import com.earendil.todonotes.ui.habits.HabitsScreen
+import com.earendil.todonotes.ui.habits.TrackerDetailScreen
 import com.earendil.todonotes.ui.history.HistoryScreen
 import com.earendil.todonotes.ui.notes.NoteEditorScreen
 import com.earendil.todonotes.ui.notes.NotesScreen
@@ -123,6 +124,8 @@ fun TodoNotesApp(
 
     var currentTab by remember { mutableStateOf(Tab.Todos) }
     var showSettings by remember { mutableStateOf(false) }
+    // Zufriedenheits-Tracker-Detail (Grafik-Overlay)
+    var trackerDetailId by remember { mutableStateOf<String?>(null) }
 
     // Profil-Daten für Avatar oben rechts.
     val profile by authVm.profile.collectAsState()
@@ -167,6 +170,11 @@ fun TodoNotesApp(
                     onLogHabit = habitVm::logHabit,
                     onDeleteHabit = habitVm::deleteHabit,
                     onFinishPeriod = habitVm::finishCurrentPeriod,
+                    onRatingChange = habitVm::changeRating,
+                    onOpenTracker = { trackerDetailId = it },
+                    onSwapHabits = habitVm::reorderHabits,
+                    onBeginHabitReorder = habitVm::beginHabitReorder,
+                    onCommitHabitReorder = habitVm::commitHabitReorder,
                     modifier = Modifier.fillMaxSize()
                 )
                 Tab.Notes -> NotesScreen(
@@ -212,7 +220,7 @@ fun TodoNotesApp(
 
     // System-Back: Overlays schließen statt App zu beenden (Android-Back-Taste).
     // Zuletzt registrierter Handler gewinnt — Overlays liegen über dem Scaffold.
-    BackHandler(enabled = editorState == null && showSettings) {
+    BackHandler(enabled = editorState == null && trackerDetailId == null && showSettings) {
         showSettings = false
     }
 
@@ -248,6 +256,29 @@ fun TodoNotesApp(
                 vm = editorVm,
                 onBack = { editorState = null }
             )
+        }
+    }
+
+    // Zufriedenheits-Tracker-Detail als Fullscreen-Overlay.
+    // Habit live aus dem State → optimistic Rating-Updates rendern sofort.
+    trackerDetailId?.let { id ->
+        val habit = habitsWithProgress.firstOrNull { it.habit.id == id }?.habit
+        if (habit != null) {
+            TrackerDetailScreen(
+                habit = habit,
+                history = habitHistory.filter { it.habitId == id },
+                onRatingChange = habitVm::changeRating,
+                onEditHabit = habitVm::updateHabit,
+                onBack = { trackerDetailId = null }
+            )
+        }
+    }
+    // Gelöschter Tracker → Overlay schließen.
+    LaunchedEffect(trackerDetailId, habitsWithProgress) {
+        if (trackerDetailId != null &&
+            habitsWithProgress.none { it.habit.id == trackerDetailId }
+        ) {
+            trackerDetailId = null
         }
     }
 }

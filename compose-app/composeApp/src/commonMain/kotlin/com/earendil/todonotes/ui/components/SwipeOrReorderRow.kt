@@ -69,6 +69,7 @@ fun SwipeOrReorderRow(
     modifier: Modifier = Modifier,
     deleteWidth: Dp = 80.dp,
     reorderEnabled: Boolean = false,
+    reorderKind: ReorderKind = ReorderKind.NOTE,
     itemId: String = "",
     repositories: List<String> = emptyList(),
     heightPx: Int = 0,
@@ -164,7 +165,7 @@ fun SwipeOrReorderRow(
                                 val idx = currentRepos.indexOf(itemId)
                                 if (idx >= 0) {
                                     nodeRootStartY = nodeRoot.y
-                                    session = ReorderSession(itemId, ReorderKind.NOTE, idx, idx, 0f)
+                                    session = ReorderSession(itemId, reorderKind, idx, idx, 0f)
                                     onReorderBegin()
                                 }
                             }
@@ -193,7 +194,7 @@ fun SwipeOrReorderRow(
                                     dragAmountPx = dragAmount.y,
                                     onSwap = currentOnSwap
                                 )
-                                session = ReorderSession(itemId, ReorderKind.NOTE, step.newIndex, s.startIndex, step.newAccumPx)
+                                session = ReorderSession(itemId, reorderKind, step.newIndex, s.startIndex, step.newAccumPx)
                             }
                         }
                     }

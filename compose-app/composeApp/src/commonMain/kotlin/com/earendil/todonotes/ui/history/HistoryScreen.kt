@@ -69,22 +69,45 @@ fun HistoryScreen(
                         onDelete = { onDeleteHistoryEntry(entry.id) },
                         onClick = {}
                     ) {
-                        androidx.compose.material3.ListItem(
-                            headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
-                            supportingContent = {
-                                Text("Periode ab ${formatDateGerman(entry.periodStart)}: " +
-                                     "${entry.count}/${entry.goal} (${entry.cadenceLabel})")
-                            },
-                            trailingContent = {
-                                Text(
-                                    "${entry.count}/${entry.goal}",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = if (entry.count >= entry.goal)
-                                        MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        )
+                        if (entry.newRating != null) {
+                            // Zufriedenheits-Tracker: "von 3 auf 4"
+                            androidx.compose.material3.ListItem(
+                                headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
+                                supportingContent = {
+                                    Text("Zufriedenheit: ${formatDateGerman(entry.loggedAt)}")
+                                },
+                                trailingContent = {
+                                    val old = entry.count
+                                    val new = entry.newRating ?: entry.count
+                                    Text(
+                                        "$old → $new",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = when {
+                                            new > old -> MaterialTheme.colorScheme.primary
+                                            new < old -> MaterialTheme.colorScheme.error
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
+                                }
+                            )
+                        } else {
+                            androidx.compose.material3.ListItem(
+                                headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
+                                supportingContent = {
+                                    Text("Periode ab ${formatDateGerman(entry.periodStart)}: " +
+                                         "${entry.count}/${entry.goal} (${entry.cadenceLabel})")
+                                },
+                                trailingContent = {
+                                    Text(
+                                        "${entry.count}/${entry.goal}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = if (entry.count >= entry.goal)
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            )
+                        }
                     }
                     HorizontalDivider()
                 }
