@@ -64,9 +64,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -147,9 +150,22 @@ fun ChatScreen(
     LaunchedEffect(isEditingTitle) {
         if (isEditingTitle) titleFocusRequester.requestFocus()
     }
+    val focusManager = LocalFocusManager.current
+    // Verlässt das Titel-Textfeld den Fokus → speichern + Edit-Modus beenden.
+    // (Löst auf Android bei Tipp-weg und auf Desktop bei Tab/Esc aus.)
+    fun commitTitleEdit() {
+        vm.updateTitle(titleText.ifBlank { "Chat" })
+        isEditingTitle = false
+    }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = if (isEditingTitle)
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { focusManager.clearFocus() }
+                }
+        else Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
@@ -164,10 +180,12 @@ fun ChatScreen(
                                 .onPreviewKeyEvent { event ->
                                     // Enter (ohne Shift) = speichern + Fokus weg
                                     if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
-                                        vm.updateTitle(titleText.ifBlank { "Chat" })
-                                        isEditingTitle = false
+                                        commitTitleEdit()
                                         true
                                     } else false
+                                }
+                                .onFocusChanged { focusState ->
+                                    if (!focusState.isFocused) commitTitleEdit()
                                 },
                             textStyle = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.SemiBold,
