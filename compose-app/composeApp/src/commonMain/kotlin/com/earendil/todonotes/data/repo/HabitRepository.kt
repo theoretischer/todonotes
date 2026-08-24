@@ -5,6 +5,7 @@ import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
+import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.data.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 
@@ -36,6 +37,54 @@ class HabitRepository(
 
     suspend fun updateHabit(habit: Habit) {
         dao.upsert(habit.copy(updatedAt = nowMs()))
+        dirty()
+    }
+
+    /** Satisfaction: rating um [delta] ändern (coerced 0..10).
+     *  Legt bei logToHistory einen Verlaufseintrag "von X auf Y" an. */
+    suspend fun changeRating(habitId: String, delta: Int, now: Long = nowMs()) {
+        val habit = dao.getById(habitId) ?: return
+        if (habit.type != HabitType.SATISFACTION) return
+        val old = habit.currentRating ?: 0
+        val new = (old + delta).coerceIn(0, 10)
+        if (new == old) return
+        dao.update(habit.copy(currentRating = new, updatedAt = now))
+        if (habit.logToHistory) {
+            dao.insertHistory(
+                HabitHistoryEntry(
+                    id = randomUuidString(),
+                    habitId = habit.id,
+                    title = habit.title,
+                    cadenceLabel = cadenceLabel(habit),
+                    periodStart = now,
+                    count = old,
+                    goal = new,
+                    newRating = new,
+                    loggedAt = now
+                )
+            )
+        }
+        dirty()
+    }
+
+    /** Zwei Habits tauschen (Drag-Drop-Reorder). Positionen vertauschen. */
+    suspend fun reorderHabits(idA: String, idB: String) {
+        val a = dao.getById(idA) ?: return
+        val b = dao.getById(idB) ?: return
+        val posA = a.position
+        dao.update(a.copy(position = b.position, updatedAt = nowMs()))
+        dao.update(b.copy(position = posA, updatedAt = nowMs()))
+        dirty()
+    }
+
+    /** Finale Reihenfolge als Batch schreiben (nach Drag-Ende). */
+    suspend fun commitHabitOrder(orderedIds: List<String>) {
+        orderedIds.forEachIndexed { index, id ->
+            val habit = dao.getById(id) ?: return@forEachIndexed
+            if (habit.position != index) {
+                dao.update(habit.copy(position = index, updatedAt = nowMs()))
+            }
+        }
         dirty()
     }
 

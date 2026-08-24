@@ -3,6 +3,7 @@ package com.earendil.todonotes.ui
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
+import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.data.repo.HabitEngine
 import com.earendil.todonotes.data.repo.HabitProgress
 import com.earendil.todonotes.data.repo.HabitRepository
@@ -87,8 +88,12 @@ class HabitViewModel(
 
     init {
         // dbFlow → _state (source of truth, überschreibt optimistic Updates).
+        // Während Reorder: DB-Update zwischenspeichern, nicht anwenden.
         vmScope.launch {
-            dbFlow.collect { list -> _habitsWithProgress.value = list }
+            dbFlow.collect { list ->
+                if (isReorderingHabits) pendingDbHabits = list
+                else _habitsWithProgress.value = list
+            }
         }
     }
 
@@ -129,6 +134,8 @@ class HabitViewModel(
                 goalCount = form.goalCount,
                 startDate = form.startDate,
                 logToHistory = form.logToHistory,
+                type = form.type,
+                currentRating = if (form.type == HabitType.SATISFACTION) form.rating else null,
                 createdAt = now,
                 updatedAt = now
             )
@@ -161,7 +168,10 @@ class HabitViewModel(
                     resetAnchorMonth = resetAnchorMonth,
                     goalCount = form.goalCount,
                     startDate = form.startDate,
-                    logToHistory = form.logToHistory
+                    logToHistory = form.logToHistory,
+                    type = form.type,
+                    currentRating = if (form.type == HabitType.SATISFACTION)
+                        (form.rating.coerceIn(0, 10)) else null
                 )
             )
         }
@@ -213,5 +223,55 @@ class HabitViewModel(
 
     fun deleteHistoryEntry(id: String) {
         vmScope.launch { repo.deleteHistoryEntry(id) }
+    }
+
+    // ---- Satisfaction: Rating +/− ----
+
+    /** Rating um [delta] aendern (+1 oder -1). Optimistic: sofort im State. */
+    fun changeRating(id: String, delta: Int) {
+        _habitsWithProgress.update { list ->
+            list.map { hwp ->
+                if (hwp.habit.id == id) {
+                    val old = hwp.habit.currentRating ?: 0
+                    val new = (old + delta).coerceIn(0, 10)
+                    hwp.copy(habit = hwp.habit.copy(currentRating = new))
+                } else hwp
+            }
+        }
+        vmScope.launch { repo.changeRating(id, delta) }
+    }
+
+    // ---- Drag-Drop Reorder ----
+
+    // True während eines Drag-Reorders → DB-Flow-Updates ignorieren.
+    private var isReorderingHabits = false
+    private var pendingDbHabits: List<HabitWithProgress>? = null
+
+    /** Drag beginnt → DB-Flow ignorieren. */
+    fun beginHabitReorder() { isReorderingHabits = true }
+
+    /** Drag beendet → Reihenfolge als Batch in DB schreiben. */
+    fun commitHabitReorder() {
+        val ordered = _habitsWithProgress.value.map { it.habit.id }
+        vmScope.launch {
+            repo.commitHabitOrder(ordered)
+            // DB-Write fertig → Flow wieder zulassen + pending anwenden.
+            val pending = pendingDbHabits
+            isReorderingHabits = false
+            pendingDbHabits = null
+            if (pending != null) _habitsWithProgress.value = pending
+        }
+    }
+
+    /** Zwei Habits sofort tauschen (Reihenfolge im State). */
+    fun reorderHabits(idA: String, idB: String) {
+        val list = _habitsWithProgress.value.toMutableList()
+        val ia = list.indexOfFirst { it.habit.id == idA }
+        val ib = list.indexOfFirst { it.habit.id == idB }
+        if (ia < 0 || ib < 0) return
+        val tmp = list[ia]
+        list[ia] = list[ib]
+        list[ib] = tmp
+        _habitsWithProgress.value = list
     }
 }
