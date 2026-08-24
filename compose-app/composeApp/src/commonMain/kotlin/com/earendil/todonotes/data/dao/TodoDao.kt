@@ -61,7 +61,8 @@ interface TodoDao {
     suspend fun getSince(since: Long): List<Todo>
 
     /** Server-Änderungen einspielen (@Upsert — kein DELETE/CASCADE). */
-    @Upsert
+    /** Server-Änderungen einspielen (@Insert REPLACE — atomar, kein Transaktionsleck). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(todos: List<Todo>)
 
     /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */

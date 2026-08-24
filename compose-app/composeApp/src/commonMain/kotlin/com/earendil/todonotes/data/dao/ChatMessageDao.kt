@@ -42,7 +42,8 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE updatedAt > :since")
     suspend fun getSince(since: Long): List<ChatMessage>
 
-    @Upsert
+    /** Server-Änderungen einspielen (@Insert REPLACE — atomar, kein Transaktionsleck). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(messages: List<ChatMessage>)
 
     /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */

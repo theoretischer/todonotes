@@ -111,25 +111,31 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE updatedAt > :since")
     suspend fun getHabitsSince(since: Long): List<Habit>
 
-    /** Server-Änderungen einspielen. @Upsert = INSERT OR UPDATE (kein DELETE,
-     *  kein CASCADE auf habit_logs/history). */
-    @Upsert
-    suspend fun upsertAllHabits(habits: List<Habit>)
+    /** Server-Änderungen einspielen: INSERT(IGNORE) + UPDATE.
+     *  Zweistufig aber sicher: kein DELETE → kein CASCADE auf habit_logs/history.
+     *  @Insert(REPLACE) würde DELETE+INSERT machen und habit_logs/history
+     *  löschen → Datenverlust. @Upsert wirft auf Wasm Exception bei
+     *  PK-Konflikt → Transaktionsleck. INSERT(IGNORE)+UPDATE umgeht beides. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOrIgnoreHabits(habits: List<Habit>)
+
+    @Update
+    suspend fun updateAllHabits(habits: List<Habit>)
 
     /** Alle Logs einmalig (für Sync-Upstream). */
     @Query("SELECT * FROM habit_logs")
     suspend fun getAllLogsForSync(): List<HabitLog>
 
-    /** Server-Logs einspielen (@Upsert — kein DELETE/CASCADE). */
-    @Upsert
+    /** Server-Logs einspielen (@Insert REPLACE — atomar, keine Childs → sicher). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAllLogs(logs: List<HabitLog>)
 
     /** Alle History-Einträge einmalig. */
     @Query("SELECT * FROM habit_history")
     suspend fun getAllHistoryForSync(): List<HabitHistoryEntry>
 
-    /** Server-History einspielen (@Upsert — kein DELETE/CASCADE). */
-    @Upsert
+    /** Server-History einspielen (@Insert REPLACE — atomar, keine Childs → sicher). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAllHistory(entries: List<HabitHistoryEntry>)
 
     /** Alle aktiven Habits einmalig (nicht reaktiv). */

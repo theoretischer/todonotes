@@ -71,7 +71,8 @@ interface FolderDao {
     @Query("SELECT * FROM folders WHERE updatedAt > :since")
     suspend fun getSince(since: Long): List<Folder>
 
-    @Upsert
+    /** Server-Änderungen einspielen (@Insert REPLACE — atomar, kein Transaktionsleck). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(folders: List<Folder>)
 
     /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */

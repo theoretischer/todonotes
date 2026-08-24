@@ -228,7 +228,11 @@ class SyncManager(
         // Eine Transaktion = ein Roundtrip + EIN Flow-Update.
         db.withWriteTransaction {
             if (bundle.todos.isNotEmpty()) db.todoDao().upsertAll(bundle.todos.map { it.toEntity() })
-            if (bundle.habits.isNotEmpty()) db.habitDao().upsertAllHabits(bundle.habits.map { it.toEntity() })
+            if (bundle.habits.isNotEmpty()) {
+                val habitEntities = bundle.habits.map { it.toEntity() }
+                db.habitDao().insertOrIgnoreHabits(habitEntities)
+                db.habitDao().updateAllHabits(habitEntities)
+            }
             if (bundle.habit_logs.isNotEmpty()) db.habitDao().upsertAllLogs(bundle.habit_logs.map { it.toEntity() })
             if (bundle.habit_history.isNotEmpty()) db.habitDao().upsertAllHistory(bundle.habit_history.map { it.toEntity() })
             if (bundle.folders.isNotEmpty()) db.folderDao().upsertAll(bundle.folders.map { it.toEntity() })

@@ -60,7 +60,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE updatedAt > :since")
     suspend fun getSince(since: Long): List<Note>
 
-    @Upsert
+    /** Server-Änderungen einspielen (@Insert REPLACE — atomar, kein Transaktionsleck
+     *  wie bei @Upsert auf Wasm). Kein FK/CASCADE → REPLACE sicher. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(notes: List<Note>)
 
     /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */
