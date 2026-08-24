@@ -13,3 +13,22 @@ private val platform = object : Platform {
 }
 
 actual fun getPlatform(): Platform = platform
+
+/** Wasm: visibilitychange-Event. Wenn der Tab wieder sichtbar wird
+ *  (visible), den onAppResume-Callback feuern → SyncManager pullt
+ *  Änderungen vom anderen Gerät. */
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+actual fun setupAppLifecyclePlatform(container: AppContainer) {
+    setupVisibilityListener { container.onAppResume?.invoke() }
+}
+
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+private fun setupVisibilityListener(callback: () -> Unit) {
+    js("""
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            callback();
+        }
+    });
+    """)
+}

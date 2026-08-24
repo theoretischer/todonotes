@@ -9,3 +9,7 @@ class AndroidPlatform : Platform {
 }
 
 actual fun getPlatform(): Platform = AndroidPlatform()
+
+/** Android: Lifecycle wird in MainActivity via LifecycleEventObserver
+ *  gehandhabt (ON_RESUME → onAppResume). Hier Noop. */
+actual fun setupAppLifecyclePlatform(container: AppContainer) { }

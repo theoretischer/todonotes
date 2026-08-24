@@ -21,6 +21,18 @@ class MainActivity : ComponentActivity() {
         // AlarmReceiver/FullScreenAlarmActivity (M8) greifen darüber zu,
         // selbst wenn der AlarmManager die App ohne MainActivity startet.
         val container = ContainerAccess.get(this)
+        // Sync beim App-Resume: ON_RESUME → onAppResume feuern → SyncManager
+        // pullt Änderungen vom anderen Gerät.
+        lifecycle.addObserver(object : androidx.lifecycle.LifecycleEventObserver {
+            override fun onStateChanged(
+                source: androidx.lifecycle.LifecycleOwner,
+                event: androidx.lifecycle.Lifecycle.Event
+            ) {
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    container.onAppResume?.invoke()
+                }
+            }
+        })
         setContent {
             App(container)
         }

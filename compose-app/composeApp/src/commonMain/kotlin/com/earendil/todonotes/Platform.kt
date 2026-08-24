@@ -11,3 +11,8 @@ interface Platform {
 }
 
 expect fun getPlatform(): Platform
+
+/** Plattform-spezifische Lifecycle-Events registrieren (Android: ON_RESUME,
+ *  Web: visibilitychange→visible, Desktop: Window-Focus). Ruft bei
+ *  „App in den Vordergrund" [AppContainer.onAppResume] auf. */
+expect fun setupAppLifecyclePlatform(container: AppContainer)

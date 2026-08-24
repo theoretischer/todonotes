@@ -49,6 +49,19 @@ class AppContainer(
     /** Globaler Coroutine-Scope für Hintergrund-Arbeit (z.B. Auto-Sync, M8). */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob())
 
+    /** Callback: wird aufgerufen wenn die App in den Vordergrund kommt
+     *  (Android: ON_RESUME, Web: visibilitychange→visible, Desktop:
+     *  Window-Focus). Wird von TodoNotesApp gesetzt, um einen Sync
+     *  zu triggern — so werden Änderungen vom anderen Gerät sofort
+     *  übernommen, wenn man die App wieder öffnet. */
+    var onAppResume: (() -> Unit)? = null
+
+    /** Plattform-spezifische Lifecycle-Events registrieren (Android:
+     *  ON_RESUME, Web: visibilitychange, Desktop: Window-Focus).
+     *  Ruft bei „App in den Vordergrund" [onAppResume] auf.
+     *  Wird einmalig vom plattformspezifischen Entry-Point aufgerufen. */
+    fun setupAppLifecycle() = setupAppLifecyclePlatform(this)
+
     /** Aufräumen (z.B. HttpClient schließen). Bei App-Shutdown. */
     fun close() {
         httpClient.close()

@@ -24,6 +24,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +93,17 @@ fun TodoNotesApp(
             container.sseClient.start(container.appScope)
         })
         return
+    }
+
+    // Sync beim Wieder-Öffnen der App (Android: ON_RESUME, Web:
+    // visibilitychange→visible, Desktop: Window-Focus). So werden
+    // Änderungen vom anderen Gerät sofort übernommen, ohne manuell
+    // auf „Synchronisieren" drücken zu müssen.
+    DisposableEffect(Unit) {
+        container.onAppResume = {
+            container.appScope.launch { container.syncManager.sync() }
+        }
+        onDispose { container.onAppResume = null }
     }
 
     val todoVm = remember { TodoViewModel(container.todoRepository, container.appScope) }

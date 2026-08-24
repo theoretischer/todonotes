@@ -6,6 +6,7 @@ import com.earendil.todonotes.notification.NoopAlarmScheduler
 
 fun main() = application {
     val container = AppContainer(alarmScheduler = NoopAlarmScheduler())
+    container.setupAppLifecycle()
     Window(
         onCloseRequest = {
             container.close()

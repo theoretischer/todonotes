@@ -7,6 +7,7 @@ import com.earendil.todonotes.notification.NoopAlarmScheduler
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     val container = AppContainer(alarmScheduler = NoopAlarmScheduler())
+    container.setupAppLifecycle()
     CanvasBasedWindow(canvasElementId = "ComposeTarget", title = "TodoNotes") {
         App(container)
     }
