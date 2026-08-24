@@ -45,40 +45,49 @@ def sync(
     changes: ChangesBundle,
     user_id: str,
     server_now: int,
-) -> ChangesBundle:
-    """Wendet Client-Änderungen an und liefert Server-Änderungen seit
-    last_synced_at. Liefert nie None — leere Bundle wenn nichts da.
+) -> tuple[ChangesBundle, int]:
+    """Wendet Client-Änderungen an und liefert **alle** Server-Zeilen des Users.
+
+    Bombensichere Sync-Strategie (Full Down-Sync):
+      - UP:   Client pusht nur geänderte Zeilen (getSince). Server wendet
+              via LWW an (existing.updatedAt >= incoming → skip).
+      - DOWN: Server liefert **alle** Zeilen des Users (nicht nur seit
+              last_synced_at). Client upsertet alles. Das heilt lokal
+              verlorene Zeilen selbst — kein „Daten weg nach Reload".
+      - newSyncedAt = server_now (KEIN +1 mehr). Das +1 machte Rows
+        (updatedAt=server_now) unsichtbar für Clients mit
+        lastSyncedAt >= server_now → Datenverlust bei lokalem DB-Verlust.
 
     user_id: alle Änderungen werden auf diesen User eingeschränkt.
     server_now: Server-Zeit (ms) — wird als updatedAt für alle angewendeten
     Änderungen gesetzt (Source of Truth, eliminiert Clock-Skew).
 
+    Liefert (server_changes, applied_count). applied_count = Anzahl
+    tatsächlich geänderter Rows (für SSE-Notify: nur bei >0).
+
     Wipe-Schutz: wenn wipe_epoch > last_synced_at, hat der Client seit dem
     letzten Server-Wipe nicht mehr gesynced → seine lokalen Daten sind
-    veraltet. Push wird IGNORIERT (verhindert Wiederherstellung gelöschter
-    Daten). Der Client muss beim Erhalt der wipeEpoch seine lokale DB
-    leeren und neu pullen.
+    veraltet. Push wird IGNORIERT. Der Client muss beim Erhalt der wipeEpoch
+    seine lokale DB leeren und neu pullen (full down-sync liefert dann
+    die aktuellen Server-Daten).
     """
     with db.db() as conn:
         wipe_epoch = int(db.get_setting(conn, "wipe_epoch", "0"))
     if wipe_epoch > last_synced_at:
-        # Client ist veraltet → Push ignorieren. Client leert lokal und
-        # pullt die aktuellen Server-Daten (in _collect_server_changes).
-        pass
+        applied = 0
     else:
-        _apply_changes(changes, user_id, server_now)
-    return _collect_server_changes(last_synced_at, user_id)
+        applied = _apply_changes(changes, user_id, server_now)
+    return _collect_all_server_changes(user_id), applied
 
 
 # ----- Client -> Server (Apply) -----
 
-def _apply_changes(changes: ChangesBundle, user_id: str, server_now: int) -> None:
+def _apply_changes(changes: ChangesBundle, user_id: str, server_now: int) -> int:
     """Client-Änderungen einspielen. Server setzt updatedAt = server_now
     (Server-Zeit als Source of Truth, eliminiert Clock-Skew).
 
-    user_id: alle eingefügten/aktualisierten Zeilen bekommen diese userId.
-    Bestehende Zeilen eines anderen Users werden nicht überschrieben
-    (PK-Kollision → UPDATE nur wenn userId passt, sonst ignorieren).
+    Liefert die Anzahl tatsächlich geänderter/neu eingefügter Rows
+    (für SSE-Notify: nur bei >0 andere Clients benachrichtigen).
     """
     bundle_map = {
         "todos":         changes.todos,
@@ -89,40 +98,37 @@ def _apply_changes(changes: ChangesBundle, user_id: str, server_now: int) -> Non
         "notes":         changes.notes,
         "chat_messages": changes.chat_messages,
     }
+    applied = 0
     with db.db() as conn:
         for table, dto_cls, _pk, change_field, _change_col in _SYNC_TABLES:
             rows = bundle_map[table]
             for dto in rows:
-                _upsert_row(conn, table, dto_cls, dto, change_field, user_id, server_now)
+                if _upsert_row(conn, table, dto_cls, dto, change_field, user_id, server_now):
+                    applied += 1
+    return applied
 
 
 def _upsert_row(
     conn, table: str, dto_cls, dto, change_field: str, user_id: str, server_now: int
-) -> None:
+) -> bool:
     """Upsert mit LWW: nur ueberschreiben wenn incoming >= existing.
+
+    Liefert True wenn die Row geändert/eingefügt wurde, False bei Skip.
 
     Server-Zeit wird NACH dem LWW-Check als updatedAt gesetzt
     (monoton, vergleichbar ueber Clients). Der LWW-Check vergleicht
     die INCOMING client-Zeit gegen die existing SERVER-Zeit:
     - incoming >= existing → apply (client hat neuere Daten)
-    - incoming < existing → skip (client hat stale Daten, z.B. beim
-      naechsten Full-Sync unveraenderte Zeilen)
-
-    Das verhindert dass Client B (stale, hat A's Loeschung noch nicht)
-    durch seinen Full-Sync A's Loeschung ueberschreibt.
+    - incoming < existing → skip (client hat stale Daten)
 
     Anti-Resurrektion: wenn der Server ein Item als geloescht hat
     (deletedAt != null) und der Client eine nicht-geloeschte Version
     schickt (deletedAt = null), wird das Update SKIPED — egal wie neu
-    die client-Zeit ist. Sonst wuerde ein stale Client geloeschte Items
-    wiederherstellen (z.B. wenn serverTimeOffset beim Page-Load = 0 ist
-    und nowMs() in der Zukunft liegt → incoming.updatedAt > existing).
+    die client-Zeit ist. Einmal geloescht = geloescht.
     """
     data = dto.model_dump()
     new_change = data[change_field]  # client's updatedAt (vor LWW-Check)
     pk = data["id"]
-    # deletedAt fuer Anti-Resurrektion-Check mitselektieren (nur Tabellen
-    # die das Feld haben).
     has_deleted_at = "deletedAt" in data
     select_cols = f"{change_field}, userId"
     if has_deleted_at:
@@ -133,34 +139,24 @@ def _upsert_row(
     existing = cur.fetchone()
     if existing is not None:
         if change_field in ("timestamp", "loggedAt"):
-            return  # append-only
+            return False  # append-only
         if existing["userId"] is not None and existing["userId"] != user_id:
-            return  # fremde Daten
-        # Anti-Resurrektion: Server hat Item als geloescht, Client schickt
-        # nicht-geloeschte Version → SKIP (egal wie neu die client-Zeit ist).
-        # Einmal geloescht = geloescht, bis ein Client explizit deletedAt
-        # neu setzt (aktuell kein "Wiederherstellen"-Feature).
+            return False  # fremde Daten
         if has_deleted_at and existing["deletedAt"] is not None and data.get("deletedAt") is None:
-            return
+            return False  # Anti-Resurrektion
         if existing[change_field] >= new_change:
-            # incoming <= existing → skip. Wichtig: >= (nicht >), damit
-            # unveränderte Zeilen (incoming == existing, vom letzten Sync)
-            # NICHT neu angewandt werden. Sonst bump't jeder Full-Sync alle
-            # updatedAt → Server liefert immer ALLE Daten zurück → Churn.
-            return
-        # incoming >= existing → apply. Server-Zeit als updatedAt.
+            return False  # stale → skip
         data[change_field] = server_now
         if "userId" in data:
-            del data["userId"]  # bestehendes userId erhalten
+            del data["userId"]
         _update_row(conn, table, data)
+        return True
     else:
         data["userId"] = user_id
-        # Append-only-Tabellen (habit_logs, habit_history): timestamp/loggedAt
-        # ist die echte Daten-Zeit, NICHT ein Sync-Marker → nicht überschreiben!
-        # Normale Tabellen: updatedAt = server_now (LWW-Marker).
         if change_field not in ("timestamp", "loggedAt"):
             data[change_field] = server_now
         _insert_row(conn, table, data)
+        return True
 
 
 def _insert_row(conn, table: str, data: dict) -> None:
@@ -192,23 +188,27 @@ def _bool_to_int(v):
 
 # ----- Server -> Client (Collect) -----
 
-def _collect_server_changes(
-    last_synced_at: int, user_id: str
-) -> ChangesBundle:
-    """Liefert alle Server-Zeilen, die seit last_synced_at geändert wurden.
+def _collect_all_server_changes(user_id: str) -> ChangesBundle:
+    """Liefert **alle** Server-Zeilen des Users (Full Down-Sync).
 
-    user_id: nur Daten des authentifizierten Users zurückgeben.
+    Bombensicher: der Client bekommt jedes Mal die komplette Wahrheit.
+    Verlorene lokale Zeilen (OPFS-Flush-Race, Flow-Cache, etc.) werden
+    automatisch geheilt — kein last_synced_at-Window mehr, in dem Rows
+    unsichtbar werden können.
+
+    LWW verhindert Churn auf der UP-Seite: unveränderte Zeilen werden
+    serverseitig geskippt → kein SSE-Notify → andere Clients pullen nicht.
+    Das Bundle ist klein (persönliche App: < 1000 Rows, < 100KB).
     """
     out = ChangesBundle()
     with db.db() as conn:
         for table, dto_cls, _pk, _change_field, change_col in _SYNC_TABLES:
             rows = conn.execute(
-                f"SELECT * FROM {table} WHERE {change_col} > ? AND userId = ?",
-                (last_synced_at, user_id),
+                f"SELECT * FROM {table} WHERE userId = ?",
+                (user_id,),
             ).fetchall()
             for row in rows:
                 d = dict(row)
-                # 0/1 -> bool für Booleans (nur relevant für todos/habits).
                 for bcol in ("logToHistory",):
                     if bcol in d and d[bcol] is not None:
                         d[bcol] = bool(d[bcol])

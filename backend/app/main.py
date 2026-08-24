@@ -306,22 +306,23 @@ def sync_endpoint(
     user_id kommt vom verify_token-Dependency (DB-Token oder Legacy-User).
     """
     server_now = int(time.time() * 1000)
-    server_changes = sync.sync(req.last_synced_at, req.changes, user_id, server_now)
-    # newSyncedAt = server_now + 1: stellt sicher dassupdatedAt (= server_now)
-    # > lastSyncedAt auf dem naechsten Sync des ANDEREN Clients ist.
-    # Der syncende Client selbst bekommt lastSyncedAt = server_now + 1,
-    # also wird updatedAt = server_now NICHT wieder an ihn geliefert
-    # (server_now < server_now + 1) → kein Re-Delivery.
-    new_synced_at = server_now + 1
+    server_changes, applied_count = sync.sync(req.last_synced_at, req.changes, user_id, server_now)
+    # newSyncedAt = server_now (KEIN +1 mehr). Das +1 machte Rows mit
+    # updatedAt=server_now unsichtbar für Clients deren lastSyncedAt
+    # bereits >= server_now war → Datenverlust bei lokalem DB-Verlust.
+    # Full Down-Sync macht +1 überflüssig: der Client bekommt ohnehin
+    # alle Rows, LWW verhindert Churn.
+    new_synced_at = server_now
     # wipe_epoch auslesen → an Client weitergeben, damit dieser seine
     # lokale DB leeren kann wenn sie veraltet ist.
     with db.db() as conn:
         wipe_epoch = int(db.get_setting(conn, "wipe_epoch", "0"))
-    # Andere verbundene Clients benachrichtigen → die pullen sofort.
-    # Aber NUR wenn der Client lokale Aenderungen gepusht hat (notify=true).
-    # SSE-getriggerte Pulls (notify=false) wuerden sonst Ping-Pong
-    # zwischen 2 Clients ausloesen (A pullt → B notified → B pullt → ...).
-    if req.notify:
+    # Andere verbundene Clients nur benachrichtigen wenn tatsächlich
+    # Rows geändert wurden (applied_count > 0) UND der Client gepusht hat
+    # (notify=true). Verhindert Ping-Pong UND unnötige Pulls bei
+    # unveränderten Re-Pushes (Full Up-Sync sendet alle Rows, LWW
+    # skippt unveränderte → applied_count=0 → kein Notify).
+    if req.notify and applied_count > 0:
         from .event_bus import event_bus
         event_bus.publish(user_id, except_client_id=req.client_id or "")
     return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes, wipe_epoch=wipe_epoch)
