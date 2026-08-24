@@ -52,6 +52,10 @@ interface HabitDao {
     @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
     fun observeCountSince(habitId: String, since: Long): Flow<Int>
 
+    /** Alle Logs eines Habits (aufsteigend) — für die Perioden-Grafik im Tracker-Detail. */
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId ORDER BY timestamp ASC")
+    fun observeLogsForHabit(habitId: String): Flow<List<HabitLog>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: HabitLog)
 

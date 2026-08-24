@@ -36,6 +36,7 @@ import com.earendil.todonotes.ui.notes.ReorderKind
  * - Long-Press + vertikal ziehen = Reorder (wie Notizen, SwipeOrReorderRow)
  * - Swipe links = Löschen
  * - Satisfaction-Karte antippen → Tracker-Detail (Grafik)
+ * - Gewohnheits-Karte antippen → Tracker-Detail (Perioden-Grafik)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,11 +95,9 @@ fun HabitsScreen(
                         SwipeOrReorderRow(
                             onDelete = { onDeleteHabit(habit.id) },
                             onClick = {
-                                if (habit.type == HabitType.SATISFACTION) {
-                                    onOpenTracker(habit.id)
-                                } else {
-                                    editingHabit = habit
-                                }
+                                // Beide Typen öffnen den Detail-Screen (Grafik + Zahnrad).
+                                // Bearbeiten geht über das ⋮-Menü oder das Zahnrad im Detail.
+                                onOpenTracker(habit.id)
                             },
                             reorderEnabled = true,
                             reorderKind = ReorderKind.HABIT,

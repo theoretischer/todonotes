@@ -45,6 +45,25 @@ object HabitEngine {
         }
     }
 
+    /** Die letzten [maxCount] Perioden-Starts (inkl. der laufenden Periode),
+     *  aufsteigend sortiert. Für die Perioden-Grafik im Tracker-Detail:
+     *  ein Datenpunkt = eine Periode. Stoppt bei habit.startDate (früher
+     *  gab es das Habit nicht). */
+    fun recentPeriods(habit: Habit, now: Long, maxCount: Int): List<Long> {
+        val starts = mutableListOf<Long>()
+        var s = currentPeriodStart(habit, now)
+        starts.add(s)
+        while (starts.size < maxCount) {
+            // Periodenstart der Periode VOR s: eine Millisekunde früher fragen.
+            // (currentPeriodStart klemmt bei startDate → prev >= s = Abbruch.)
+            val prev = currentPeriodStart(habit, s - 1)
+            if (prev >= s) break
+            starts.add(prev)
+            s = prev
+        }
+        return starts.asReversed()
+    }
+
     fun progress(habit: Habit, now: Long, countSinceProvider: (String, Long) -> Int): HabitProgress {
         val start = currentPeriodStart(habit, now)
         val count = countSinceProvider(habit.id, start)

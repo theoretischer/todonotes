@@ -263,11 +263,15 @@ fun TodoNotesApp(
     // Habit live aus dem State → optimistic Rating-Updates rendern sofort.
     trackerDetailId?.let { id ->
         val habit = habitsWithProgress.firstOrNull { it.habit.id == id }?.habit
+        // Reaktive Log-Liste für die Perioden-Grafik (HABIT-Typ).
+        val logs by remember(id) { habitVm.observeLogs(id) }.collectAsState(initial = emptyList())
         if (habit != null) {
             TrackerDetailScreen(
                 habit = habit,
                 history = habitHistory.filter { it.habitId == id },
+                logs = logs,
                 onRatingChange = habitVm::changeRating,
+                onLogHabit = habitVm::logHabit,
                 onEditHabit = habitVm::updateHabit,
                 onBack = { trackerDetailId = null }
             )

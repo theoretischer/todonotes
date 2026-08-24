@@ -24,6 +24,9 @@ class HabitRepository(
 
     fun observeHabitHistory(): Flow<List<HabitHistoryEntry>> = dao.observeHabitHistory()
 
+    /** Alle Logs eines Habits (reaktiv) — für die Perioden-Grafik im Detail-Screen. */
+    fun observeLogs(habitId: String): Flow<List<HabitLog>> = dao.observeLogsForHabit(habitId)
+
     /** Alle aktiven Habits einmalig (nicht reaktiv, für Perioden-Check). */
     suspend fun getAllActiveHabits(): List<Habit> = dao.getAllHabitsOnce()
 

@@ -3,6 +3,7 @@ package com.earendil.todonotes.ui
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
+import com.earendil.todonotes.data.entity.HabitLog
 import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.data.repo.HabitEngine
 import com.earendil.todonotes.data.repo.HabitProgress
@@ -13,6 +14,7 @@ import com.earendil.todonotes.ui.habits.HabitFormData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +87,10 @@ class HabitViewModel(
 
     val habitHistory: StateFlow<List<HabitHistoryEntry>> =
         repo.observeHabitHistory().stateIn(vmScope, SharingStarted.Eagerly, emptyList())
+
+    /** Reaktive Log-Liste eines Habits — für die Perioden-Grafik im Detail-Screen. */
+    fun observeLogs(habitId: String): Flow<List<HabitLog>> =
+        repo.observeLogs(habitId).stateIn(vmScope, SharingStarted.Eagerly, emptyList())
 
     init {
         // dbFlow → _state (source of truth, überschreibt optimistic Updates).
