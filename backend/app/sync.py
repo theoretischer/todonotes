@@ -52,8 +52,21 @@ def sync(
     user_id: alle Änderungen werden auf diesen User eingeschränkt.
     server_now: Server-Zeit (ms) — wird als updatedAt für alle angewendeten
     Änderungen gesetzt (Source of Truth, eliminiert Clock-Skew).
+
+    Wipe-Schutz: wenn wipe_epoch > last_synced_at, hat der Client seit dem
+    letzten Server-Wipe nicht mehr gesynced → seine lokalen Daten sind
+    veraltet. Push wird IGNORIERT (verhindert Wiederherstellung gelöschter
+    Daten). Der Client muss beim Erhalt der wipeEpoch seine lokale DB
+    leeren und neu pullen.
     """
-    _apply_changes(changes, user_id, server_now)
+    with db.db() as conn:
+        wipe_epoch = int(db.get_setting(conn, "wipe_epoch", "0"))
+    if wipe_epoch > last_synced_at:
+        # Client ist veraltet → Push ignorieren. Client leert lokal und
+        # pullt die aktuellen Server-Daten (in _collect_server_changes).
+        pass
+    else:
+        _apply_changes(changes, user_id, server_now)
     return _collect_server_changes(last_synced_at, user_id)
 
 

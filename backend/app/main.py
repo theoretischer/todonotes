@@ -254,6 +254,8 @@ def wipe_my_data(
         conn.execute("DELETE FROM habit_logs WHERE userId = ?", (user_id,))
         conn.execute("DELETE FROM habits WHERE userId = ?", (user_id,))
         conn.execute("DELETE FROM todos WHERE userId = ?", (user_id,))
+        # wipe_epoch setzen → andere Geräte dieses Users leeren lokal.
+        db.set_setting(conn, "wipe_epoch", str(int(time.time() * 1000)))
     return {"ok": True}
 
 
@@ -287,6 +289,8 @@ def wipe_all_data(
             "todos", "tokens", "users",
         ):
             conn.execute(f"DELETE FROM {table}")
+        # wipe_epoch setzen → alle Geräte leeren lokal beim nächsten Sync.
+        db.set_setting(conn, "wipe_epoch", str(int(time.time() * 1000)))
     return {"ok": True}
 
 
@@ -309,6 +313,10 @@ def sync_endpoint(
     # also wird updatedAt = server_now NICHT wieder an ihn geliefert
     # (server_now < server_now + 1) → kein Re-Delivery.
     new_synced_at = server_now + 1
+    # wipe_epoch auslesen → an Client weitergeben, damit dieser seine
+    # lokale DB leeren kann wenn sie veraltet ist.
+    with db.db() as conn:
+        wipe_epoch = int(db.get_setting(conn, "wipe_epoch", "0"))
     # Andere verbundene Clients benachrichtigen → die pullen sofort.
     # Aber NUR wenn der Client lokale Aenderungen gepusht hat (notify=true).
     # SSE-getriggerte Pulls (notify=false) wuerden sonst Ping-Pong
@@ -316,7 +324,7 @@ def sync_endpoint(
     if req.notify:
         from .event_bus import event_bus
         event_bus.publish(user_id, except_client_id=req.client_id or "")
-    return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes)
+    return SyncResponse(new_synced_at=new_synced_at, server_changes=server_changes, wipe_epoch=wipe_epoch)
 
 
 @app.get("/sync/events")

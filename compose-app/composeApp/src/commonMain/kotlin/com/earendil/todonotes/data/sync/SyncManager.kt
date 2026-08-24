@@ -132,6 +132,18 @@ class SyncManager(
                 setBody(request)
             }.body()
             val tHttp = Clock.System.now().toEpochMilliseconds()
+            // Wipe-Schutz: wenn der Server einen anderen wipeEpoch liefert als
+            // gespeichert, wurde der Server gewisped (oder dieser Client hat
+            // noch nie gesynced). Lokale DB LEEREN bevor Server-Daten angewandt
+            // werden — sonst bleiben alte lokale Zeilen (mit alter userId)
+            // erhalten und würden beim nächsten Sync wieder gepusht werden.
+            // Der Server hat unseren Push bereits ignoriert (wipe_epoch >
+            // lastSyncedAt), wir pullen jetzt nur die aktuellen Server-Daten.
+            if (response.wipeEpoch != prefs.wipeEpoch) {
+                println("WIPE: server wipeEpoch=${response.wipeEpoch} local=${prefs.wipeEpoch} → clearing local DB")
+                clearAllLocalData()
+                prefs.wipeEpoch = response.wipeEpoch
+            }
             applyServerChanges(response.serverChanges)
             prefs.lastSyncedAt = response.newSyncedAt
             prefs.lastSyncAt = Clock.System.now().toEpochMilliseconds()
@@ -164,6 +176,20 @@ class SyncManager(
     } catch (e: Throwable) {
         prefs.lastSyncResult = "Verbindung fehlgeschlagen: ${e.message ?: e::class.simpleName}"
         false
+    }
+
+    suspend fun clearAllLocalData() {
+        db.withWriteTransaction {
+            db.todoDao().clearAll()
+            db.habitDao().clearAllHabits()
+            db.habitDao().clearAllLogs()
+            db.habitDao().clearAllHistory()
+            db.noteDao().clearAll()
+            db.folderDao().clearAll()
+            db.chatMessageDao().clearAll()
+        }
+        prefs.lastSyncedAt = 0L
+        pendingPush = false
     }
 
     // --- lokal → DTO ---

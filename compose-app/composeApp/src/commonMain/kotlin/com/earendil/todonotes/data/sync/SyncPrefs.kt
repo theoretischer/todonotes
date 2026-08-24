@@ -61,6 +61,13 @@ class SyncPrefs(private val settings: Settings = Settings()) {
         get() = settings.getLongOrNull(KEY_LAST_SYNC_AT) ?: 0L
         set(value) = settings.putLong(KEY_LAST_SYNC_AT, value)
 
+    /** Server-Wipe-Epoch (0 = nie gewisped). Wenn der Server einen anderen
+     *  Wert liefert, muss der Client seine lokale DB leeren (veraltete
+     *  Daten nach Server-Wipe). */
+    var wipeEpoch: Long
+        get() = settings.getLongOrNull(KEY_WIPE_EPOCH) ?: 0L
+        set(value) = settings.putLong(KEY_WIPE_EPOCH, value)
+
     /** True, wenn der User per Login authentifiziert ist (nicht Static-Secret). */
     val isLoggedIn: Boolean
         get() = username.isNotBlank() && token.isNotBlank()
@@ -91,5 +98,6 @@ class SyncPrefs(private val settings: Settings = Settings()) {
         private const val KEY_CLIENT_ID = "client_id"
         private const val KEY_LAST_RESULT = "last_sync_result"
         private const val KEY_LAST_SYNC_AT = "last_sync_at_wallclock"
+        private const val KEY_WIPE_EPOCH = "wipe_epoch"
     }
 }

@@ -126,5 +126,6 @@ data class SyncRequest(
 @Serializable
 data class SyncResponse(
     @SerialName("new_synced_at") val newSyncedAt: Long,
-    @SerialName("server_changes") val serverChanges: ChangesBundle
+    @SerialName("server_changes") val serverChanges: ChangesBundle,
+    @SerialName("wipe_epoch") val wipeEpoch: Long = 0
 )

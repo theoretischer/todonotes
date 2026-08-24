@@ -136,6 +136,7 @@ class SyncRequest(BaseModel):
 class SyncResponse(BaseModel):
     new_synced_at: int
     server_changes: ChangesBundle
+    wipe_epoch: int = 0  # >0 wenn Server gewisped wurde → Client leert lokal
 
 
 # --- Auth-Models (M1: Multi-User) ---
