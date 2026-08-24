@@ -1,9 +1,15 @@
 # Migrationsplan: Compose Multiplatform (CMP)
 
-**Status: M1–M9 ABGESCHLOSSEN — Android + Web (Wasm) laufen mit Echtzeit-Sync (<1s)**
-**Offen: M8 Notifications (Android-Alarme), M10 Desktop-Feinschliff, Produktions-Deploy**
+**Status: MIGRATION ABGESCHLOSSEN (M1–M9, inkl. M8-Alarme + Produktions-Deploy)**
+**Live: Android + Web (Wasm) auf `https://todo.christopherh.de` (HTTPS via Nginx Proxy Manager)**
+**Offen: nur noch M10 Desktop-Feinschliff (optional) — alles Funktionale ist produktiv**
 **Backup: Tag `backup-pre-cmp` + Branch `backup-pre-cmp-migration` (Stand `bdb89a8`)**
-**Sync-Restlatenz: ~1s pro Durchlauf (OPFS-Flush im apply-Block) — akzeptiert, siehe M9.3**
+**Sync-Latenz real gemessen: ~50–100ms pro Durchlauf** (frühere ~1s war ein
+Browser-Cache-Artefakt, siehe M9.3 — nach Domain-Wechsel aufgelöst)
+
+> **Dieses Dokument ist die technische Referenz** (Architektur, Entscheidungen,
+> Phasen-Historie M1–M9). Aktueller Stand + offene Punkte: `PROGRESS.md`.
+> Alte Block-Planung der Original-App (A–H): `docs/PROGRESS-archiv-vor-cmp-abschluss.md`.
 
 ## Ziel
 
