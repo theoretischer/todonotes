@@ -6,11 +6,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Zustand, den der Editor an die UI reicht.
@@ -166,25 +168,33 @@ class NoteEditorViewModel(
 
     /** Sofort speichern (bei Back). Ruft onNoteUpdated auf damit die
      *  Liste sofort (optimistic) den neuen Titel/Body zeigt — ohne auf
-     *  den DB-Roundtrip zu warten. */
+     *  den DB-Roundtrip zu warten.
+     *  NonCancellable: flush läuft immer zu Ende, auch wenn der
+     *  aufrufende Scope gecancelled wird — sonst Connection-Leak. */
     fun flushNow() {
         saveJob?.cancel()
         vmScope.launch { flush() }
     }
 
     private suspend fun flush() {
-        if (!dirty) return
-        val id = noteId ?: return
-        val s = _state.value
-        if (s.deleted) {
-            // Notiz wurde gelöscht — NICHT überschreiben (Datenverlust!).
+        // NonCancellable: wenn der saveJob (von scheduleSave) gecancelled
+        // wird, während flush() die DB-Connection hält, würde die Connection
+        // nicht freigegeben → Deadlock ("Timed out acquiring writer").
+        // Mit NonCancellable läuft flush() immer zu Ende und gibt die
+        // Connection frei. Das `dirty`-Flag wird atomar zurückgesetzt —
+        // der nächste scheduleSave() startet einen neuen Job.
+        withContext(NonCancellable) {
+            if (!dirty) return@withContext
+            val id = noteId ?: return@withContext
+            val s = _state.value
+            if (s.deleted) {
+                dirty = false
+                return@withContext
+            }
+            val title = s.title.ifBlank { "Ohne Titel" }
+            noteRepo.updateNote(id, title, s.body)
+            onNoteUpdated?.invoke(id, title, s.body)
             dirty = false
-            return
         }
-        val title = s.title.ifBlank { "Ohne Titel" }
-        noteRepo.updateNote(id, title, s.body)
-        // Optimistic: Liste sofort updaten.
-        onNoteUpdated?.invoke(id, title, s.body)
-        dirty = false
     }
 }
