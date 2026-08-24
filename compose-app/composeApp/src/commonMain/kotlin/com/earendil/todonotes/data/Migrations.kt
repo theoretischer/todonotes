@@ -242,6 +242,20 @@ object Migrations {
         }
     }
 
+    /** v11 → v12: Zufriedenheits-Tracker.
+     *  - habits.type TEXT ('HABIT' oder 'SATISFACTION')
+     *  - habits.currentRating INTEGER (nullable, nur bei SATISFACTION)
+     *  - habits.position INTEGER (Drag-Drop-Reorder)
+     *  - habit_history.newRating INTEGER (nullable, bei Rating-Änderungen) */
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override suspend fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("ALTER TABLE habits ADD COLUMN type TEXT NOT NULL DEFAULT 'HABIT'")
+            connection.execSQL("ALTER TABLE habits ADD COLUMN currentRating INTEGER")
+            connection.execSQL("ALTER TABLE habits ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+            connection.execSQL("ALTER TABLE habit_history ADD COLUMN newRating INTEGER")
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -253,6 +267,7 @@ object Migrations {
         MIGRATION_7_8,
         MIGRATION_8_9,
         MIGRATION_9_10,
-        MIGRATION_10_11
+        MIGRATION_10_11,
+        MIGRATION_11_12
     )
 }

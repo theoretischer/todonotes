@@ -20,6 +20,10 @@ import androidx.room3.PrimaryKey
  * - deletedAt: Soft-Delete
  * - updatedAt: Last-Write-Wins beim Sync
  * - userId: Multi-User (M1). Default "legacy-user" bei Migration v9→v10.
+ * - type: Art der Gewohnheit (Habitype.HABIT / HabitType.SATISFACTION).
+ *   HABIT = klassisch (n mal pro Periode + Reset), SATISFACTION = 0-10 Skala + +/- Buttons.
+ * - currentRating: aktueller Zufriedenheitswert (0-10). Nur bei SATISFACTION relevant.
+ * - position: Sortierposition (1D-Reorder via Drag-Drop). Default 0.
  */
 @Entity(tableName = "habits")
 data class Habit(
@@ -36,12 +40,20 @@ data class Habit(
     val startDate: Long,
     val logToHistory: Boolean = true,
     val lastLoggedPeriodStart: Long? = null,
+    val type: HabitType = HabitType.HABIT,
+    val currentRating: Int? = null,
+    val position: Int = 0,
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null,
     val userId: String = "legacy-user"
 ) {
     val isOpen: Boolean get() = deletedAt == null
+}
+
+enum class HabitType(val label: String) {
+    HABIT("Gewohnheit"),
+    SATISFACTION("Zufriedenheit")
 }
 
 enum class CadenceType(val label: String) {

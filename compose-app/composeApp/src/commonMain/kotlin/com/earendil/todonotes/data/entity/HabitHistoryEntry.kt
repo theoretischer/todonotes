@@ -15,6 +15,8 @@ import androidx.room3.PrimaryKey
  * - periodStart: Start der abgelaufenen Periode
  * - count: wie oft in dieser Periode erledigt
  * - goal: Ziel der Periode (Snapshot)
+ * - newRating: neuer Rating-Wert bei Satisfaction-Trackern (0-10).
+ *   null bei klassischen Habits.
  * - userId: Multi-User (M1). Default "legacy-user" bei Migration v9→v10.
  */
 @Entity(
@@ -38,6 +40,7 @@ data class HabitHistoryEntry(
     val periodStart: Long,
     val count: Int,
     val goal: Int,
+    val newRating: Int? = null,
     val loggedAt: Long,
     val userId: String = "legacy-user"
 )

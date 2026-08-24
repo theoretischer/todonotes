@@ -30,10 +30,10 @@ import com.earendil.todonotes.data.entity.Todo
 @Database(
     entities = [Todo::class, Habit::class, HabitLog::class, HabitHistoryEntry::class,
         Folder::class, Note::class, ChatMessage::class],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
-@ColumnTypeConverters(IntSetConverter::class, NoteTypeConverter::class)
+@ColumnTypeConverters(IntSetConverter::class, HabitTypeConverter::class, NoteTypeConverter::class)
 @ConstructedBy(TodoNotesDatabaseConstructor::class)
 abstract class TodoNotesDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao

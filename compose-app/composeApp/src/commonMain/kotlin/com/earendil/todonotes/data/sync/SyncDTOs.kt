@@ -38,6 +38,9 @@ data class HabitDTO(
     val startDate: Long,
     val logToHistory: Boolean = true,
     val lastLoggedPeriodStart: Long? = null,
+    val type: String = "HABIT",
+    val currentRating: Int? = null,
+    val position: Int = 0,
     val createdAt: Long,
     val updatedAt: Long,
     val deletedAt: Long? = null
@@ -60,6 +63,7 @@ data class HabitHistoryEntryDTO(
     val periodStart: Long,
     val count: Int,
     val goal: Int,
+    val newRating: Int? = null,
     val loggedAt: Long
 )
 

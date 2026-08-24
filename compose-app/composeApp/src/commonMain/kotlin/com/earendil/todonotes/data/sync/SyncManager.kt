@@ -8,6 +8,7 @@ import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
+import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.entity.Todo
@@ -219,24 +220,26 @@ class SyncManager(
     private fun Habit.toDTO() = HabitDTO(
         id, title, notes, cadenceType.name, interval, resetWeekday, resetAnchorDay,
         resetAnchorMonth, goalCount, startDate, logToHistory, lastLoggedPeriodStart,
-        createdAt, updatedAt, deletedAt
+        type.name, currentRating, position, createdAt, updatedAt, deletedAt
     )
 
     private fun HabitDTO.toEntity() = Habit(
         id, title, notes, CadenceType.valueOf(cadenceType), interval, resetWeekday,
         resetAnchorDay, resetAnchorMonth, goalCount, startDate, logToHistory,
-        lastLoggedPeriodStart, createdAt, updatedAt, deletedAt, userId = userId
+        lastLoggedPeriodStart, HabitType.valueOf(type), currentRating, position,
+        createdAt, updatedAt, deletedAt, userId = userId
     )
 
     private fun HabitLog.toDTO() = HabitLogDTO(id, habitId, timestamp, note)
     private fun HabitLogDTO.toEntity() = HabitLog(id, habitId, timestamp, note, userId = userId)
 
     private fun HabitHistoryEntry.toDTO() = HabitHistoryEntryDTO(
-        id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt
+        id, habitId, title, cadenceLabel, periodStart, count, goal, newRating, loggedAt
     )
 
     private fun HabitHistoryEntryDTO.toEntity() = HabitHistoryEntry(
-        id, habitId, title, cadenceLabel, periodStart, count, goal, loggedAt, userId = userId
+        id, habitId, title, cadenceLabel, periodStart, count, goal, newRating,
+        loggedAt, userId = userId
     )
 
     private fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)

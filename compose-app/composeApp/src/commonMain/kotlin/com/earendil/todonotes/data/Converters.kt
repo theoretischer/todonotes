@@ -1,6 +1,7 @@
 package com.earendil.todonotes.data
 
 import androidx.room3.ColumnTypeConverter
+import com.earendil.todonotes.data.entity.HabitType
 import com.earendil.todonotes.data.entity.NoteType
 
 /** Konvertiert Set<Int> <-> "MO,TU,WE" String für Room. */
@@ -16,6 +17,15 @@ class IntSetConverter {
 }
 
 /** Konvertiert NoteType <-> String (Room speichert kein Enum direkt). */
+class HabitTypeConverter {
+    @ColumnTypeConverter
+    fun fromHabitType(type: HabitType): String = type.name
+
+    @ColumnTypeConverter
+    fun toHabitType(value: String): HabitType =
+        runCatching { HabitType.valueOf(value) }.getOrDefault(HabitType.HABIT)
+}
+
 class NoteTypeConverter {
     @ColumnTypeConverter
     fun fromType(type: NoteType): String = type.name

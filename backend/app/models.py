@@ -42,6 +42,9 @@ class HabitDTO(BaseModel):
     startDate: int
     logToHistory: bool = True
     lastLoggedPeriodStart: int | None = None
+    type: str = "HABIT"       # "HABIT" | "SATISFACTION"
+    currentRating: int | None = None
+    position: int = 0         # Reihenfolge (Drag-Drop)
     createdAt: int
     updatedAt: int
     deletedAt: int | None = None
@@ -68,6 +71,7 @@ class HabitHistoryEntryDTO(BaseModel):
     periodStart: int
     count: int
     goal: int
+    newRating: int | None = None   # Satisfaction: Rating-Änderung (0-10)
     loggedAt: int
 
 

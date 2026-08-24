@@ -115,6 +115,9 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             startDate             INTEGER NOT NULL,
             logToHistory          INTEGER NOT NULL,
             lastLoggedPeriodStart INTEGER,
+            type                  TEXT NOT NULL DEFAULT 'HABIT',
+            currentRating         INTEGER,
+            position              INTEGER NOT NULL DEFAULT 0,
             createdAt             INTEGER NOT NULL,
             updatedAt             INTEGER NOT NULL,
             deletedAt             INTEGER
@@ -141,6 +144,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             periodStart INTEGER NOT NULL,
             count       INTEGER NOT NULL,
             goal        INTEGER NOT NULL,
+            newRating   INTEGER,
             loggedAt    INTEGER NOT NULL,
             FOREIGN KEY(habitId) REFERENCES habits(id) ON DELETE CASCADE
         );
@@ -219,6 +223,12 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     # M7d: notes.position — Reihenfolge der Notizen im Ordner (Sync der Reorder).
     _add_column("notes", "position", "position INTEGER NOT NULL DEFAULT 0")
+
+    # Zufriedenheits-Tracker: habits.type (HABIT/SATISFACTION) + currentRating + position
+    _add_column("habits", "type", "type TEXT NOT NULL DEFAULT 'HABIT'")
+    _add_column("habits", "currentRating", "currentRating INTEGER")
+    _add_column("habits", "position", "position INTEGER NOT NULL DEFAULT 0")
+    _add_column("habit_history", "newRating", "newRating INTEGER")
 
     # Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
     _add_column("chat_messages", "quotedMessageId", "quotedMessageId TEXT")

@@ -19,7 +19,7 @@ interface HabitDao {
         """
         SELECT * FROM habits
         WHERE deletedAt IS NULL
-        ORDER BY createdAt ASC
+        ORDER BY position ASC, createdAt ASC
         """
     )
     fun observeHabits(): Flow<List<Habit>>
@@ -113,7 +113,7 @@ interface HabitDao {
     suspend fun upsertAllHistory(entries: List<HabitHistoryEntry>)
 
     /** Alle aktiven Habits einmalig (nicht reaktiv). */
-    @Query("SELECT * FROM habits WHERE deletedAt IS NULL ORDER BY createdAt ASC")
+    @Query("SELECT * FROM habits WHERE deletedAt IS NULL ORDER BY position ASC, createdAt ASC")
     suspend fun getAllHabitsOnce(): List<Habit>
 
     /** Alle Verlaufseinträge aller Habits, neueste zuerst. */
