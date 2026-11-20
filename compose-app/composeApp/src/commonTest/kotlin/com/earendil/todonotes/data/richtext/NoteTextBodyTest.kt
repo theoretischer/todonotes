@@ -151,6 +151,22 @@ class NoteTextBodyTest {
     }
 
     @Test
+    fun migrateFromBlocks_checkboxFirstLine_notJson_noDataLoss() {
+        // BUGFIX („Checkbox in Zeile 1 löscht alles“): Ein Body, der mit
+        // „[ ] “ beginnt, ist eine Checkbox-Liste — KEIN Block-JSON.
+        val plain = "[ ] Einkaufen\n[x] Katze füttern\nZweiter Satz"
+        val migrated = NoteTextBody.migrateFromBlocks(plain)
+        assertEquals(plain, migrated) // MUSS unverändert bleiben
+        val lines = NoteTextBody.toLines(migrated)
+        assertEquals(3, lines.size)
+        assertEquals(ListType.CHECKBOX, lines[0].type)
+        assertEquals("Einkaufen", lines[0].content)
+        assertFalse(lines[0].checked)
+        assertEquals(ListType.CHECKBOX, lines[1].type)
+        assertTrue(lines[1].checked)
+    }
+
+    @Test
     fun parseInlineStyles_removesBoldMarkers() {
         val segs = NoteTextBody.parseInlineStyles("Hallo **fett** Welt")
         assertEquals(3, segs.size)

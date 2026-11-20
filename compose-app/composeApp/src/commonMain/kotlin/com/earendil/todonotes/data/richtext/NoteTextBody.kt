@@ -325,9 +325,12 @@ object NoteTextBody {
     fun migrateFromBlocks(bodyJson: String): String {
         if (bodyJson.isBlank()) return ""
         val trimmed = bodyJson.trimStart()
-        // Block-JSON erkannt: entweder `[` (Block-Array) oder `{"blocks":`
-        // (NoteBodyJson.encode-Form mit dem blocks-Feld)
-        val looksLikeJson = trimmed.startsWith("[") || trimmed.startsWith("{")
+        // BUGFIX („Checkbox in Zeile 1 löscht alles“): Ein Body, der mit
+        // „[ ] “ oder „[x] “ beginnt (Checkbox-Liste), ist KEIN Block-JSON —
+        // das alte startsWith("[") hat ihn fehlinterpretiert, der Decode
+        // scheiterte still → leerer Body → Datenverlust via Auto-Save.
+        val looksLikeJson = (trimmed.startsWith("[") && !trimmed.startsWith("[ ] ") && !trimmed.startsWith("[x] ")) ||
+                trimmed.startsWith("{")
         if (looksLikeJson) {
             return runCatching { blocksToText(NoteBodyJson.decode(bodyJson)) }
                 .getOrElse { bodyJson }
