@@ -2,8 +2,14 @@ package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -13,34 +19,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.earendil.todonotes.data.richtext.ListType
+import com.earendil.todonotes.data.richtext.NoteLine
 import com.earendil.todonotes.data.richtext.NoteTextBody
 
 /**
- * Lesemodus des Notiz-Bodies (Option B, „wie es vorher war").
+ * Lesemodus des Notiz-Bodies („wie der alte Per-Zeilen-Editor", nur nicht
+ * editierbar).
  *
- * Rendert jede Zeile als: Prefix-Widget (ECHTE Checkbox, gezeichneter
- * Bullet-Punkt, Canvas-Pfeil — wie der alte Per-Zeilen-Editor) +
- * Fließtext mit Inline-Stilen (fett/kursiv/unterstrichen). Checkboxes
- * sind klickbar (togglen sofort, auto-save).
+ * Pro Zeile eine Row: Prefix-Widget (ECHTE Checkbox, gezeichneter Bullet,
+ * Canvas-Pfeil, Nummer) + Fließtext mit Inline-Stilen (fett/kursiv/
+ * unterstrichen als SpanStyles). Checkboxes sind direkt klickbar
+ * (togglen sofort, auto-save), Taps auf den Fließtext gehen an [modifier]
+ * (der Editor hängt dort den Wechsel in den Edit-Modus dran).
  *
- * Technik: [Text] mit [InlineTextContent] — echte Composables als
- * Platzhalter im Text. Der Platzhalter ist ein Object-Replacement-
- * Zeichen (\uFFFC) mit String-Annotation (id) — die Inline-Content-Map
- * keyt auf dieselbe id. (appendInlineContent gibt es erst ab
- * Compose 1.9 — hier 1.8.2, deshalb der klassische Weg.)
- *
- * Das geht NUR beim nicht-editierbaren Text (BasicTextField kann keine
- * Inline-Content-Composables) — deshalb der Modus-Wechsel im Editor.
+ * BUGFIX (Option-B-Runde 2): Vorher via Text + InlineTextContent
+ * (Composables ALS Platzhalter im Text). Das funktionierte in dieser
+ * Compose-Version nicht: die Platzhalter-\uFFFC-Zeichen wurden als
+ * rohe „OBJ"-Boxen (Tofu) gerendert, Checkbox/Pfeil-Composables erschienen
+ * nie — nur die SpanStyles (fett/kursiv) gingen, weil sie Teil des
+ * normalen Paragraph-Renderings sind. Jetzt wieder das simple, robuste
+ * Row-Layout — genau wie der alte Editor, der funktionierte ja.
  */
 @Composable
 internal fun NoteBodyReadOnly(
@@ -50,97 +55,100 @@ internal fun NoteBodyReadOnly(
 ) {
     val contentColor = MaterialTheme.colorScheme.onSurface
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val lines = ListPrefixRenderer.analyze(text)
+    val lines = NoteTextBody.toLines(text)
+    // Zeilen-Anfänge im ROH-Text (für toggleCheckbox) parallel zu toLines:
+    // jede Roh-Zeile ist prefix + content + "\n".
+    val rawLines = if (text.isEmpty()) listOf("") else text.split("\n")
 
-    val inlineContent = mutableMapOf<String, InlineTextContent>()
-    val annotated: AnnotatedString = buildAnnotatedString {
-        lines.forEachIndexed { i, l ->
-            val lineEnd = l.rawStart + l.rawLen
-            val hasNewline = lineEnd > 0 && lineEnd <= text.length && text[lineEnd - 1] == '\n'
-            val contentEnd = if (hasNewline) lineEnd - 1 else lineEnd
-            val content = text.substring(l.rawStart + l.rawPrefixLen, contentEnd)
-
-            // Abgehakte Checkbox-Zeile: gedimmt (wie der alte Editor).
-            if (l.type == ListType.CHECKBOX && l.checked) {
-                pushStyle(SpanStyle(color = dimColor))
-            }
-
-            // Prefix-Widget als Inline-Content: \uFFFC-Platzhalter +
-            // String-Annotation mit der id — die Inline-Content-Map keyt darauf.
-            if (l.type != null) {
-                val pid = "prefix-$i"
-                val start = length
-                append("\uFFFC")
-                addStringAnnotation(pid, pid, start, length)
-                inlineContent[pid] = InlineTextContent(
-                    placeholder = Placeholder(
-                        width = 24.sp,
-                        height = 24.sp,
-                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center
-                    )
-                ) {
-                    ReadOnlyPrefix(
-                        line = l,
-                        contentColor = contentColor,
-                        onToggle = { onToggleCheckbox(l.rawStart) }
-                    )
-                }
-            }
-
-            // Zeilen-Inhalt mit Inline-Stilen (fett/kursiv/unterstrichen).
-            for (seg in NoteTextBody.parseInlineStyles(content)) {
-                val style = when (seg.style) {
-                    NoteTextBody.InlineStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
-                    NoteTextBody.InlineStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
-                    NoteTextBody.InlineStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
-                    null -> SpanStyle()
-                }
-                pushStyle(style)
-                append(seg.text)
-                pop()
-            }
-
-            if (l.type == ListType.CHECKBOX && l.checked) pop()
-
-            if (hasNewline) append("\n")
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp) // Tap-Fläche auch bei leerem Body
+    ) {
+        var rawStart = 0
+        lines.forEachIndexed { index, line ->
+            val lineStart = rawStart
+            rawStart += (rawLines.getOrNull(index)?.length ?: 0) + 1
+            ReadOnlyNoteLine(
+                line = line,
+                contentColor = contentColor,
+                dimColor = dimColor,
+                onToggleCheckbox = if (line.type == ListType.CHECKBOX) {
+                    { onToggleCheckbox(lineStart) }
+                } else null
+            )
         }
     }
-
-    Text(
-        text = annotated,
-        inlineContent = inlineContent,
-        modifier = modifier,
-        style = MaterialTheme.typography.bodyLarge.copy(color = contentColor)
-    )
 }
 
-/** Das Prefix-Widget einer Zeile im Lesemodus. */
+/** Eine Zeile im Lesemodus: Prefix-Widget + stylischer Fließtext. */
 @Composable
-private fun ReadOnlyPrefix(
-    line: PrefixLineInfo,
+private fun ReadOnlyNoteLine(
+    line: NoteLine,
     contentColor: Color,
-    onToggle: () -> Unit
+    dimColor: Color,
+    onToggleCheckbox: (() -> Unit)?
 ) {
-    Box(
-        modifier = Modifier.size(24.dp),
-        contentAlignment = Alignment.Center
+    val checked = line.type == ListType.CHECKBOX && line.checked
+    val textColor = if (checked) dimColor else contentColor
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
     ) {
-        when (line.type) {
-            null -> Unit
-            ListType.CHECKBOX -> Checkbox(
-                checked = line.checked,
-                onCheckedChange = { onToggle() },
-                modifier = Modifier.size(22.dp)
-            )
-            ListType.BULLET -> BulletDot(color = contentColor)
-            // Fortlaufende Nummer (Anzeige) — transfPrefix ist "$seq. "
-            ListType.ORDERED -> Text(
-                text = line.transfPrefix,
-                style = MaterialTheme.typography.bodyLarge,
-                color = contentColor
-            )
-            ListType.ARROW -> ArrowCanvas(color = contentColor)
+        if (line.type == null) {
+            Spacer(Modifier.width(0.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .width(34.dp)
+                    .padding(top = when (line.type) {
+                        ListType.BULLET -> 10.dp
+                        ListType.CHECKBOX -> 6.dp
+                        ListType.ORDERED -> 6.dp
+                        ListType.ARROW -> 8.dp
+                        null -> 10.dp
+                    }),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                when (line.type) {
+                    ListType.BULLET -> BulletDot(textColor)
+                    ListType.CHECKBOX -> Checkbox(
+                        checked = line.checked,
+                        onCheckedChange = { onToggleCheckbox?.invoke() },
+                        modifier = Modifier.size(22.dp)
+                    )
+                    ListType.ORDERED -> Text(
+                        "${line.number}.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = textColor,
+                        modifier = Modifier.width(34.dp)
+                    )
+                    ListType.ARROW -> ArrowCanvas(textColor)
+                    null -> Unit
+                }
+            }
         }
+
+        Text(
+            text = styledContent(line.content),
+            style = MaterialTheme.typography.bodyLarge.copy(color = textColor),
+            modifier = Modifier.padding(vertical = 6.dp)
+        )
+    }
+}
+
+/** Zeilen-Inhalt mit Inline-Stilen (fett/kursiv/unterstrichen). */
+private fun styledContent(content: String): AnnotatedString = buildAnnotatedString {
+    for (seg in NoteTextBody.parseInlineStyles(content)) {
+        val style = when (seg.style) {
+            NoteTextBody.InlineStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+            NoteTextBody.InlineStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
+            NoteTextBody.InlineStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
+            null -> SpanStyle()
+        }
+        pushStyle(style)
+        append(seg.text)
+        pop()
     }
 }
 

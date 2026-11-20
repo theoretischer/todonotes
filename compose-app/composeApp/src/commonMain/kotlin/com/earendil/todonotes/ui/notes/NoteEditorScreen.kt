@@ -163,6 +163,9 @@ fun NoteEditorScreen(
     // Modus (EIN mehrzeiliges Feld: Pfeiltasten + Mehrzeilen-Markierung,
     // Bug 3). „Fertig“-Button (Häkchen) → zurück in den Lesemodus.
     var editing by remember { mutableStateOf(false) }
+    // Beim Wechsel in den Edit-Modus: Cursor ans Textende + Fokus anfordern.
+    var focusEditOnSwitch by remember { mutableStateOf(false) }
+    val bodyFocusRequester = remember { FocusRequester() }
 
     // --- Lokaler Editierzustand: Titel + EIN Body-Feld (Roh-Text) ---
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
@@ -183,6 +186,16 @@ fun NoteEditorScreen(
         bodyValue = TextFieldValue(s.body, TextRange(s.body.length))
         // Neue Notiz direkt in den Edit-Modus (Titel fokussiert).
         if (isNew) editing = true
+    }
+
+    // Beim Wechsel in den Edit-Modus: Fokus ins Body-Feld holen (Cursor
+    // ans Ende via TextFieldValue im Body selbst). Läuft nach dem
+    // Rekompilieren von editing=true.
+    LaunchedEffect(editing) {
+        if (editing && focusEditOnSwitch) {
+            focusEditOnSwitch = false
+            bodyFocusRequester.requestFocus()
+        }
     }
 
     // Neue Notiz: Titel fokussieren (Select-all via onFocusChanged unten).
@@ -411,22 +424,20 @@ fun NoteEditorScreen(
 
             if (!editing) {
                 // ----- LESEMODUS (Option B): echte Widgets wie früher -----
-                // Tap auf den Fließtext → Edit-Modus. Checkboxen sind direkt
-                // klickbar (togglen ohne Modus-Wechsel, auto-save).
+                // GANZER Block klickbar → Edit-Modus. Checkboxen fangen ihren
+                // Tap selbst ab (kein Modus-Wechsel, togglen direkt).
                 NoteBodyReadOnly(
                     text = currentBodyValue.text,
                     onToggleCheckbox = { lineStart -> toggleCheckboxAt(lineStart) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                )
-                // Unsichtbarer Tap-Bereich:Tip auf den LEEREN Raum unter
-                // dem Text auch → Edit (sonst nur direkt auf den Text).
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(240.dp)
-                        .clickable { editing = true }
+                        .clickable {
+                            // In den Edit-Modus: Cursor ans Textende + Fokus.
+                            val t = bodyValue?.text ?: ""
+                            bodyValue = t.let { TextFieldValue(it, TextRange(it.length)) }
+                            focusEditOnSwitch = true
+                            editing = true
+                        }
                 )
             } else {
                 // ----- EDIT-MODUS (Bug 3): EIN mehrzeiliges Feld -----
@@ -436,6 +447,7 @@ fun NoteEditorScreen(
                     onValueChange = { commitBody(it) },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .focusRequester(bodyFocusRequester)
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown || event.key != Key.Enter) {
                                 return@onPreviewKeyEvent false
