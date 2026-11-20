@@ -307,13 +307,17 @@ fun NoteEditorScreen(
             else -> NoteTextBody.CHECKBOX_OPEN + content
         }
         val newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
-        val delta = newLine.length - fullLine.length
-        fun map(offset: Int): Int = when {
-            offset <= lineStart -> offset
-            offset >= lineEnd -> offset + delta
-            else -> lineStart + newLine.length
+        // Cursor-Position nach dem Toggle:
+        // - Präfix wurde ENTFERNT (gleicher Typ nochmal) → Zeilenanfang
+        // - sonst → HINTER den (neuen) Präfix, in den INHALT
+        //   (vorher blieb er am Zeilenanfang → „ich schreibe vor der Checkbox“)
+        val newCursor = if (currentType == type) lineStart else when (type) {
+            ListType.CHECKBOX -> lineStart + NoteTextBody.CHECKBOX_OPEN.length
+            ListType.BULLET -> lineStart + NoteTextBody.BULLET_PREFIX.length
+            ListType.ORDERED -> lineStart + orderedNumber(text, lineStart).let { "$it. ".length }
+            ListType.ARROW -> lineStart + NoteTextBody.ARROW_PREFIX.length
         }
-        commitBody(TextFieldValue(newText, TextRange(map(cursor), map(cursor))))
+        commitBody(TextFieldValue(newText, TextRange(newCursor)))
     }
 
     fun toggleInlineStyleActive(style: NoteTextBody.InlineStyle) {
