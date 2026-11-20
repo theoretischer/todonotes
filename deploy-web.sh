@@ -8,20 +8,23 @@ set -euo pipefail
 
 cd "$(dirname "$0")/compose-app"
 
-# WICHTIG: build/wasm enthält eine KOPIE des lokalen npm-Paketes
-# (@androidx/sqlite-web-worker). Gradle erkennt Aenderungen an worker.js
-# dort NICHT zuverlässig -> veralteter Worker im Build! Deshalb vorher
-# loeschen.
+# WICHTIG: build/wasm/node_modules enthält eine KOPIE des lokalen npm-
+# Paketes (@androidx/sqlite-web-worker). Gradle erkennt Aenderungen an
+# worker.js dort NICHT zuverlässig -> veralteter Worker im Build!
 #
-# M13-Perf: --no-daemon und --rerun-tasks ENTFERNT.
-#  - --no-daemon startete bei jedem Deploy eine frische Gradle-JVM
-#    (Konfiguration ~5-10s + Kotlin-Compiler-Daemon kalt = der Großteil
-#    der alten ~70s).
-#  - --rerun-tasks zwang ALLE Tasks neu (unveränderte inklusive).
-#  Der Worker-Bug wird vom rm -rf build/wasm weiterhin abgedeckt (die
-#  Kopie wird neu erzeugt, geänderte Tasks laufen eh neu).
-#  Ergebnis: Deploy-Build jetzt ~15-20s statt ~70s.
-rm -rf build/wasm
+# M14-Perf: Frueher rm -rf build/wasm (loeschte AUCH node_modules ->
+# jedes Mal komplettes yarn install + alle Wasm-Tasks neu = 21-60s).
+# Jetzt: die Kopie per rsync MIT DEM QUELLORDNER SYNCHRONISIEREN
+# (nicht löschen — yarn-Install bleibt UP-TO-DATE, der Worker-Inhalt
+# ist trotzdem immer frisch). GLEICHZEITIG das gelöschte Paket aus
+# einem früheren Testlauf wiederherstellen, falls fehlt (idempotent).
+mkdir -p build/wasm/node_modules/@androidx/sqlite-web-worker
+rsync -a --delete sqlite-web-worker/ build/wasm/node_modules/@androidx/sqlite-web-worker/
+# ...und die Kopie in packages/composeApp/kotlin (dorthin kopiert es
+# der KGP-Task "wasmJsProcessResources" bzw. webpack-resolve — frisch
+# halten, gleiche Quelle):
+mkdir -p build/wasm/packages/composeApp/kotlin
+rsync -a sqlite-web-worker/worker.js build/wasm/packages/composeApp/kotlin/sqlite-worker.js
 
 echo ">>> Baue Web-App..."
 JAVA_HOME=/usr/lib/jvm/java-17-openjdk ./gradlew :composeApp:wasmJsBrowserDistribution
