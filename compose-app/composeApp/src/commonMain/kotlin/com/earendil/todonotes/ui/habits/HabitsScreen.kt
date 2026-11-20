@@ -64,6 +64,12 @@ fun HabitsScreen(
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // M14: Titel-Anker (Notizen bekommen keinen — dort ist der Breadcrumb der Anker).
+        com.earendil.todonotes.ui.components.ScreenTitle(
+            "Gewohnheiten",
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
         if (habits.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),

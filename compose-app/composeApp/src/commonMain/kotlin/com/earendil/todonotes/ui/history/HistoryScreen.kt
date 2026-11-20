@@ -36,7 +36,14 @@ fun HistoryScreen(
     onDeleteHistoryEntry: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    if (completedTodos.isEmpty() && habitHistory.isEmpty()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // M14: Titel-Anker.
+        com.earendil.todonotes.ui.components.ScreenTitle(
+            "Verlauf",
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
+        if (completedTodos.isEmpty() && habitHistory.isEmpty()) {
         Box(
             modifier = modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
@@ -145,6 +152,7 @@ fun HistoryScreen(
                 }
             }
             item { Spacer(Modifier.height(80.dp)) }
+        }
         }
     }
 }

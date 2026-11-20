@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+import com.earendil.todonotes.ui.components.ScreenTitle
+import androidx.compose.ui.unit.sp
 import com.earendil.todonotes.ui.components.linkified
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Instant
@@ -74,6 +76,9 @@ fun TodosScreen(
     val density = LocalDensity.current
 
     Box(modifier = modifier.fillMaxSize()) {
+        // M14: Große Titelzeile als Anker (über der Liste, scrollt nicht mit).
+        ScreenTitle("Aufgaben", modifier = Modifier.align(Alignment.TopStart))
+
         if (groups.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -96,7 +101,7 @@ fun TodosScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (groups.overdue.isNotEmpty()) {
-                    item { SectionHeader("Überfällig", color = MaterialTheme.colorScheme.error) }
+                    item { SectionHeader("Überfällig", groups.overdue.size, color = MaterialTheme.colorScheme.error) }
                     items(groups.overdue, key = { it.id }) { todo ->
                         SwipeToDeleteRow(
                             onDelete = { onDeleteTodo(todo.id) },
@@ -112,7 +117,7 @@ fun TodosScreen(
                     }
                 }
                 if (groups.today.isNotEmpty()) {
-                    item { SectionHeader("Heute") }
+                    item { SectionHeader("Heute", groups.today.size) }
                     items(groups.today, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
                             TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
@@ -120,7 +125,7 @@ fun TodosScreen(
                     }
                 }
                 if (groups.tomorrow.isNotEmpty()) {
-                    item { SectionHeader("Morgen") }
+                    item { SectionHeader("Morgen", groups.tomorrow.size) }
                     items(groups.tomorrow, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
                             TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
@@ -128,7 +133,7 @@ fun TodosScreen(
                     }
                 }
                 if (groups.thisWeek.isNotEmpty()) {
-                    item { SectionHeader("Diese Woche") }
+                    item { SectionHeader("Diese Woche", groups.thisWeek.size) }
                     items(groups.thisWeek, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
                             TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
@@ -136,7 +141,7 @@ fun TodosScreen(
                     }
                 }
                 if (groups.later.isNotEmpty()) {
-                    item { SectionHeader("Später") }
+                    item { SectionHeader("Später", groups.later.size) }
                     items(groups.later, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
                             TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
@@ -144,7 +149,7 @@ fun TodosScreen(
                     }
                 }
                 if (groups.noDate.isNotEmpty()) {
-                    item { SectionHeader("Kein Datum") }
+                    item { SectionHeader("Kein Datum", groups.noDate.size) }
                     items(groups.noDate, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
                             TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
@@ -191,14 +196,26 @@ fun TodosScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, color: Color = MaterialTheme.colorScheme.primary) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = color,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(bottom = 4.dp)
-    )
+private fun SectionHeader(title: String, count: Int = 0, color: Color = MaterialTheme.colorScheme.primary) {
+    // M14: dezente Abschnitts-Überschrift: KLEINE GROSSBUCHSTABEN, Anzahl daneben
+    // ("KEIN DATUM · 2"). Gedämpftes Blau/Grau — Text im Vordergrund.
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp
+        )
+        if (count > 0) {
+            Text(
+                text = " · $count",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
 }
 
 @Composable
@@ -218,7 +235,7 @@ private fun TodoRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.background)
             .clickable { onEdit() }
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -229,10 +246,11 @@ private fun TodoRow(
                 Icon(
                     if (completing) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                     contentDescription = "Erledigt",
+                    // M14: kleinerer, dünnerer Kreis im gedämpften Grau —
+                    // der Text steht im Vordergrund, nicht der Kreis.
                     tint = if (completing) MaterialTheme.colorScheme.primary
-                           else if (overdue) MaterialTheme.colorScheme.error
                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 

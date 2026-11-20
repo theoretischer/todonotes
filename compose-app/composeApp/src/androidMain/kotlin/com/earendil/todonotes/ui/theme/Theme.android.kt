@@ -7,13 +7,8 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-/** Android-actual: Dynamic Color ab Android S (12), sonst statisch. */
+/** Android-actual: IMMER statisch (M14: Dynamic Color deaktiviert — es
+ *  würde das eigene Farbsystem mit den Wallpaper-Farben überschreiben). */
 @Composable
-internal actual fun resolveColorScheme(darkTheme: Boolean): ColorScheme {
-    val context = LocalContext.current
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        staticColorScheme(darkTheme)
-    }
-}
+internal actual fun resolveColorScheme(darkTheme: Boolean): ColorScheme =
+    staticColorScheme(darkTheme)

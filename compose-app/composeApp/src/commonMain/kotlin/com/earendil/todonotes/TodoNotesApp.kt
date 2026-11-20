@@ -247,7 +247,7 @@ fun TodoNotesApp(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
-                    .padding(end = 12.dp, top = 8.dp)
+                    .padding(end = 16.dp, top = 12.dp)  // M14: mehr Luft zur Statusleiste
             )
         }
     }

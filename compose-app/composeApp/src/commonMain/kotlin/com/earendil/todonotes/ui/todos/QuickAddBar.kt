@@ -5,6 +5,7 @@ package com.earendil.todonotes.ui.todos
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -21,9 +22,11 @@ import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.*
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -113,50 +116,63 @@ fun QuickAddBar(
         notesOpen = false
     }
 
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        shadowElevation = 6.dp,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    placeholder = { Text("Neue Aufgabe…") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
+        // M14: EIN abgerundetes, gefülltes TextField (kein Outline, kein Karten-
+        // Aufbau) — der Senden-Button sitzt DARIN (trailingIcon), Zeilenhöhe 56dp.
+        TextField(
+            value = title,
+            onValueChange = { title = it },
+            placeholder = { Text("Neue Aufgabe…") },
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            ),
+            trailingIcon = {
                 // Erstellen-Knopf: nur ein Häkchen, klein & simpel.
-                FilledIconButton(
+                IconButton(
                     onClick = { submit() },
                     enabled = title.isNotBlank(),
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = "Erstellen")
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Erstellen",
+                        tint = if (title.isNotBlank()) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
-            }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        )
 
-            if (notesOpen) {
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    placeholder = { Text("Notizen…") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 1,
-                    maxLines = 3
-                )
-            }
+        if (notesOpen) {
+            TextField(
+                value = notes,
+                onValueChange = { notes = it },
+                placeholder = { Text("Notizen…") },
+                shape = RoundedCornerShape(20.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
-            // Runde Options-Knöpfe
-            Row(
+        // Runde Options-Knöpfe
+        Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -225,7 +241,6 @@ fun QuickAddBar(
                 )
             }
         }
-    }
 
     // ---- DatePicker (→ TimePicker → gesetzt) ----
     if (showDatePicker) {
