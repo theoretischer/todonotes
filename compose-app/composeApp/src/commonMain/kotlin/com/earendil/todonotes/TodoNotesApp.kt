@@ -176,16 +176,15 @@ fun TodoNotesApp(
             }
         }
     ) { padding ->
-        // Bei offener Tastatur (ime > 0): KEIN bottom-Padding — der Content geht
-        // bis zum Boden (die NavBar wird von der Tastatur überdeckt, braucht
-        // also keinen Platz mehr). Die Quick-Add-Box mit imePadding klebt dann
-        // DIREKT auf der Tastatur (vorher: Box-Höhe + NavBar-Höhe Luft dazwischen,
-        // weil die Box schon über der NavBar startete UND imePadding drauf kam).
-        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        // Todos-Tab: KEIN bottom-Padding — die Quick-Add-Box positioniert sich
+        // selbst mit max(ime, BottomBar-Höhe) (s. TodosScreen): so fährt sie beim
+        // Tastatur-Öffnen/-Schließen WEICH mit der Tastatur-Animation mit, ohne
+        // Sprung (die Liste bekommt ihr bottom-clearance via contentPadding).
+        // Andere Tabs: wie gehabt Content endet über der BottomBar.
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(bottom = if (imeVisible) 0.dp else padding.calculateBottomPadding())
+                .padding(bottom = if (currentTab == Tab.Todos) 0.dp else padding.calculateBottomPadding())
         ) {
             when (currentTab) {
                 Tab.Todos -> TodosScreen(
@@ -194,7 +193,9 @@ fun TodoNotesApp(
                     onEditTodo = todoVm::updateTodo,
                     onCompleteTodo = todoVm::completeTodo,
                     onDeleteTodo = todoVm::deleteTodo,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    // NavBar-Höhe (px) für die Quick-Add-Position (max mit ime).
+                    bottomBarPadding = with(LocalDensity.current) { padding.calculateBottomPadding().toPx().toInt() }
                 )
                 Tab.Habits -> HabitsScreen(
                     habits = habitsWithProgress,

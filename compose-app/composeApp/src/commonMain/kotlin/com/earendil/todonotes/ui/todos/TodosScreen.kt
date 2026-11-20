@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -64,10 +65,13 @@ fun TodosScreen(
     onEditTodo: (String, TodoFormData) -> Unit,
     onCompleteTodo: (String) -> Unit,
     onDeleteTodo: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Höhe der BottomBar in px (für die Quick-Add-Position). */
+    bottomBarPadding: Int = 0
 ) {
     var editingTodo by remember { mutableStateOf<Todo?>(null) }
     val groups = remember(todos) { groupOpenTodos(todos) }
+    val density = LocalDensity.current
 
     Box(modifier = modifier.fillMaxSize()) {
         if (groups.isEmpty()) {
@@ -151,14 +155,26 @@ fun TodosScreen(
         }
 
         // Quick-Add-Bar (M13): schwebend über der Bottom-Bar, ersetzt den FAB.
-        // imePadding: bei offener Tastatur fährt NUR diese Box hoch (die
-        // Bottom-Bar bleibt unten — sie ist nicht mehr ime-gepaddet).
+        //
+        // Position = max(ime-Höhe, BottomBar-Höhe) + Normal-Abstand:
+        // Die Tastatur-Animation (ime-Inset) läuft CONTINUERLICH (0→volle Höhe
+        // animiert) — so gleitet die Box beim Öffnen/Schließen WEICH mit der
+        // Tastatur mit. VORHER: binäres imePadding auf Content der eh schon
+        // über der NavBar endete → Box sprang hinter die aufkommende Tastatur
+        // (wurde hochgeschoben) und beim Schließen hinterhergezogen.
+        // max() mit NavBar-Höhe: geschlossene Tastatur → Box bleibt über der
+        // Bottom-Bar (Padding im Scaffold fällt dafür im Todos-Tab weg, s.
+        // TodoNotesApp).
+        val bottomBarPx = bottomBarPadding
+        val imeBottomPx = WindowInsets.ime.getBottom(density)
+        // max(ime, NavBar) in px → dp
+        val liftPx = if (imeBottomPx > bottomBarPx) imeBottomPx else bottomBarPx
         QuickAddBar(
             onCreateTodo = onCreateTodo,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .imePadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(bottom = with(density) { liftPx.toDp() })
+                .padding(horizontal = 12.dp)
         )
     }
 
