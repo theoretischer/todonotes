@@ -178,7 +178,7 @@ fun TodosScreen(
             onCreateTodo = onCreateTodo,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = with(density) { liftPx.toDp() })
+                .padding(bottom = with(density) { liftPx.toDp() } + 12.dp)  // + Luft zur BottomBar
                 .padding(horizontal = 12.dp)
         )
     }

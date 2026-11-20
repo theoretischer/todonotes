@@ -116,60 +116,68 @@ fun QuickAddBar(
         notesOpen = false
     }
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    // M14b: Die GESAMTE Bar ist eine abgerundete Karte in Nav-Bar-Farbe
+    // (surface) — TextField + Options-Knöpfe liegen AUF ihr. Das TextField
+    // selbst eine Nuance heller (Fläche 2) damit es sich abhebt.
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,  // = BottomBar-Farbe
+        modifier = modifier.fillMaxWidth()
     ) {
-        // M14: EIN abgerundetes, gefülltes TextField (kein Outline, kein Karten-
-        // Aufbau) — der Senden-Button sitzt DARIN (trailingIcon), Zeilenhöhe 56dp.
-        TextField(
-            value = title,
-            onValueChange = { title = it },
-            placeholder = { Text("Neue Aufgabe…") },
-            singleLine = true,
-            shape = RoundedCornerShape(20.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            trailingIcon = {
-                // Erstellen-Knopf: nur ein Häkchen, klein & simpel.
-                IconButton(
-                    onClick = { submit() },
-                    enabled = title.isNotBlank(),
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "Erstellen",
-                        tint = if (title.isNotBlank()) MaterialTheme.colorScheme.primary
-                               else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp)
-        )
-
-        if (notesOpen) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // EIN abgerundetes, gefülltes TextField (kein Outline) — der
+            // Senden-Button sitzt DARIN (trailingIcon), Zeilenhöhe 56dp.
             TextField(
-                value = notes,
-                onValueChange = { notes = it },
-                placeholder = { Text("Notizen…") },
-                shape = RoundedCornerShape(20.dp),
+                value = title,
+                onValueChange = { title = it },
+                placeholder = { Text("Neue Aufgabe…") },
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
-                modifier = Modifier.fillMaxWidth()
+                trailingIcon = {
+                    // Erstellen-Knopf: nur ein Häkchen, klein & simpel.
+                    IconButton(
+                        onClick = { submit() },
+                        enabled = title.isNotBlank(),
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Erstellen",
+                            tint = if (title.isNotBlank()) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp)
             )
-        }
+
+            if (notesOpen) {
+                TextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    placeholder = { Text("Notizen…") },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
         // Runde Options-Knöpfe
         Row(
@@ -241,6 +249,7 @@ fun QuickAddBar(
                 )
             }
         }
+    }
 
     // ---- DatePicker (→ TimePicker → gesetzt) ----
     if (showDatePicker) {
@@ -337,7 +346,7 @@ private fun QuickOptionButton(
         Surface(
             onClick = onClick,
             shape = CircleShape,
-            color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
             modifier = Modifier.size(44.dp)
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
