@@ -2,6 +2,7 @@ package com.earendil.todonotes.data.repo
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atTime
@@ -37,6 +38,48 @@ class RecurrenceParityTest {
 
     private fun dateOf(millis: Long): LocalDate =
         Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz).date
+
+    private fun timeOf(millis: Long): LocalTime =
+        Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz).time
+
+    private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long =
+        LocalDate(year, month, day).atTime(LocalTime(hour, minute)).toInstant(tz).toEpochMilliseconds()
+
+    private fun ldtOf(millis: Long): LocalDateTime =
+        Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz)
+
+    /**
+     * REGRESSIONS-TEST („2:00-Uhr-Bug"):
+     * nextOccurrence darf die Original-Uhrzeit von fromDue NIE verändern.
+     * Der Bug: DateTime(long) nutzt UTC, toAllDay() stript die Uhrzeit →
+     * Mitternacht UTC = 02:00 CEST. Prüft beide Engines (JVM + Fallback)
+     * auf exakte Uhrzeit-Erhaltung (hier 09:23) plus Datum.
+     */
+    @Test fun time_of_day_is_preserved() {
+        val base = at(2025, 6, 15, 9, 23) // 15.06.2025 09:23 (Sommerzeit, CEST)
+        val now = at(2025, 6, 15, 18, 0) // abhaken am selben Abend
+        val rules = listOf(
+            "FREQ=DAILY" to at(2025, 6, 16, 9, 23),
+            "FREQ=WEEKLY" to at(2025, 6, 22, 9, 23),
+            "FREQ=MONTHLY" to at(2025, 7, 15, 9, 23),
+            "FREQ=YEARLY" to at(2026, 6, 15, 9, 23)
+        )
+        for ((rrule, expected) in rules) {
+            val jvm = RecurrenceEngine.nextOccurrence(rrule, base, now)
+            assertTrue(jvm != null, "$rrule: JVM=null")
+            assertEquals(
+                ldtOf(expected),
+                ldtOf(jvm!!),
+                "$rrule: Uhrzeit verändert! erwartet=${ldtOf(expected)} bekommen=${ldtOf(jvm)}"
+            )
+            val fallback = RecurrenceCalculator.nextOccurrence(rrule, base, now)
+            assertEquals(
+                ldtOf(expected),
+                ldtOf(fallback!!),
+                "$rrule (fallback): Uhrzeit verändert!"
+            )
+        }
+    }
 
     /**
      * Parity-Check für "abhaken am Fälligkeitstag": fromDue = Mittag, now = 18:00.
