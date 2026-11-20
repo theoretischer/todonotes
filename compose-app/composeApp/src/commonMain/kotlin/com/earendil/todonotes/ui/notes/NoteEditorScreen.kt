@@ -483,12 +483,23 @@ fun NoteEditorScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            // In den Edit-Modus: Cursor ans Textende + Fokus.
+                            // Tap auf leeren Raum (nicht auf Text): Edit-Modus
+                            // mit Cursor ans Textende.
                             val t = bodyValue?.text ?: ""
                             bodyValue = t.let { TextFieldValue(it, TextRange(it.length)) }
                             focusEditOnSwitch = true
                             editing = true
-                        }
+                        },
+                    onTextTap = { rawOffset ->
+                        // Tap AUF den Text: Edit-Modus mit Cursor genau an
+                        // der Tap-Position (Roh-Text-Offset aus dem
+                        // Text-Layout des Lesemodus-Texts).
+                        val t = bodyValue?.text ?: ""
+                        val clamped = rawOffset.coerceIn(0, t.length)
+                        bodyValue = TextFieldValue(t, TextRange(clamped))
+                        focusEditOnSwitch = true
+                        editing = true
+                    }
                 )
             } else {
                 // ----- EDIT-MODUS (Bug 3): EIN mehrzeiliges Feld -----

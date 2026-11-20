@@ -1,6 +1,8 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,12 +16,18 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +59,8 @@ import com.earendil.todonotes.data.richtext.NoteTextBody
 internal fun NoteBodyReadOnly(
     text: String,
     onToggleCheckbox: (lineRawStart: Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTextTap: (rawOffset: Int) -> Unit = {}
 ) {
     val contentColor = MaterialTheme.colorScheme.onSurface
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -68,14 +77,21 @@ internal fun NoteBodyReadOnly(
         var rawStart = 0
         lines.forEachIndexed { index, line ->
             val lineStart = rawStart
-            rawStart += (rawLines.getOrNull(index)?.length ?: 0) + 1
+            val rawLine = rawLines.getOrNull(index) ?: ""
+            // Präfix-Länge im ROH-Text (das Präfix wird als Widget gerendert,
+            // nicht im sichtbaren Text — Roh-Offset = lineStart + prefixLen + …).
+            val prefixLen = rawLine.length - NoteTextBody.stripPrefix(rawLine).length
+            rawStart += rawLine.length + 1 // + \n
             ReadOnlyNoteLine(
                 line = line,
+                lineStart = lineStart,
+                prefixLen = prefixLen,
                 contentColor = contentColor,
                 dimColor = dimColor,
                 onToggleCheckbox = if (line.type == ListType.CHECKBOX) {
                     { onToggleCheckbox(lineStart) }
-                } else null
+                } else null,
+                onTextTap = onTextTap
             )
         }
     }
@@ -85,9 +101,12 @@ internal fun NoteBodyReadOnly(
 @Composable
 private fun ReadOnlyNoteLine(
     line: NoteLine,
+    lineStart: Int,
+    prefixLen: Int,
     contentColor: Color,
     dimColor: Color,
-    onToggleCheckbox: (() -> Unit)?
+    onToggleCheckbox: (() -> Unit)?,
+    onTextTap: (Int) -> Unit
 ) {
     val checked = line.type == ListType.CHECKBOX && line.checked
     val textColor = if (checked) dimColor else contentColor
@@ -129,10 +148,31 @@ private fun ReadOnlyNoteLine(
             }
         }
 
+        // Tap auf den TEXT → Cursor an die Tap-Position (Roh-Text-Offset).
+        // getOffsetForPosition liefert den Offset im SICHTBAREN Text (ohne
+        // Inline-Marker wie **fett**) → visualToRawOffset mapped zurück.
+        // + prefixLen: das Präfix (-/[ ]/N.) ist ein Widget, im Roh-Text
+        // steht es davor.
+        var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
         Text(
             text = styledContent(line.content),
             style = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-            modifier = Modifier.padding(vertical = 6.dp)
+            onTextLayout = { textLayout = it },
+            modifier = Modifier
+                .padding(vertical = 6.dp)
+                .pointerInput(line.content) {
+                    detectTapGestures { pos ->
+                        val layout = textLayout ?: return@detectTapGestures
+                        val visualOffset = try {
+                            layout.getOffsetForPosition(pos)
+                        } catch (e: IllegalArgumentException) {
+                            0
+                        }
+                        val rawContentOffset =
+                            NoteTextBody.visualToRawOffset(line.content, visualOffset)
+                        onTextTap(lineStart + prefixLen + rawContentOffset)
+                    }
+                }
         )
     }
 }
