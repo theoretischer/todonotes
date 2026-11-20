@@ -4,6 +4,7 @@
 
 package com.earendil.todonotes.ui.notes
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListBulleted
@@ -155,23 +157,32 @@ fun NoteEditorScreen(
 ) {
     val state by vm.state.collectAsState()
 
+    // --- Modus: Lesemodus (schöne Widgets) ↔ Edit-Modus (ein Textfeld) ---
+    // Option B: Notiz standardmäßig LESBAR mit echten Checkboxen/Pfeil/
+    // Bullet (wie der alte Per-Zeilen-Editor). Tap auf den Text → Edit-
+    // Modus (EIN mehrzeiliges Feld: Pfeiltasten + Mehrzeilen-Markierung,
+    // Bug 3). „Fertig“-Button (Häkchen) → zurück in den Lesemodus.
+    var editing by remember { mutableStateOf(false) }
+
     // --- Lokaler Editierzustand: Titel + EIN Body-Feld (Roh-Text) ---
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var titleSelectedOnce by remember { mutableStateOf(false) }
     val titleFocusRequester = remember { FocusRequester() }
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val bodyTransformation = remember(dimColor) { NoteBodyVisualTransformation(dimColor) }
 
     // Bei Notizwechsel: Editor-State zurücksetzen und neu laden.
     LaunchedEffect(noteId) {
         titleValue = null
         bodyValue = null
         titleSelectedOnce = false
+        editing = false
         vm.load(noteId, isNew, initialTitle, initialBody)
         val s = vm.state.first { it.loaded }
         titleValue = TextFieldValue(s.title)
         bodyValue = TextFieldValue(s.body, TextRange(s.body.length))
+        // Neue Notiz direkt in den Edit-Modus (Titel fokussiert).
+        if (isNew) editing = true
     }
 
     // Neue Notiz: Titel fokussieren (Select-all via onFocusChanged unten).
@@ -206,10 +217,15 @@ fun NoteEditorScreen(
         titleValue = TextFieldValue(state.title)
     }
 
-    // System-Back: speichern + schließen
+    // System-Back: Edit-Modus → erst zurück in den Lesemodus; sonst speichern + schließen
     BackHandler(enabled = state.loaded) {
-        vm.flushNow()
-        onBack()
+        if (editing) {
+            editing = false
+            vm.flushNow()
+        } else {
+            vm.flushNow()
+            onBack()
+        }
     }
 
     // --- Mutations-Helfer (Roh-Koordinaten!) ---
@@ -217,6 +233,15 @@ fun NoteEditorScreen(
     fun commitBody(newValue: TextFieldValue) {
         bodyValue = newValue
         vm.updateBody(newValue.text)
+    }
+
+    /** Lesemodus: Checkbox an Zeilen-Anfang [lineRawStart] togglen. */
+    fun toggleCheckboxAt(lineRawStart: Int) {
+        val text = bodyValue?.text ?: return
+        val newText = NoteTextBody.toggleCheckbox(text, lineRawStart)
+        val sel = bodyValue!!.selection
+        val len = newText.length
+        commitBody(TextFieldValue(newText, TextRange(sel.min.coerceAtMost(len), sel.max.coerceAtMost(len))))
     }
 
     fun lineStartOf(text: String, offset: Int): Int =
@@ -312,6 +337,16 @@ fun NoteEditorScreen(
                     }
                 },
                 actions = {
+                    // Modus-Wechsel (Option B): Häkchen = zurück in den Lesemodus
+                    // (schöne Widgets); im Lesemodus Tippen auf den Text → Edit.
+                    if (editing) {
+                        IconButton(onClick = {
+                            editing = false
+                            vm.flushNow()
+                        }) {
+                            Icon(Icons.Filled.Check, contentDescription = "Fertig")
+                        }
+                    }
                     com.earendil.todonotes.ui.components.SyncIndicator(
                         syncState = syncState,
                         modifier = Modifier.padding(end = 12.dp)
@@ -320,18 +355,22 @@ fun NoteEditorScreen(
             )
         },
         bottomBar = {
-            CompactFormatBar(
-                modifier = Modifier.windowInsetsPadding(
-                    WindowInsets.ime.union(WindowInsets.navigationBars)
-                ),
-                onBullet = { toggleListType(ListType.BULLET) },
-                onOrdered = { toggleListType(ListType.ORDERED) },
-                onCheckbox = { toggleListType(ListType.CHECKBOX) },
-                onArrow = { toggleListType(ListType.ARROW) },
-                onBold = { toggleInlineStyleActive(NoteTextBody.InlineStyle.BOLD) },
-                onItalic = { toggleInlineStyleActive(NoteTextBody.InlineStyle.ITALIC) },
-                onUnderline = { toggleInlineStyleActive(NoteTextBody.InlineStyle.UNDERLINE) }
-            )
+            // Format-Leiste nur im Edit-Modus (im Lesemodus gibt's nichts
+            // zu formatieren — die Checkbox togglet direkt).
+            if (editing) {
+                CompactFormatBar(
+                    modifier = Modifier.windowInsetsPadding(
+                        WindowInsets.ime.union(WindowInsets.navigationBars)
+                    ),
+                    onBullet = { toggleListType(ListType.BULLET) },
+                    onOrdered = { toggleListType(ListType.ORDERED) },
+                    onCheckbox = { toggleListType(ListType.CHECKBOX) },
+                    onArrow = { toggleListType(ListType.ARROW) },
+                    onBold = { toggleInlineStyleActive(NoteTextBody.InlineStyle.BOLD) },
+                    onItalic = { toggleInlineStyleActive(NoteTextBody.InlineStyle.ITALIC) },
+                    onUnderline = { toggleInlineStyleActive(NoteTextBody.InlineStyle.UNDERLINE) }
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -370,67 +409,81 @@ fun NoteEditorScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // EIN mehrzeiliges Feld für den kompletten Body (Bug-3-Fix) mit
-            // Symbol-Präfixen (Bug-3b-Fix). Pfeiltasten/Markierung nativ.
-            // Tap auf ☐/☑ togglet die Checkbox.
-            BasicTextField(
-                value = currentBodyValue,
-                onValueChange = { commitBody(it) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown || event.key != Key.Enter) {
-                            return@onPreviewKeyEvent false
-                        }
-                        val v = bodyValue ?: return@onPreviewKeyEvent false
-                        val text = v.text
-                        val cursor = rawCursor(v)
-                        val lineStart = lineStartOf(text, cursor)
-                        val lineEnd = lineEndOf(text, lineStart)
-                        val fullLine = text.substring(lineStart, lineEnd)
-                        val type = NoteTextBody.detectListType(fullLine)
-                        val content = NoteTextBody.stripPrefix(fullLine)
-                        when {
-                            type == null -> false // normale Zeile: Default-\n
-                            content.isBlank() -> {
-                                // Leere Listen-Zeile: Präfix raus (= Liste verlassen),
-                                // kein Zeilenumbruch — wie vorher.
-                                val newText = text.substring(0, lineStart) + text.substring(lineEnd)
-                                commitBody(TextFieldValue(newText, TextRange(lineStart)))
-                                true
+            if (!editing) {
+                // ----- LESEMODUS (Option B): echte Widgets wie früher -----
+                // Tap auf den Fließtext → Edit-Modus. Checkboxen sind direkt
+                // klickbar (togglen ohne Modus-Wechsel, auto-save).
+                NoteBodyReadOnly(
+                    text = currentBodyValue.text,
+                    onToggleCheckbox = { lineStart -> toggleCheckboxAt(lineStart) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp)
+                )
+                // Unsichtbarer Tap-Bereich:Tip auf den LEEREN Raum unter
+                // dem Text auch → Edit (sonst nur direkt auf den Text).
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clickable { editing = true }
+                )
+            } else {
+                // ----- EDIT-MODUS (Bug 3): EIN mehrzeiliges Feld -----
+                // Pfeiltasten + Mehrzeilen-Markierung nativ.
+                BasicTextField(
+                    value = currentBodyValue,
+                    onValueChange = { commitBody(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown || event.key != Key.Enter) {
+                                return@onPreviewKeyEvent false
                             }
-                            else -> {
-                                // Listen-Fortsetzung: \n + passender Präfix.
-                                // Checkbox: immer [ ] (frisch). Geordnet: nächste Nummer.
-                                val prefix = when (type) {
-                                    ListType.BULLET -> NoteTextBody.BULLET_PREFIX
-                                    ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
-                                    ListType.ARROW -> NoteTextBody.ARROW_PREFIX
-                                    ListType.ORDERED -> "${orderedNumber(text, lineStart) + 1}. "
+                            val v = bodyValue ?: return@onPreviewKeyEvent false
+                            val text = v.text
+                            val cursor = rawCursor(v)
+                            val lineStart = lineStartOf(text, cursor)
+                            val lineEnd = lineEndOf(text, lineStart)
+                            val fullLine = text.substring(lineStart, lineEnd)
+                            val type = NoteTextBody.detectListType(fullLine)
+                            val content = NoteTextBody.stripPrefix(fullLine)
+                            when {
+                                type == null -> false // normale Zeile: Default-\n
+                                content.isBlank() -> {
+                                    // Leere Listen-Zeile: Präfix raus (= Liste
+                                    // verlassen), kein Zeilenumbruch — wie vorher.
+                                    val newText = text.substring(0, lineStart) + text.substring(lineEnd)
+                                    commitBody(TextFieldValue(newText, TextRange(lineStart)))
+                                    true
                                 }
-                                val newText = text.substring(0, cursor) + "\n" + prefix + text.substring(cursor)
-                                val newCursor = cursor + 1 + prefix.length
-                                commitBody(TextFieldValue(newText, TextRange(newCursor)))
-                                true
+                                else -> {
+                                    // Listen-Fortsetzung: \n + passender Präfix.
+                                    // Checkbox: immer [ ] (frisch). Geordnet: nächste Nummer.
+                                    val prefix = when (type) {
+                                        ListType.BULLET -> NoteTextBody.BULLET_PREFIX
+                                        ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
+                                        ListType.ARROW -> NoteTextBody.ARROW_PREFIX
+                                        ListType.ORDERED -> "${orderedNumber(text, lineStart) + 1}. "
+                                    }
+                                    val newText = text.substring(0, cursor) + "\n" + prefix + text.substring(cursor)
+                                    val newCursor = cursor + 1 + prefix.length
+                                    commitBody(TextFieldValue(newText, TextRange(newCursor)))
+                                    true
+                                }
                             }
                         }
-                    }
-                    .padding(vertical = 6.dp),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                visualTransformation = bodyTransformation,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Default
-                ),
-                // Tap-auf-☐/☑ → Checkbox togglen (Text-Layout-Hit-Test über
-                // der Transformation — symbol area, nicht edit cursor).
-                interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource().also {
-                    remember(it) {}
-                }
-            )
+                        .padding(vertical = 6.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Default
+                    )
+                )
+            }
 
             Spacer(Modifier.height(80.dp))
         }
