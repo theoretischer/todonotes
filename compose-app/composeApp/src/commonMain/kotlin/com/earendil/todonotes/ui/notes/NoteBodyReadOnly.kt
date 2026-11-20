@@ -33,6 +33,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalUriHandler
+import com.earendil.todonotes.ui.components.appendLinkified
+import com.earendil.todonotes.ui.components.UrlMatch
 import com.earendil.todonotes.data.richtext.ListType
 import com.earendil.todonotes.data.richtext.NoteLine
 import com.earendil.todonotes.data.richtext.NoteTextBody
@@ -153,9 +156,19 @@ private fun ReadOnlyNoteLine(
         // Inline-Marker wie **fett**) → visualToRawOffset mapped zurück.
         // + prefixLen: das Präfix (-/[ ]/N.) ist ein Widget, im Roh-Text
         // steht es davor.
+        //
+        // M12: Liegt die Tap-Position auf einem LINK, wird der Link geöffnet
+        // (eigener UriHandler), NICHT in den Edit-Modus gewechselt — der
+        // eigene Tap-Handler konsumiert die Geste, der Text-interne
+        // Link-Handler von Compose käme nie zum Zug.
         var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+        val urlRanges = remember { mutableListOf<Pair<IntRange, String>>() }
+        val uriHandler = LocalUriHandler.current
+        val linkColor = MaterialTheme.colorScheme.primary
+        urlRanges.clear()
+        val annotated = styledContentWithLinks(line.content, linkColor, urlRanges)
         Text(
-            text = styledContent(line.content),
+            text = annotated,
             style = MaterialTheme.typography.bodyLarge.copy(color = textColor),
             onTextLayout = { textLayout = it },
             modifier = Modifier
@@ -168,6 +181,12 @@ private fun ReadOnlyNoteLine(
                         } catch (e: IllegalArgumentException) {
                             0
                         }
+                        // Link unter dem Finger? → öffnen, kein Edit-Wechsel.
+                        val hit = urlRanges.firstOrNull { visualOffset in it.first }
+                        if (hit != null) {
+                            uriHandler.openUri(hit.second)
+                            return@detectTapGestures
+                        }
                         val rawContentOffset =
                             NoteTextBody.visualToRawOffset(line.content, visualOffset)
                         onTextTap(lineStart + prefixLen + rawContentOffset)
@@ -177,8 +196,18 @@ private fun ReadOnlyNoteLine(
     }
 }
 
-/** Zeilen-Inhalt mit Inline-Stilen (fett/kursiv/unterstrichen). */
-private fun styledContent(content: String): AnnotatedString = buildAnnotatedString {
+/** Zeilen-Inhalt mit Inline-Stilen (fett/kursiv/unterstrichen) + klickbaren
+ *  Links (M12). [urlRanges]: (visualStart..visualEnd, URL) im SICHTBAREN
+ *  Text — für den Tap-Abgleich im Lesemodus (dort konsumiert der eigene
+ *  Cursor-Tap-Handler die Geste, Links müssen deshalb selbst geöffnet
+ *  werden; Text-interner Link-Handler kriegt den Tap nie). */
+private fun styledContentWithLinks(
+    content: String,
+    linkColor: Color,
+    urlRanges: MutableList<Pair<IntRange, String>>
+): AnnotatedString {
+    val builder = AnnotatedString.Builder()
+    var visPos = 0
     for (seg in NoteTextBody.parseInlineStyles(content)) {
         val style = when (seg.style) {
             NoteTextBody.InlineStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
@@ -186,10 +215,15 @@ private fun styledContent(content: String): AnnotatedString = buildAnnotatedStri
             NoteTextBody.InlineStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
             null -> SpanStyle()
         }
-        pushStyle(style)
-        append(seg.text)
-        pop()
+        // Links innerhalb des Segments (URLs können formatiert sein).
+        builder.appendLinkified(seg.text, linkColor, baseStyle = style) { match ->
+            val start = match.range.first + visPos
+            val endVis = start + match.url.length
+            urlRanges.add((start until endVis) to match.url)
+        }
+        visPos += seg.text.length
     }
+    return builder.toAnnotatedString()
 }
 
 /** Großer runder Bullet-Punkt (wie der alte Per-Zeilen-Editor). */

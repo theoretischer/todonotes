@@ -22,6 +22,7 @@ import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.data.repo.formatDateGerman
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+import com.earendil.todonotes.ui.components.linkified
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -129,7 +130,7 @@ fun HistoryScreen(
                         onClick = {}
                     ) {
                         androidx.compose.material3.ListItem(
-                            headlineContent = { Text(todo.title, fontWeight = FontWeight.Medium) },
+                            headlineContent = { Text(linkified(todo.title, MaterialTheme.colorScheme.primary), fontWeight = FontWeight.Medium) },
                             supportingContent = {
                                 todo.completedAt?.let {
                                     Text("Erledigt: ${formatDateTime(it)}")

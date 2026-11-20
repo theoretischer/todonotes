@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
+import com.earendil.todonotes.ui.components.linkified
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -235,7 +236,8 @@ private fun TodoRow(
             Column(modifier = Modifier.weight(1f)) {
                 Box {
                     Text(
-                        text = todo.title,
+                        // M12: Links im Titel klickbar (LinkAnnotation).
+                        text = linkified(todo.title, MaterialTheme.colorScheme.primary),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -251,7 +253,8 @@ private fun TodoRow(
                 }
                 if (todo.notes.isNotBlank()) {
                     Text(
-                        text = todo.notes,
+                        // M12: Links in der Notiz klickbar (LinkAnnotation).
+                        text = linkified(todo.notes, MaterialTheme.colorScheme.primary),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

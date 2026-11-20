@@ -91,6 +91,7 @@ import com.earendil.todonotes.data.repo.formatTimeGerman
 import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.ChatViewModel
+import com.earendil.todonotes.ui.components.linkified
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -471,7 +472,8 @@ private fun ChatBubble(
                 Spacer(Modifier.height(4.dp))
             }
             Text(
-                text = message.text,
+                // M12: Links in Chat-Nachrichten klickbar (LinkAnnotation).
+                text = linkified(message.text, MaterialTheme.colorScheme.primary),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
