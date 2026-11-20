@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.ui.AuthViewModel
 import com.earendil.todonotes.ui.ChatViewModel
@@ -175,7 +176,17 @@ fun TodoNotesApp(
             }
         }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
+        // Bei offener Tastatur (ime > 0): KEIN bottom-Padding — der Content geht
+        // bis zum Boden (die NavBar wird von der Tastatur überdeckt, braucht
+        // also keinen Platz mehr). Die Quick-Add-Box mit imePadding klebt dann
+        // DIREKT auf der Tastatur (vorher: Box-Höhe + NavBar-Höhe Luft dazwischen,
+        // weil die Box schon über der NavBar startete UND imePadding drauf kam).
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(bottom = if (imeVisible) 0.dp else padding.calculateBottomPadding())
+        ) {
             when (currentTab) {
                 Tab.Todos -> TodosScreen(
                     todos = openTodos,
