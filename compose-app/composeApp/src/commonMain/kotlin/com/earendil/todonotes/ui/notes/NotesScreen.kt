@@ -75,7 +75,6 @@ fun NotesScreen(
 
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<Folder?>(null) }
-    var moveNoteTarget by remember { mutableStateOf<Note?>(null) }
     var moveFolderTarget by remember { mutableStateOf<Folder?>(null) }
     var showNewMenu by remember { mutableStateOf(false) }
 
@@ -162,10 +161,7 @@ fun NotesScreen(
                                 notesVm.moveNote(noteId, targetFolderId)
                             }
                         ) {
-                            NoteRow(
-                                note = note,
-                                onMove = { moveNoteTarget = note }
-                            )
+                            NoteRow(note = note)
                         }
                     }
                 }
@@ -246,19 +242,10 @@ fun NotesScreen(
         )
     }
 
-    moveNoteTarget?.let { note ->
-        MoveNoteSheet(
-            note = note,
-            currentFolderId = state.currentFolderId,
-            onMove = { targetFolderId ->
-                notesVm.moveNote(note.id, targetFolderId)
-                moveNoteTarget = null
-            },
-            onDismiss = { moveNoteTarget = null },
-            loadFolders = { notesVm.getAllFoldersForMove() }
-        )
-    }
-
+    // Notizen: ⋮-Menü entfernt (Verschieben geht per Drag auf Ordner/
+    // Reorder — das Menü war redundant). Ordner behalten ihr Menü
+    // (Umbenennen + Verschieben — Ordner-Drag verschiebt IN Ordner,
+    // nicht den Ordner selbst).
     moveFolderTarget?.let { folder ->
         MoveFolderSheet(
             folder = folder,
@@ -387,11 +374,9 @@ private fun FolderRow(
 
 @Composable
 private fun NoteRow(
-    note: Note,
-    onMove: () -> Unit
+    note: Note
 ) {
     val preview = remember(note.bodyJson) { notePreview(note) }
-    var menuExpanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -424,21 +409,6 @@ private fun NoteRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            // ⋮-Menü
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Optionen")
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Verschieben") },
-                        onClick = { menuExpanded = false; onMove() }
                     )
                 }
             }
@@ -511,54 +481,6 @@ private fun notePreview(note: Note): String {
         ?.trim()
         ?.let { NoteTextBody.stripPrefix(it).trim() }
         ?: ""
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MoveNoteSheet(
-    note: Note,
-    currentFolderId: String?,
-    onMove: (String?) -> Unit,
-    onDismiss: () -> Unit,
-    loadFolders: suspend () -> List<Folder>
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
-    LaunchedEffect(Unit) { folders = loadFolders() }
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Text(
-            "Notiz verschieben",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 24.dp, top = 4.dp, bottom = 8.dp)
-        )
-        if (currentFolderId != null) {
-            MoveTargetRow(
-                icon = { Icon(Icons.Default.TextSnippet, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                name = "Notizen (Hauptebene)",
-                onClick = { onMove(null) }
-            )
-            HorizontalDivider()
-        }
-        if (folders.isEmpty() && currentFolderId == null) {
-            Text(
-                "Keine Ordner vorhanden.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(24.dp)
-            )
-        } else {
-            folders.filter { it.id != currentFolderId }.forEach { folder ->
-                MoveTargetRow(
-                    icon = { Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    name = folder.name,
-                    onClick = { onMove(folder.id) }
-                )
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
