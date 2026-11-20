@@ -286,7 +286,15 @@ fun NoteEditorScreen(
 
     /**
      * Toolbar: Listen-Typ der Cursor-Zeile togglen.
-     * Checkbox-Button auf einer Checkbox-Zeile: [ ]↔[x] togglen (abhaken!).
+     * CHECKBOX-Semantik (Punkt 6):
+     *  - Einfach-Tipp: keine Checkbox → [ ] einfügen. Checkbox ([ ] ODER
+     *    [x]) vorhanden → entfernen (Toggle aus).
+     *  - Doppeltipp ohne Checkbox → direkt [x] (angehakt) einfügen.
+     *  - Achtung Doppeltipp-Sequenz: Der 1. Tipp fügt bereits [ ] ein —
+     *    der 2. Tipp (als Doppeltipp erkannt) muss das FRISCH eingefügte
+     *    [ ] in [x] UMWANDELN, nicht entfernen. Deshalb: [checked] =
+     *    „2. Tipp kurz nach dem 1., der [ ] neu eingefügt hat“ →
+     *    Checkbox-Zeile wird zu [x] statt entfernt.
      */
     fun toggleListType(type: ListType, checked: Boolean = false) {
         val v = bodyValue ?: return
@@ -299,27 +307,30 @@ fun NoteEditorScreen(
         val content = NoteTextBody.stripPrefix(fullLine)
 
         val newLine: String = when {
-            type == ListType.CHECKBOX && currentType == ListType.CHECKBOX -> {
-                if (NoteTextBody.isCheckboxChecked(fullLine))
-                    NoteTextBody.CHECKBOX_OPEN + content
-                else NoteTextBody.CHECKBOX_DONE + content
-            }
+            // Checkbox-Zeile + [checked] (Doppeltipp-Sequenz):
+            // frisch eingefügtes [ ] → zu [x] umwandeln
+            type == ListType.CHECKBOX && currentType == ListType.CHECKBOX && checked ->
+                NoteTextBody.CHECKBOX_DONE + content
+            // Checkbox-Zeile (einfacher Tipp): [ ] oder [x] → entfernen
+            type == ListType.CHECKBOX && currentType == ListType.CHECKBOX -> content
+            // Doppeltipp ohne vorhandene Checkbox → direkt [x]
+            type == ListType.CHECKBOX && checked -> NoteTextBody.CHECKBOX_DONE + content
             currentType == type -> content
             type == ListType.ORDERED -> "${orderedNumber(text, lineStart)}. $content"
             type == ListType.BULLET -> NoteTextBody.BULLET_PREFIX + content
             type == ListType.ARROW -> NoteTextBody.ARROW_PREFIX + content
-            // Punkt 6: Doppeltipp auf den Checkbox-Button → direkt ANGEHAKTE
-            // Checkbox ([x]) einfügen statt [ ]. (Nur beim NEUEN Einfügen.)
-            type == ListType.CHECKBOX && checked -> NoteTextBody.CHECKBOX_DONE + content
             else -> NoteTextBody.CHECKBOX_OPEN + content
         }
         val newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
         // Cursor-Position nach dem Toggle:
         // - Präfix wurde ENTFERNT (gleicher Typ nochmal) → Zeilenanfang
         // - sonst → HINTER den (neuen) Präfix, in den INHALT
-        //   (vorher blieb er am Zeilenanfang → „ich schreibe vor der Checkbox“)
-        val newCursor = if (currentType == type) lineStart else when (type) {
-            ListType.CHECKBOX -> lineStart + NoteTextBody.CHECKBOX_OPEN.length
+        val prefixRemoved = newLine == content
+        val newCursor = if (prefixRemoved) lineStart else when (type) {
+            ListType.CHECKBOX -> lineStart + (
+                if (newLine.startsWith(NoteTextBody.CHECKBOX_DONE)) NoteTextBody.CHECKBOX_DONE.length
+                else NoteTextBody.CHECKBOX_OPEN.length
+            )
             ListType.BULLET -> lineStart + NoteTextBody.BULLET_PREFIX.length
             ListType.ORDERED -> lineStart + orderedNumber(text, lineStart).let { "$it. ".length }
             ListType.ARROW -> lineStart + NoteTextBody.ARROW_PREFIX.length
@@ -389,21 +400,15 @@ fun NoteEditorScreen(
                     onBullet = { toggleListType(ListType.BULLET) },
                     onOrdered = { toggleListType(ListType.ORDERED) },
                     onCheckbox = {
-                        // Punkt 6: Doppeltipp → direkt ANGEHAKTE Checkbox ([x])
-                        // einfügen. Einfach-Tipp = wie bisher ([ ] bzw. Toggle).
-                        // Erkennung: letzteonClick-Zeit merken, < 400ms = Doppeltipp.
+                        // Punkt 6: Doppeltipp → direkt ANGEHAKTE Checkbox ([x]).
+                        // Sequenz: 1. Tipp fügt [ ] ein, 2. Tipp (Doppeltipp)
+                        // wandelt das frische [ ] in [x] um (in toggleListType).
+                        // Einfach-Tipp: [ ] einfügen bzw. vorhandene Checkbox
+                        // ([ ] ODER [x]) entfernen.
                         val nowMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
                         val isDoubleTap = nowMs - lastCheckboxTapMs < 400
                         lastCheckboxTapMs = nowMs
-                        val v = bodyValue
-                        val onCheckboxLine = v != null && kotlin.run {
-                            val ls = lineStartOf(v!!.text, v.selection.min)
-                            val le = lineEndOf(v.text, ls)
-                            NoteTextBody.detectListType(v.text.substring(ls, le)) == ListType.CHECKBOX
-                        }
-                        // Auf einer Checkbox-Zeile: Doppeltipp bleibt Toggle
-                        // (abhaken ist der häufigere Fall), sonst → [x] einfügen.
-                        toggleListType(ListType.CHECKBOX, checked = isDoubleTap && !onCheckboxLine)
+                        toggleListType(ListType.CHECKBOX, checked = isDoubleTap)
                     },
                     onArrow = { toggleListType(ListType.ARROW) },
                     onBold = { toggleInlineStyleActive(NoteTextBody.InlineStyle.BOLD) },
