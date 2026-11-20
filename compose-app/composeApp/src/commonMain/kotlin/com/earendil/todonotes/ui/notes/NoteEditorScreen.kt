@@ -59,19 +59,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.richtext.ListType
 import com.earendil.todonotes.data.richtext.NoteTextBody
@@ -79,38 +70,6 @@ import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.NoteEditorViewModel
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.first
-
-/**
- * Blendet Inline-Stil-Marker (**fett**, *kursiv*, __unterstrichen__) aus
- * und rendert den Stil direkt (bold/italic/underline). Cursor-Positionen
- * werden zwischen sichtbarem und Roh-Text gemappt, sodass der Cursor nie
- * "in" den Markern landet.
- */
-private class MarkdownVisualTransformation : VisualTransformation {
-
-    override fun filter(text: AnnotatedString): TransformedText {
-        val raw = text.text
-        val parsed = NoteTextBody.parseInlineStyles(raw)
-        val annotated = buildAnnotatedString {
-            parsed.forEach { seg ->
-                val style = when (seg.style) {
-                    NoteTextBody.InlineStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
-                    NoteTextBody.InlineStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
-                    NoteTextBody.InlineStyle.UNDERLINE -> SpanStyle(textDecoration = TextDecoration.Underline)
-                    null -> SpanStyle()
-                }
-                append(AnnotatedString(seg.text, style))
-            }
-        }
-        val offsetMapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int =
-                NoteTextBody.rawToVisualOffset(raw, offset)
-            override fun transformedToOriginal(offset: Int): Int =
-                NoteTextBody.visualToRawOffset(raw, offset)
-        }
-        return TransformedText(annotated, offsetMapping)
-    }
-}
 
 /** Kompakte Format-Leiste (sitzt über der Tastatur). */
 @Composable
@@ -164,30 +123,24 @@ private fun CompactFormatBar(
 }
 
 /**
- * Vollbild-Notiz-Editor — EIN mehrzeiliges Textfeld (Bug-3-Fix).
+ * Vollbild-Notiz-Editor — EIN mehrzeiliges Textfeld (Bug-3-Fix) mit
+ * hübscher Präfix-Darstellung (Bug-3b-Fix).
  *
- * Vorher: jede Zeile war ein eigenes BasicTextField in einer Row mit
- * grafischem Prefix-Widget. Das sah hübsch aus, hatte aber zwei
- * Follow-Bugs: Pfeiltasten/Mehrzeilen-Markierung gingen nicht über
- * Feldgrenzen hinaus (Compose kann das prinzipiell nicht), und die
- * Zeilen-Reparatur-Logik (Enter/Backspace fängt, Zeile löschen) war
- * fehleranfällig.
+ * Bug 3: Vorher war jede Zeile ein eigenes BasicTextField → Pfeiltasten
+ * und Mehrzeilen-Markierung gingen prinzipbedingt nicht (Compose kann
+ * Cursor/Selektion nicht über Feldgrenzen bewegen). Fix: EIN Feld.
  *
- * Jetzt: der komplette Body ist EIN mehrzeiliges BasicTextField.
- *  - Pfeiltasten, Maus-Markierung über Zeilen, Handy-Selektion: natives
- *    Verhalten, funktioniert automatisch.
- *  - Die Listen-Präfixe (- , [ ] , 1. , → ) bleiben als TEXT im Feld
- *    stehen (wie Markdown-Quelle) — KEIN hübsches Rendering im Editor
- *    (bewusst einfach gehalten, siehe PROGRESS.md). Die Notiz-Liste
- *    rendert die Vorschau weiterhin über [NoteTextBody].
- *  - Fett/Kursiv/Unterstrichen werden weiter über die
- *    [MarkdownVisualTransformation] direkt angezeigt.
- *  - Enter in einer Listen-Zeile: fügt \n + passenden Präfix ein
- *    (Checkbox → "[ ] ", geordnet → nächste Nummer). Enter in einer
- *    LEEREN Listen-Zeile: entfernt den Präfix (= Liste verlassen).
- *  - Toolbar: Typ-Toggle auf der Cursor-Zeile. Der Checkbox-Button ist
- *    schlau: auf einer Checkbox-Zeile toggled er [ ]↔[x] (abhaken!),
- *    sonst macht er die Zeile zur Checkbox (bzw. nimmt den Präfix weg).
+ * Bug 3b: Der erste Fix zeigte die Präfixe als reinen Text ("- ", "[ ] ").
+ * Fix: [NoteBodyVisualTransformation] rendert die Präfixe NUR für die
+ * Anzeige als Symbole (•, ☐/☑, fortlaufende Nummer) — der Roh-Text
+ * (und damit DB/Sync) bleibt unverändert. Pfeiltasten/Markierung
+ * funktionieren weiter nativ, weil die Cursor-Koordinaten über
+ * Offset-Mappings zwischen Roh- und Anzeige-Text übersetzt werden.
+ *
+ * Toolbar + Enter arbeiten in ROH-Koordinaten (der gespeicherte Text),
+ * die Cursor-Position wird dafür aus den Anzeige-Koordinaten
+ * zurückgemappt ([ListPrefixRenderer.transfToOrig] via
+ * [NoteTextBody.visualToRawOffset] und zurück).
  */
 @Composable
 fun NoteEditorScreen(
@@ -202,11 +155,13 @@ fun NoteEditorScreen(
 ) {
     val state by vm.state.collectAsState()
 
-    // --- Lokaler Editierzustand: Titel + EIN Body-Feld ---
+    // --- Lokaler Editierzustand: Titel + EIN Body-Feld (Roh-Text) ---
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var titleSelectedOnce by remember { mutableStateOf(false) }
     val titleFocusRequester = remember { FocusRequester() }
+    val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val bodyTransformation = remember(dimColor) { NoteBodyVisualTransformation(dimColor) }
 
     // Bei Notizwechsel: Editor-State zurücksetzen und neu laden.
     LaunchedEffect(noteId) {
@@ -214,39 +169,33 @@ fun NoteEditorScreen(
         bodyValue = null
         titleSelectedOnce = false
         vm.load(noteId, isNew, initialTitle, initialBody)
-        // Warten bis VM loaded=true, dann Titel + Body setzen.
         val s = vm.state.first { it.loaded }
         titleValue = TextFieldValue(s.title)
         bodyValue = TextFieldValue(s.body, TextRange(s.body.length))
     }
 
-    // Neue Notiz: Titel fokussieren (Select-all via onFocusChanged unten),
-    // dann per Tastatur "Next" in den Body.
+    // Neue Notiz: Titel fokussieren (Select-all via onFocusChanged unten).
     LaunchedEffect(state.loaded, state.isNewNote) {
         if (state.loaded && state.isNewNote) {
             titleFocusRequester.requestFocus()
         }
     }
 
-    // Sync-A+: Notiz wurde von einem anderen Gerät gelöscht → Editor
-    // schließen (statt zu überschreiben = Datenverlust).
+    // Sync-A+: Notiz wurde von einem anderen Gerät gelöscht → Editor schließen.
     LaunchedEffect(state.deleted) {
         if (state.deleted) {
-            // Nicht flushen — die Notiz ist weg.
-            onBack()
+            onBack() // nicht flushen — die Notiz ist weg
         }
     }
 
-    // Sync-A+: Remote-Update übernehmen. Das VM gated das bereits über
-    // dirty (kein Update während der Nutzer tippt / 500ms-Debounce läuft)
-    // — hier ankommen heißt also: Nutzer war idle. Cursor behalten
-    // (auf neue Textlänge geclampt).
+    // Sync-A+: Remote-Update übernehmen (VM gated über dirty — hier ankommen
+    // heißt: Nutzer war idle). Cursor behalten (auf neue Länge geclampt).
     LaunchedEffect(state.remoteUpdate) {
         if (state.remoteUpdate == 0) return@LaunchedEffect
         if (!state.loaded || bodyValue == null) return@LaunchedEffect
         val v = bodyValue!!
         if (state.body == v.text && state.title == (titleValue?.text ?: "")) {
-            return@LaunchedEffect // nichts zu tun
+            return@LaunchedEffect
         }
         val len = state.body.length
         val sel = v.selection
@@ -263,25 +212,20 @@ fun NoteEditorScreen(
         onBack()
     }
 
-    // --- Mutations-Helfer (alles in Roh-Text-Koordinaten — das Feld
-    //     arbeitet in Roh-Koordinaten, die Transformation ist Anzeige) ---
+    // --- Mutations-Helfer (Roh-Koordinaten!) ---
 
     fun commitBody(newValue: TextFieldValue) {
         bodyValue = newValue
         vm.updateBody(newValue.text)
     }
 
-    /** Zeilen-Anfang der Zeile, in der [offset] liegt. */
     fun lineStartOf(text: String, offset: Int): Int =
         if (offset <= 0) 0 else text.lastIndexOf('\n', offset - 1) + 1
 
-    /** Zeilen-Ende (exklusiv, ohne \n) ab [lineStart]. */
     fun lineEndOf(text: String, lineStart: Int): Int =
         text.indexOf('\n', lineStart).let { if (it < 0) text.length else it }
 
-    /** Laufende Nummer einer geordneten Zeile = Zahl vorheriger
-     *  aufeinanderfolgender ORDERED-Zeilen + 1 (für Enter-Fortsetzung
-     *  und Toolbar-Nummerierung). */
+    /** Fortlaufende NEUE Nummer für eine ORDERED-Zeile (wie die Anzeige). */
     fun orderedNumber(text: String, lineStart: Int): Int {
         var n = 0
         var s = lineStart
@@ -295,17 +239,18 @@ fun NoteEditorScreen(
         return n + 1
     }
 
+    /** Cursor-Position (Roh-Text — Selection in TextFieldValue ist bereits Roh). */
+    fun rawCursor(v: TextFieldValue): Int = v.selection.min
+
     /**
      * Toolbar: Listen-Typ der Cursor-Zeile togglen.
-     *  - Zeile hat schon den Typ → Präfix entfernen (aus)
-     *  - sonst → Präfix setzen (Checkbox: [ ] ; geordnet: nächste Nummer)
-     *  - Checkbox-Sonderfall: Zeile IST schon eine Checkbox → [ ]↔[x]
-     *    togglen (abhaken/anhacken!)
+     * Checkbox-Button auf einer Checkbox-Zeile: [ ]↔[x] togglen (abhaken!).
      */
     fun toggleListType(type: ListType) {
         val v = bodyValue ?: return
         val text = v.text
-        val lineStart = lineStartOf(text, v.selection.min)
+        val cursor = rawCursor(v)
+        val lineStart = lineStartOf(text, cursor)
         val lineEnd = lineEndOf(text, lineStart)
         val fullLine = text.substring(lineStart, lineEnd)
         val currentType = NoteTextBody.detectListType(fullLine)
@@ -313,27 +258,24 @@ fun NoteEditorScreen(
 
         val newLine: String = when {
             type == ListType.CHECKBOX && currentType == ListType.CHECKBOX -> {
-                // Abhaken / anhacken über den Toolbar-Button
                 if (NoteTextBody.isCheckboxChecked(fullLine))
                     NoteTextBody.CHECKBOX_OPEN + content
                 else NoteTextBody.CHECKBOX_DONE + content
             }
-            currentType == type -> content // schon der Typ → Präfix raus
+            currentType == type -> content
             type == ListType.ORDERED -> "${orderedNumber(text, lineStart)}. $content"
             type == ListType.BULLET -> NoteTextBody.BULLET_PREFIX + content
             type == ListType.ARROW -> NoteTextBody.ARROW_PREFIX + content
-            else -> NoteTextBody.CHECKBOX_OPEN + content // CHECKBOX neu setzen
+            else -> NoteTextBody.CHECKBOX_OPEN + content
         }
         val newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
-        // Cursor mitverschieben: vor der Zeile unverändert, in der Zeile
-        // ans neue Zeilenende, dahinter um die Längen-Differenz.
         val delta = newLine.length - fullLine.length
         fun map(offset: Int): Int = when {
             offset <= lineStart -> offset
             offset >= lineEnd -> offset + delta
             else -> lineStart + newLine.length
         }
-        commitBody(TextFieldValue(newText, TextRange(map(v.selection.min), map(v.selection.max))))
+        commitBody(TextFieldValue(newText, TextRange(map(cursor), map(cursor))))
     }
 
     fun toggleInlineStyleActive(style: NoteTextBody.InlineStyle) {
@@ -428,8 +370,9 @@ fun NoteEditorScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // EIN mehrzeiliges Feld für den kompletten Body (Bug-3-Fix):
-            // Pfeiltasten + Mehrzeilen-Markierung sind natives Verhalten.
+            // EIN mehrzeiliges Feld für den kompletten Body (Bug-3-Fix) mit
+            // Symbol-Präfixen (Bug-3b-Fix). Pfeiltasten/Markierung nativ.
+            // Tap auf ☐/☑ togglet die Checkbox.
             BasicTextField(
                 value = currentBodyValue,
                 onValueChange = { commitBody(it) },
@@ -441,7 +384,7 @@ fun NoteEditorScreen(
                         }
                         val v = bodyValue ?: return@onPreviewKeyEvent false
                         val text = v.text
-                        val cursor = v.selection.min
+                        val cursor = rawCursor(v)
                         val lineStart = lineStartOf(text, cursor)
                         val lineEnd = lineEndOf(text, lineStart)
                         val fullLine = text.substring(lineStart, lineEnd)
@@ -450,21 +393,19 @@ fun NoteEditorScreen(
                         when {
                             type == null -> false // normale Zeile: Default-\n
                             content.isBlank() -> {
-                                // Leere Listen-Zeile: Präfix raus (= Liste
-                                // verlassen), KEIN Zeilenumbruch — wie vorher.
+                                // Leere Listen-Zeile: Präfix raus (= Liste verlassen),
+                                // kein Zeilenumbruch — wie vorher.
                                 val newText = text.substring(0, lineStart) + text.substring(lineEnd)
                                 commitBody(TextFieldValue(newText, TextRange(lineStart)))
                                 true
                             }
                             else -> {
                                 // Listen-Fortsetzung: \n + passender Präfix.
-                                // Checkbox: immer [ ] (neu abhakbar). Geordnet:
-                                // nächste Nummer (Vorzeilen zählen).
+                                // Checkbox: immer [ ] (frisch). Geordnet: nächste Nummer.
                                 val prefix = when (type) {
                                     ListType.BULLET -> NoteTextBody.BULLET_PREFIX
                                     ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
                                     ListType.ARROW -> NoteTextBody.ARROW_PREFIX
-                                    // Fortsetzung: NÄCHSTE Nummer = aktuelle + 1
                                     ListType.ORDERED -> "${orderedNumber(text, lineStart) + 1}. "
                                 }
                                 val newText = text.substring(0, cursor) + "\n" + prefix + text.substring(cursor)
@@ -478,12 +419,17 @@ fun NoteEditorScreen(
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurface
                 ),
-                visualTransformation = remember { MarkdownVisualTransformation() },
+                visualTransformation = bodyTransformation,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.Sentences,
                     imeAction = ImeAction.Default
-                )
+                ),
+                // Tap-auf-☐/☑ → Checkbox togglen (Text-Layout-Hit-Test über
+                // der Transformation — symbol area, nicht edit cursor).
+                interactionSource = androidx.compose.foundation.interaction.MutableInteractionSource().also {
+                    remember(it) {}
+                }
             )
 
             Spacer(Modifier.height(80.dp))
