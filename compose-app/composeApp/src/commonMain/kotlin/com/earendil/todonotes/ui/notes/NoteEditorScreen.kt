@@ -435,11 +435,17 @@ fun NoteEditorScreen(
                     .fillMaxWidth()
                     .focusRequester(titleFocusRequester)
                     .onFocusChanged { focusState ->
-                        if (focusState.isFocused && state.isNewNote && !titleSelectedOnce) {
+                        // Bei JEDEM Fokus-Gewinn: gesamten Titel markieren →
+                        // Tippen überschreibt direkt (schnelles Löschen).
+                        // titleSelectedOnce wird bei Fokus-VERLUST zurückgesetzt,
+                        // damit der nächste Fokus wieder markiert.
+                        if (focusState.isFocused && !titleSelectedOnce) {
                             titleSelectedOnce = true
                             titleValue = currentTitleValue.copy(
                                 selection = TextRange(0, currentTitleValue.text.length)
                             )
+                        } else if (!focusState.isFocused) {
+                            titleSelectedOnce = false
                         }
                     },
                 placeholder = { Text("Titel") },

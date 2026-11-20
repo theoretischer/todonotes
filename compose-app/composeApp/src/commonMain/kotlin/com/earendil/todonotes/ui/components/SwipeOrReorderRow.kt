@@ -6,7 +6,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -39,7 +38,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.ui.notes.ReorderKind
 import com.earendil.todonotes.ui.notes.ReorderSession
 import com.earendil.todonotes.ui.notes.reorderStep
@@ -60,7 +58,12 @@ import kotlin.math.abs
  * Nach jedem Swap wird dragOffsetY um heightPx korrigiert, damit die
  * gezogene Row optisch mit dem Finger verbunden bleibt (nicht eins springt).
  *
- * Touch: Long-Press aktiviert Drag. Maus: Drag sofort.
+ * Touch: Drag beginnt SOFORT (kein Long-Press nötig) — Wischen zum
+ * Löschen und vertikales Ziehen zum Verschieben gehen beide direkt
+ * los. Die Richtung entscheidet die Geste, nicht der Long-Press.
+ * (Vorher: Long-Press aktivierte beide — Löschen-Wischen brauchte
+ * Gedrückthalten, Nutzer-Feedback „soll instant gehen wie in
+ * Aufgaben/Verlauf“.)
  */
 @Composable
 fun SwipeOrReorderRow(
@@ -84,7 +87,7 @@ fun SwipeOrReorderRow(
     val maxOffset = with(density) { -deleteWidth.toPx() }
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
-    val isTouch = getPlatform().isTouch
+
 
     val currentRepos by rememberUpdatedState(repositories)
     val currentHeight by rememberUpdatedState(heightPx)
@@ -155,18 +158,29 @@ fun SwipeOrReorderRow(
                     )
                 }
                 .background(MaterialTheme.colorScheme.surface)
-                .pointerInput(itemId, isTouch) {
-                    val handleDrag: (dragAmount: Offset) -> Unit = { dragAmount ->
+                .pointerInput(itemId) {
+                    // Mindest-Bewegung bevor die Richtung (löschen/verschieben)
+                    // festgelegt wird. Verhindert: Taps/leichte Zitter-Bewegungen
+                    // lösen sofort Reorder/Swipe aus. ~ViewConfiguration-Slop.
+                    var totalDx = 0f
+                    var totalDy = 0f
+                    val handleDrag: (dragAmount: Offset) -> Unit = { dragAmount: Offset ->
+                        totalDx += dragAmount.x
+                        totalDy += dragAmount.y
                         if (!isSwipeDeleting && !isReordering) {
-                            if (abs(dragAmount.x) > abs(dragAmount.y)) {
-                                isSwipeDeleting = true
-                            } else if (abs(dragAmount.y) > 0.5f && reorderEnabled) {
-                                isReordering = true
-                                val idx = currentRepos.indexOf(itemId)
-                                if (idx >= 0) {
-                                    nodeRootStartY = nodeRoot.y
-                                    session = ReorderSession(itemId, reorderKind, idx, idx, 0f)
-                                    onReorderBegin()
+                            // Richtung erst nach ausreichender Bewegung festlegen
+                            // (8px-Slop: Tips/Zittern lösen nichts aus).
+                            if (abs(totalDx) >= 8f || abs(totalDy) >= 8f) {
+                                if (abs(totalDx) > abs(totalDy)) {
+                                    isSwipeDeleting = true
+                                } else if (reorderEnabled) {
+                                    isReordering = true
+                                    val idx = currentRepos.indexOf(itemId)
+                                    if (idx >= 0) {
+                                        nodeRootStartY = nodeRoot.y
+                                        session = ReorderSession(itemId, reorderKind, idx, idx, 0f)
+                                        onReorderBegin()
+                                    }
                                 }
                             }
                         }
@@ -251,35 +265,23 @@ fun SwipeOrReorderRow(
                         }
                     }
 
-                    if (isTouch) {
-                        detectDragGesturesAfterLongPress(
-                            onDragStart = {
-                                isSwipeDeleting = false
-                                isReordering = false
-                                session = null
-                            },
-                            onDragEnd = handleEnd,
-                            onDragCancel = handleCancel,
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                handleDrag(dragAmount)
-                            }
-                        )
-                    } else {
-                        detectDragGestures(
-                            onDragStart = {
-                                isSwipeDeleting = false
-                                isReordering = false
-                                session = null
-                            },
-                            onDragEnd = handleEnd,
-                            onDragCancel = handleCancel,
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                handleDrag(dragAmount)
-                            }
-                        )
-                    }
+                    // Sofort-Drag (kein Long-Press mehr): Wisch-Richtung entscheidet
+                    // die Aktion (horizontal=löschen, vertikal=reorder). Maus wie Touch.
+                    detectDragGestures(
+                        onDragStart = {
+                            isSwipeDeleting = false
+                            isReordering = false
+                            session = null
+                            totalDx = 0f
+                            totalDy = 0f
+                        },
+                        onDragEnd = handleEnd,
+                        onDragCancel = handleCancel,
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            handleDrag(dragAmount)
+                        }
+                    )
                 }
                 .clickable {
                     if (isSwipeDeleting || isReordering) return@clickable

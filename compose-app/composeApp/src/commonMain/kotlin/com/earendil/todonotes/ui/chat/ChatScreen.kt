@@ -129,8 +129,10 @@ fun ChatScreen(
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var quotingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     // Inline-Titel-Edit: Tap auf Titel → direkt editierbar.
+    // TextFieldValue statt String: beim Edit-Start GESAMTEN Titel markieren
+    // (schnelles Löschen/Überschreiben — Nutzer-Wunsch).
     var isEditingTitle by remember { mutableStateOf(false) }
-    var titleText by remember { mutableStateOf("") }
+    var titleText by remember { mutableStateOf(TextFieldValue("")) }
     val titleFocusRequester = remember { FocusRequester() }
 
     val messageMap = remember(messages) { messages.associateBy { it.id } }
@@ -160,7 +162,7 @@ fun ChatScreen(
     // wir uns, ob das Feld VORHER fokussiert war. Nur echter Fokus-Verlust speichert.
     var hadTitleFocus by remember { mutableStateOf(false) }
     fun commitTitleEdit() {
-        vm.updateTitle(titleText.ifBlank { "Chat" })
+        vm.updateTitle(titleText.text.ifBlank { "Chat" })
         isEditingTitle = false
     }
 
@@ -210,7 +212,12 @@ fun ChatScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable {
-                                    titleText = state.title
+                                    // Tap → Edit: gesamten Titel MARKIEREN (nicht nur
+                                    // Cursor ans Ende) → tippen überschreibt direkt.
+                                    titleText = TextFieldValue(
+                                        text = state.title,
+                                        selection = TextRange(0, state.title.length)
+                                    )
                                     isEditingTitle = true
                                 }
                                 .padding(horizontal = 4.dp, vertical = 2.dp)
