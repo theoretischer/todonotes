@@ -136,6 +136,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_habit_logs_habitId ON habit_logs(habitId);
         CREATE INDEX IF NOT EXISTS idx_habit_logs_timestamp ON habit_logs(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_habit_logs_deletedAt ON habit_logs(deletedAt);
 
         CREATE TABLE IF NOT EXISTS habit_history (
             id          TEXT PRIMARY KEY,
@@ -154,6 +155,7 @@ def _create_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_habit_history_habitId ON habit_history(habitId);
         CREATE INDEX IF NOT EXISTS idx_habit_history_loggedAt ON habit_history(loggedAt);
+        CREATE INDEX IF NOT EXISTS idx_habit_history_deletedAt ON habit_history(deletedAt);
 
         -- Block F1: Notiz-App
         CREATE TABLE IF NOT EXISTS folders (

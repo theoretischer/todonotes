@@ -258,9 +258,22 @@ object Migrations {
             connection.execSQL("ALTER TABLE habit_logs ADD COLUMN deletedAt INTEGER")
             connection.execSQL("ALTER TABLE habit_history ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
             connection.execSQL("ALTER TABLE habit_history ADD COLUMN deletedAt INTEGER")
-            // Index auf deletedAt (Soft-Delete-Filter in jeder Query).
-            connection.execSQL("CREATE INDEX IF NOT EXISTS idx_habit_logs_deletedAt ON habit_logs(deletedAt)")
-            connection.execSQL("CREATE INDEX IF NOT EXISTS idx_habit_history_deletedAt ON habit_history(deletedAt)")
+        }
+    }
+
+    /** M11-Rettung (8d67fcc-Fix): erste 12→13-Version erzeugte die deletedAt-
+     *  Indizes mit idx_-Namen — Rooms Schema-Validierung erwartet aber
+     *  index_<table>_<column> und crashte beim App-Start (Android-Crash-Loop,
+     *  Web: DB nicht öffnbar → alles leer). Diese Migration repariert bestehende
+     *  DBs: falsche Indizes weg, richtige (Room-konform) anlegen.
+     *  Für alle, die die kaputte Version nie ausgeführt haben, ist das ein
+     *  harmloser No-op (DROP IF EXISTS + CREATE IF NOT EXISTS). */
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override suspend fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("DROP INDEX IF EXISTS idx_habit_logs_deletedAt")
+            connection.execSQL("DROP INDEX IF EXISTS idx_habit_history_deletedAt")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_logs_deletedAt` ON `habit_logs` (`deletedAt`)")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_history_deletedAt` ON `habit_history` (`deletedAt`)")
         }
     }
 
@@ -286,6 +299,7 @@ object Migrations {
         MIGRATION_9_10,
         MIGRATION_10_11,
         MIGRATION_11_12,
-        MIGRATION_12_13
+        MIGRATION_12_13,
+        MIGRATION_13_14
     )
 }
