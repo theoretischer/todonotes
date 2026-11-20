@@ -11,8 +11,9 @@ import android.util.Log
  * Plant und cancelt exakte Alarme für Todos (M8, Port aus altem
  * android/-Projekt — an commonMain-[AlarmScheduler]-Interface angepasst).
  *
- * Request-Code = (dueAt/1000).toInt() macht Alarme eindeutig. Für Cancel
- * nutzen wir zusätzlich die todoId im Intent, damit wir den richtigen finden.
+ * Request-Code = todoId.hashCode() macht Alarme pro Todo eindeutig.
+ * (Vorher: dueAt/1000 — aber Re-Arm verschiebt das Datum, dann hätte das
+ * Cancel den re-ge-armten Alarm nicht mehr gefunden → Geister-Alarme.)
  */
 class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
 
@@ -23,6 +24,9 @@ class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
         const val EXTRA_BODY = "body"
         const val EXTRA_TRIGGER_AT = "trigger_at"
         const val EXTRA_STYLE = "notification_style"
+
+        /** Request-Code → deterministisch aus todoId (per Todo eindeutig). */
+        internal fun requestCode(todoId: String): Int = todoId.hashCode() and Int.MAX_VALUE
     }
 
     override fun scheduleAlarm(
@@ -41,7 +45,7 @@ class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
             putExtra(EXTRA_STYLE, notificationStyle)
         }
 
-        val requestCode = (dueAt / 1000).toInt()
+        val requestCode = requestCode(todoId)
         val pendingIntent = PendingIntent.getBroadcast(context, requestCode, intent, pendingIntentFlags())
 
         val alarmManager = context.getSystemService(AlarmManager::class.java)
@@ -58,7 +62,7 @@ class AndroidAlarmScheduler(private val context: Context) : AlarmScheduler {
     }
 
     override fun cancelAlarm(todoId: String, dueAt: Long) {
-        val requestCode = (dueAt / 1000).toInt()
+        val requestCode = requestCode(todoId)
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = ACTION_ALARM_FIRE
         }

@@ -9,6 +9,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.earendil.todonotes.ContainerAccess
 import com.earendil.todonotes.MainActivity
+import com.earendil.todonotes.data.repo.RecurrenceEngine
+import com.earendil.todonotes.data.repo.nowMs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -63,6 +65,45 @@ class AlarmReceiver : BroadcastReceiver() {
         val todoId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TODO_ID) ?: ""
         val style = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_STYLE, 0)
         Log.i("AlarmReceiver", "Alarm gefeuert: todo=$todoId style=$style title=$title")
+
+        // Re-Arm: Wenn das Todo OFFEN und WIEDERKEHREND ist, direkt die
+        // nächste Occurrence planen (BUGFIX „nie wieder Benachrichtigung"):
+        // Der Alarm feuert exakt einmal — wird das Todo nicht abgehakt,
+        // würde sonst nie wieder ein Alarm geplant. So kommt die Erinnerung
+        // jeden Fälligkeitstag, bis „Erledigt“/Löschen (→ cancelAlarm).
+        // Nicht-erledigte (overdue) Occurrences überspringen wir — sie sind
+        // bereits über die laufende Notification sichtbar.
+        if (todoId.isNotEmpty()) {
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    val container = ContainerAccess.get(context)
+                    val todo = container.todoRepository.getById(todoId)
+                    if (todo != null && todo.completedAt == null &&
+                        todo.deletedAt == null && !todo.recurrence.isNullOrEmpty()
+                    ) {
+                        val next = RecurrenceEngine.nextOccurrence(
+                            todo.recurrence!!,
+                            todo.dueAt,
+                            nowMs()
+                        )
+                        if (next != null) {
+                            container.alarmScheduler.scheduleAlarm(
+                                next, todo.id, todo.title, todo.notes,
+                                todo.notificationStyle
+                            )
+                            Log.i(
+                                "AlarmReceiver",
+                                "Re-Arm: nächste Occurrence für todo=${todo.id} geplant"
+                            )
+                        }
+                    }
+                } catch (e: Throwable) {
+                    // Wasm-Strictness ist hier irrelevant (Android-only), aber
+                    // robust gegen DB-Fehler beim Receiver-Start.
+                    Log.e("AlarmReceiver", "Re-Arm fehlgeschlagen für todo=$todoId", e)
+                }
+            }
+        }
 
         // Stumm: gar keine Benachrichtigung — Alarm feuert nur intern.
         if (style == 2) return

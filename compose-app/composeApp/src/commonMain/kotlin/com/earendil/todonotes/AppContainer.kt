@@ -28,7 +28,7 @@ import kotlinx.coroutines.SupervisorJob
  * [getDatabaseBuilder] expect/actual).
  */
 class AppContainer(
-    private val alarmScheduler: AlarmScheduler
+    val alarmScheduler: AlarmScheduler
 ) {
     val database: TodoNotesDatabase = buildDatabase()
 

@@ -28,6 +28,9 @@ class TodoRepository(
     fun observeOpenTodos(): Flow<List<Todo>> = dao.observeOpenTodos()
     fun observeCompletedTodos(): Flow<List<Todo>> = dao.observeCompletedTodos()
 
+    /** Einzelnes Todo laden (für AlarmReceiver Re-Arm). */
+    suspend fun getById(id: String): Todo? = dao.getById(id)
+
     private fun dirty() { syncManager?.markDirty() }
 
     suspend fun createTodo(
