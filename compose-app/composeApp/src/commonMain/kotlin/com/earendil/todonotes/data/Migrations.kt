@@ -247,6 +247,23 @@ object Migrations {
      *  - habits.currentRating INTEGER (nullable, nur bei SATISFACTION)
      *  - habits.position INTEGER (Drag-Drop-Reorder)
      *  - habit_history.newRating INTEGER (nullable, bei Rating-Änderungen) */
+    /** M11 (Verlauf-Bugfix): habit_logs + habit_history waren append-only —
+     *  Löschen wurde nie mitgesynct (gelöschte Verlaufs-Einträge kamen per
+     *  Full-Down-Sync zurück), Zufalls-IDs erzeugten Race-Duplikate.
+     *  Jetzt LWW (updatedAt) + Soft-Delete (deletedAt) wie überall.
+     *  Nur additive ALTERs — bestehende Daten bleiben unverändert. */
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override suspend fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("ALTER TABLE habit_logs ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+            connection.execSQL("ALTER TABLE habit_logs ADD COLUMN deletedAt INTEGER")
+            connection.execSQL("ALTER TABLE habit_history ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+            connection.execSQL("ALTER TABLE habit_history ADD COLUMN deletedAt INTEGER")
+            // Index auf deletedAt (Soft-Delete-Filter in jeder Query).
+            connection.execSQL("CREATE INDEX IF NOT EXISTS idx_habit_logs_deletedAt ON habit_logs(deletedAt)")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS idx_habit_history_deletedAt ON habit_history(deletedAt)")
+        }
+    }
+
     val MIGRATION_11_12 = object : Migration(11, 12) {
         override suspend fun migrate(connection: SQLiteConnection) {
             connection.execSQL("ALTER TABLE habits ADD COLUMN type TEXT NOT NULL DEFAULT 'HABIT'")
@@ -268,6 +285,7 @@ object Migrations {
         MIGRATION_8_9,
         MIGRATION_9_10,
         MIGRATION_10_11,
-        MIGRATION_11_12
+        MIGRATION_11_12,
+        MIGRATION_12_13
     )
 }

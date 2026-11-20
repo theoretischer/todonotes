@@ -18,6 +18,10 @@ import androidx.room3.PrimaryKey
  * - newRating: neuer Rating-Wert bei Satisfaction-Trackern (0-10).
  *   null bei klassischen Habits.
  * - userId: Multi-User (M1). Default "legacy-user" bei Migration v9→v10.
+ *
+ * M11 (Verlauf-Bugfix): updatedAt + deletedAt für LWW-Sync + Soft-Delete.
+ * Vorher war die Tabelle append-only → Löschen wurde nie mitgesynct und
+ * Perioden-Einträge bekamen Zufalls-IDs → Race-Duplikate über Geräte.
  */
 @Entity(
     tableName = "habit_history",
@@ -29,7 +33,7 @@ import androidx.room3.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("habitId"), Index("loggedAt")]
+    indices = [Index("habitId"), Index("loggedAt"), Index("deletedAt")]
 )
 data class HabitHistoryEntry(
     @PrimaryKey
@@ -42,5 +46,9 @@ data class HabitHistoryEntry(
     val goal: Int,
     val newRating: Int? = null,
     val loggedAt: Long,
+    /** M11: LWW-Change-Column (0 = unverändert seit Migration). */
+    val updatedAt: Long = 0,
+    /** M11: Soft-Delete — Zeile bleibt als Tombstone für den Sync erhalten. */
+    val deletedAt: Long? = null,
     val userId: String = "legacy-user"
 )

@@ -39,66 +39,76 @@ interface HabitDao {
     // ---- HabitLogs ----
 
     /** Alle Logs eines Habits ab :since (Start der aktuellen Periode). */
-    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since ORDER BY timestamp ASC")
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since AND deletedAt IS NULL ORDER BY timestamp ASC")
     suspend fun logsSince(habitId: String, since: Long): List<HabitLog>
 
     /** Anzahl Logs eines Habits ab :since (für Count-Berechnung, ohne Liste zu laden). */
-    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since AND deletedAt IS NULL")
     suspend fun countSince(habitId: String, since: Long): Int
 
     /** Reaktiver Count eines Habits ab :since — feuert neu, wenn habit_logs sich
      *  ändert. Für die Progress-Anzeige im UI (M7c-Fix: statt N×2 suspend-Queries
      *  pro refresh ein einzelner Flow pro Habit). */
-    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since AND deletedAt IS NULL")
     fun observeCountSince(habitId: String, since: Long): Flow<Int>
 
     /** Alle Logs eines Habits (aufsteigend) — für die Perioden-Grafik im Tracker-Detail. */
-    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND deletedAt IS NULL ORDER BY timestamp ASC")
     fun observeLogsForHabit(habitId: String): Flow<List<HabitLog>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: HabitLog)
 
-    /** Neuesten Log eines Habits ab :since löschen (Undo des letzten +1). */
+    /** Neuesten nicht-gelöschten Log ab :since SOFT-löschen (Undo des letzten +1).
+     *  M11: Soft-Delete statt hart — sonst liefert der Full-Down-Sync das
+     *  hart gelöschte Undo zurück und der Count springt wieder hoch. */
     @Query(
         """
-        DELETE FROM habit_logs
+        UPDATE habit_logs SET deletedAt = :now, updatedAt = :now
         WHERE id = (
             SELECT id FROM habit_logs
-            WHERE habitId = :habitId AND timestamp >= :since
+            WHERE habitId = :habitId AND timestamp >= :since AND deletedAt IS NULL
             ORDER BY timestamp DESC LIMIT 1
         )
         """
     )
-    suspend fun deleteLatestLogSince(habitId: String, since: Long)
+    suspend fun deleteLatestLogSince(habitId: String, since: Long, now: Long)
 
-    /** Alle Logs eines Habits ab :since löschen (Periode abschließen). */
-    @Query("DELETE FROM habit_logs WHERE habitId = :habitId AND timestamp >= :since")
-    suspend fun deleteLogsSince(habitId: String, since: Long)
+    /** Alle Logs eines Habits ab :since SOFT-löschen (Periode abschließen,
+     *  Counter-Reset). M11: Tombstones statt hartes Löschen (Sync!). */
+    @Query(
+        """
+        UPDATE habit_logs SET deletedAt = :now, updatedAt = :now
+        WHERE habitId = :habitId AND timestamp >= :from AND deletedAt IS NULL
+        """
+    )
+    suspend fun deleteLogsSince(habitId: String, from: Long, now: Long)
 
     /** Anzahl Logs eines Habits im Zeitraum [from, until). */
-    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until")
+    @Query("SELECT COUNT(*) FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until AND deletedAt IS NULL")
     suspend fun countBetween(habitId: String, from: Long, until: Long): Int
 
     /** Alle Logs eines Habits im Zeitraum [from, until) — für Count-Korrektur. */
-    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until ORDER BY timestamp ASC")
+    @Query("SELECT * FROM habit_logs WHERE habitId = :habitId AND timestamp >= :from AND timestamp < :until AND deletedAt IS NULL ORDER BY timestamp ASC")
     suspend fun logsBetween(habitId: String, from: Long, until: Long): List<HabitLog>
 
-    /** Einzelnen Log per ID löschen (für Count-Korrektur). */
-    @Query("DELETE FROM habit_logs WHERE id = :id")
-    suspend fun deleteLogById(id: String)
+    /** Einzelnen Log per ID SOFT-löschen (Count-Korrektur). M11: Sync! */
+    @Query("UPDATE habit_logs SET deletedAt = :now, updatedAt = :now WHERE id = :id")
+    suspend fun deleteLogById(id: String, now: Long)
 
     // ---- HabitHistory ----
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(entry: HabitHistoryEntry)
 
-    /** Verlaufseintrag per id loeschen (fuer Swipe-to-delete im Verlauf-Tab). */
-    @Query("DELETE FROM habit_history WHERE id = :id")
-    suspend fun deleteHistoryEntry(id: String)
+    /** M11: Verlaufseintrag soft-löschen (Swipe-to-delete im Verlauf-Tab).
+     *  Tombstone bleibt für den Sync → Löschung wird mitgesynct (vorher
+     *  append-only → Löschung kam per Full-Down-Sync immer zurück). */
+    @Query("UPDATE habit_history SET deletedAt = :now, updatedAt = :now WHERE id = :id")
+    suspend fun softDeleteHistoryEntry(id: String, now: Long)
 
     /** History-Einträge für ein Habit + Periodenstart (für Count-Korrektur). */
-    @Query("SELECT * FROM habit_history WHERE habitId = :habitId AND periodStart = :periodStart")
+    @Query("SELECT * FROM habit_history WHERE habitId = :habitId AND periodStart = :periodStart AND deletedAt IS NULL")
     suspend fun historyByPeriod(habitId: String, periodStart: Long): List<HabitHistoryEntry>
 
     // ---- Sync ----
@@ -143,7 +153,7 @@ interface HabitDao {
     suspend fun getAllHabitsOnce(): List<Habit>
 
     /** Alle Verlaufseinträge aller Habits, neueste zuerst. */
-    @Query("SELECT * FROM habit_history ORDER BY loggedAt DESC")
+    @Query("SELECT * FROM habit_history WHERE deletedAt IS NULL ORDER BY loggedAt DESC")
     fun observeHabitHistory(): Flow<List<HabitHistoryEntry>>
 
     /** Alle Zeilen löschen (lokaler Wipe nach Server-Wipe). */

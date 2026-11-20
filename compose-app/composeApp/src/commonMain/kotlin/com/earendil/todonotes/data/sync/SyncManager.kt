@@ -321,16 +321,18 @@ class SyncManager(
         createdAt, updatedAt, deletedAt, userId = userId
     )
 
-    private fun HabitLog.toDTO() = HabitLogDTO(id, habitId, timestamp, note)
-    private fun HabitLogDTO.toEntity() = HabitLog(id, habitId, timestamp, note, userId = userId)
+    private fun HabitLog.toDTO() = HabitLogDTO(id, habitId, timestamp, note, updatedAt, deletedAt)
+    private fun HabitLogDTO.toEntity() =
+        HabitLog(id, habitId, timestamp, note, updatedAt, deletedAt, userId = userId)
 
     private fun HabitHistoryEntry.toDTO() = HabitHistoryEntryDTO(
-        id, habitId, title, cadenceLabel, periodStart, count, goal, newRating, loggedAt
+        id, habitId, title, cadenceLabel, periodStart, count, goal, newRating,
+        loggedAt, updatedAt, deletedAt
     )
 
     private fun HabitHistoryEntryDTO.toEntity() = HabitHistoryEntry(
         id, habitId, title, cadenceLabel, periodStart, count, goal, newRating,
-        loggedAt, userId = userId
+        loggedAt, updatedAt, deletedAt, userId = userId
     )
 
     private fun Folder.toDTO() = FolderDTO(id, parentId, name, createdAt, updatedAt, deletedAt)

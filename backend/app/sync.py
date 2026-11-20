@@ -32,8 +32,13 @@ _SYNC_TABLES = [
     # name,        dto,                pk,      change_field,         change_col
     ("todos",         TodoDTO,               "id", "updatedAt",         "updatedAt"),
     ("habits",        HabitDTO,              "id", "updatedAt",         "updatedAt"),
-    ("habit_logs",    HabitLogDTO,           "id", "timestamp",         "timestamp"),
-    ("habit_history", HabitHistoryEntryDTO,  "id", "loggedAt",          "loggedAt"),
+    # M11 (Verlauf-Bugfix): habit_logs/habit_history waren append-only
+    # (change_field timestamp/loggedAt, _upsert_row → return False bei
+    # existierenden Rows). Verlaufs-Löschen wurde nie mitgesynct → Server
+    # lieferte gelöschte Einträge zurück („kommen ständig zurück“). Jetzt
+    # LWW wie überall + Soft-Delete (deletedAt).
+    ("habit_logs",    HabitLogDTO,           "id", "updatedAt",         "updatedAt"),
+    ("habit_history", HabitHistoryEntryDTO,  "id", "updatedAt",         "updatedAt"),
     ("folders",       FolderDTO,             "id", "updatedAt",         "updatedAt"),
     ("notes",         NoteDTO,               "id", "updatedAt",         "updatedAt"),
     ("chat_messages", ChatMessageDTO,        "id", "updatedAt",         "updatedAt"),
@@ -138,8 +143,6 @@ def _upsert_row(
     )
     existing = cur.fetchone()
     if existing is not None:
-        if change_field in ("timestamp", "loggedAt"):
-            return False  # append-only
         if existing["userId"] is not None and existing["userId"] != user_id:
             return False  # fremde Daten
         if has_deleted_at and existing["deletedAt"] is not None and data.get("deletedAt") is None:
@@ -153,8 +156,7 @@ def _upsert_row(
         return True
     else:
         data["userId"] = user_id
-        if change_field not in ("timestamp", "loggedAt"):
-            data[change_field] = server_now
+        data[change_field] = server_now
         _insert_row(conn, table, data)
         return True
 

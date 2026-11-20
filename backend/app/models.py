@@ -58,6 +58,10 @@ class HabitLogDTO(BaseModel):
     habitId: str
     timestamp: int
     note: str = ""
+    # M11 (Verlauf-Bugfix): LWW-Change-Column + Soft-Delete statt append-only.
+    # Alter Client schickt kein updatedAt/deletedAt → Defaults (0/None).
+    updatedAt: int = 0
+    deletedAt: int | None = None
 
 
 class HabitHistoryEntryDTO(BaseModel):
@@ -73,6 +77,9 @@ class HabitHistoryEntryDTO(BaseModel):
     goal: int
     newRating: int | None = None   # Satisfaction: Rating-Änderung (0-10)
     loggedAt: int
+    # M11 (Verlauf-Bugfix): LWW-Change-Column + Soft-Delete statt append-only.
+    updatedAt: int = 0
+    deletedAt: int | None = None
 
 
 class FolderDTO(BaseModel):

@@ -51,7 +51,10 @@ data class HabitLogDTO(
     val id: String,
     val habitId: String,
     val timestamp: Long,
-    val note: String = ""
+    val note: String = "",
+    /** M11: LWW-Change-Column + Soft-Delete (Default 0/null für alte Server/Clients). */
+    val updatedAt: Long = 0,
+    val deletedAt: Long? = null
 )
 
 @Serializable
@@ -64,7 +67,10 @@ data class HabitHistoryEntryDTO(
     val count: Int,
     val goal: Int,
     val newRating: Int? = null,
-    val loggedAt: Long
+    val loggedAt: Long,
+    /** M11: LWW-Change-Column + Soft-Delete (Default 0/null für alte Server/Clients). */
+    val updatedAt: Long = 0,
+    val deletedAt: Long? = null
 )
 
 @Serializable

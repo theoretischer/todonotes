@@ -56,6 +56,8 @@ class HabitRepository(
         if (habit.logToHistory) {
             dao.insertHistory(
                 HabitHistoryEntry(
+                    // Zufalls-ID bleibt: Rating-Änderungen sind echte
+                    // Einzel-Ereignisse (keine Periode, kein Dedup nötig).
                     id = randomUuidString(),
                     habitId = habit.id,
                     title = habit.title,
@@ -64,7 +66,9 @@ class HabitRepository(
                     count = old,
                     goal = new,
                     newRating = new,
-                    loggedAt = now
+                    // M11: updatedAt für LWW-Sync.
+                    loggedAt = now,
+                    updatedAt = now
                 )
             )
         }
@@ -97,16 +101,19 @@ class HabitRepository(
         dirty()
     }
 
-    /** Verlaufseintrag löschen (Swipe-to-delete im Verlauf-Tab). */
+    /** Verlaufseintrag löschen (Swipe-to-delete im Verlauf-Tab).
+     *  M11: SOFT-Delete — die Löschung wird über den Sync mitgeteilt
+     *  (vorher: hart gelöscht, Server lieferte per Full-Down-Sync immer
+     *  zurück → „Einträge kommen ständig zurück"). */
     suspend fun deleteHistoryEntry(id: String) {
-        dao.deleteHistoryEntry(id)
+        dao.softDeleteHistoryEntry(id, nowMs())
         dirty()
     }
 
-    /** +1: neuen Log-Eintrag für jetzt anlegen. */
+    /** +1: neuen Log-Eintrag für jetzt anlegen. M11: updatedAt für LWW. */
     suspend fun logHabit(habitId: String, now: Long = nowMs()) {
         dao.insertLog(
-            HabitLog(id = randomUuidString(), habitId = habitId, timestamp = now)
+            HabitLog(id = randomUuidString(), habitId = habitId, timestamp = now, updatedAt = now)
         )
         dirty()
     }
@@ -115,7 +122,7 @@ class HabitRepository(
     suspend fun undoLatestLog(habitId: String, now: Long = nowMs()) {
         val habit = dao.getById(habitId) ?: return
         val periodStart = HabitEngine.currentPeriodStart(habit, now)
-        dao.deleteLatestLogSince(habitId, periodStart)
+        dao.deleteLatestLogSince(habitId, periodStart, now)
         dirty()
     }
 
@@ -133,19 +140,24 @@ class HabitRepository(
         if (habit.logToHistory) {
             dao.insertHistory(
                 HabitHistoryEntry(
-                    id = randomUuidString(),
+                    // M11: DETERMINISTISCHE ID (statt Zufalls-ID): legt jedes
+                    // Gerät für dieselbe Periode dieselbe ID an → Server-LWW
+                    // skippt das Duplikat → keine Race-Duplikate mehr (vorher
+                    // Zufalls-IDs → beide Geräte "gewannen" → Einträge doppelt).
+                    id = periodHistoryId(habit.id, currentStart),
                     habitId = habit.id,
                     title = habit.title,
                     cadenceLabel = cadenceLabel(habit),
                     periodStart = currentStart,
                     count = count,
                     goal = habit.goalCount,
-                    loggedAt = now
+                    loggedAt = now,
+                    updatedAt = now
                 )
             )
         }
-        // Logs der aktuellen Periode löschen (Counter reset).
-        dao.deleteLogsSince(habit.id, currentStart)
+        // Logs der aktuellen Periode soft-löschen (Counter reset). M11: Sync!
+        dao.deleteLogsSince(habit.id, currentStart, now)
         // WICHTIG: dao.update (nicht upsert/REPLACE), sonst löscht CASCADE die History.
         dao.update(habit.copy(lastLoggedPeriodStart = nextStart, updatedAt = now))
         dirty()
@@ -173,6 +185,7 @@ class HabitRepository(
         periodEndExclusive: Long,
         newCount: Int
     ) {
+        val now = nowMs()
         db.withWriteTransaction {
             val existing = dao.logsBetween(habitId, periodStart, periodEndExclusive)
             when {
@@ -182,18 +195,23 @@ class HabitRepository(
                     repeat(toAdd) { i ->
                         val ts = periodStart + (i + 1L) * span / (toAdd + 1)
                         dao.insertLog(
-                            HabitLog(id = randomUuidString(), habitId = habitId, timestamp = ts)
+                            // M11: updatedAt für LWW-Sync.
+                            HabitLog(id = randomUuidString(), habitId = habitId, timestamp = ts, updatedAt = now)
                         )
                     }
                 }
                 newCount < existing.size -> {
-                    existing.takeLast(existing.size - newCount).forEach { dao.deleteLogById(it.id) }
+                    // M11: Soft-Delete (now) — Löschung wird mitgesynct.
+                    existing.takeLast(existing.size - newCount).forEach { dao.deleteLogById(it.id, now) }
                 }
             }
             // History-Eintrag anpassen (nur HABIT-Einträge, nicht Satisfaction).
             dao.historyByPeriod(habitId, periodStart)
                 .filter { it.newRating == null }
-                .forEach { entry -> dao.insertHistory(entry.copy(count = newCount)) }
+                .forEach { entry ->
+                    // M11: updatedAt = now → LWW-Update statt unsichtbarem Copy.
+                    dao.insertHistory(entry.copy(count = newCount, updatedAt = now))
+                }
         }
         dirty()
     }
@@ -232,14 +250,18 @@ class HabitRepository(
             val countPrev = dao.countBetween(habit.id, lastLogged, currentStart)
             dao.insertHistory(
                 HabitHistoryEntry(
-                    id = randomUuidString(),
+                    // M11: deterministische ID — beide Geräte erzeugen für
+                    // dieselbe Periode dieselbe ID → Server-LWW skippt das
+                    // zweite → keine Duplikate mehr (vorher Zufalls-IDs).
+                    id = periodHistoryId(habit.id, lastLogged),
                     habitId = habit.id,
                     title = habit.title,
                     cadenceLabel = cadenceLabel(habit),
                     periodStart = lastLogged,
                     count = countPrev,
                     goal = habit.goalCount,
-                    loggedAt = now
+                    loggedAt = now,
+                    updatedAt = now
                 )
             )
         }
@@ -247,6 +269,12 @@ class HabitRepository(
         dao.update(updated)
         return updated
     }
+
+    /** M11: deterministische History-ID pro Habit+Periode — beide Geräte
+     *  erzeugen für dasselbe Ereignis dieselbe ID → Server-LWW dedupliziert
+     *  (vorher: Zufalls-IDs → Race-Duplikate im Verlauf). */
+    private fun periodHistoryId(habitId: String, periodStart: Long): String =
+        "hist-$habitId-$periodStart"
 
     /** Kurzes Label wie "2x pro Woche" / "1x pro Tag" / "1x alle 3 Tage". */
     private fun cadenceLabel(habit: Habit): String {

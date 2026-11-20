@@ -252,6 +252,29 @@ Fokus) + Chat (Tap auf Titel → Edit mit Select-All).
 ist Widget, nicht Text) → Edit-Modus mit Cursor genau dort.
 Off-Text-Taps → Cursor ans Textende (wie vorher).
 
+### 11. Verlauf: Gelöschte Einträge kamen zurück + duplizierten sich (Fix `siehe Commits`)
+**Symptome:** Im Verlauf-Tab gewischte Gewohnheits-Einträge kamen sofort
+wieder (und duplizierten sich mit der Zeit).
+**Ursache 1:** `habit_logs`/`habit_history` waren im Sync-Protokoll
+**append-only** (kein Löschen im Protokoll) — Wisch-Löschen war lokal ein
+hartes `DELETE`, der Full-Down-Sync lieferte die Zeilen vom Server zurück.
+**Ursache 2:** Perioden-Einträge bekamen **Zufalls-IDs** — jedes Gerät
+erkannte den Periodenwechsel separat → zwei Einträge (verschiedene IDs)
+für dieselbe Periode → Duplikate für immer.
+**Fix (M11):** beide Tabellen auf `updatedAt` (LWW) + `deletedAt`
+(Soft-Delete/Tombstone) umgestellt — wie Todos/Notizen/Ordner. Löschen von
+History-Einträgen, Undo (+1), Perioden-Reset, Count-Korrektur sind jetzt
+Soft-Deletes, die mitgesynct werden (Anti-Resurrektion greift).
+Perioden-Einträge bekommen **deterministische IDs**
+(`hist-<habitId>-<periodStart>`) → Server dedupliziert Race-Duplikate.
+Satisfaction-Rating-Änderungen behalten Zufalls-IDs (echte Einzel-Ereignisse).
+**Kompatibilität:** alle Spalten additiv (SQLite `ALTER TABLE ADD COLUMN`,
+Server idempotent beim Container-Start) — bestehende Daten unangetastet.
+Alte App + neuer Server: neue Felder werden ignoriert (Defaults). Neue App +
+alter Server: Felder fallen beim JSON-Parse weg → kein Crash, kein Verlust.
+**Server-Tests:** Migrations-Spalten, LWW-Skip, Soft-Delete,
+Anti-Resurrektion, Log-Soft-Delete — alle grün (In-Memory-DB-Skript).
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:

@@ -130,6 +130,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             habitId   TEXT NOT NULL,
             timestamp INTEGER NOT NULL,
             note      TEXT NOT NULL,
+            updatedAt INTEGER NOT NULL DEFAULT 0,
+            deletedAt INTEGER,
             FOREIGN KEY(habitId) REFERENCES habits(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_habit_logs_habitId ON habit_logs(habitId);
@@ -146,6 +148,8 @@ def _create_schema(conn: sqlite3.Connection) -> None:
             goal        INTEGER NOT NULL,
             newRating   INTEGER,
             loggedAt    INTEGER NOT NULL,
+            updatedAt   INTEGER NOT NULL DEFAULT 0,
+            deletedAt   INTEGER,
             FOREIGN KEY(habitId) REFERENCES habits(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_habit_history_habitId ON habit_history(habitId);
@@ -232,6 +236,15 @@ def _migrate_schema(conn: sqlite3.Connection) -> None:
 
     # Block H-Quote: quotedMessageId für Zitate in Chat-Nachrichten.
     _add_column("chat_messages", "quotedMessageId", "quotedMessageId TEXT")
+
+    # M11 (Verlauf-Bugfix): habit_logs/habit_history waren append-only —
+    # Löschen wurde nie mitgesynct (gelöschte Verlaufs-Einträge kamen per
+    # Full-Down-Sync immer zurück). Jetzt LWW + Soft-Delete wie bei allen
+    # anderen Tabellen. Idempotent: Spalte fehlt → ALTER TABLE ADD COLUMN.
+    _add_column("habit_logs", "updatedAt", "updatedAt INTEGER NOT NULL DEFAULT 0")
+    _add_column("habit_logs", "deletedAt", "deletedAt INTEGER")
+    _add_column("habit_history", "updatedAt", "updatedAt INTEGER NOT NULL DEFAULT 0")
+    _add_column("habit_history", "deletedAt", "deletedAt INTEGER")
 
     # M1: Multi-User-Auth — userId-Spalte auf alle Daten-Tabellen.
     # Bestehende Zeilen (NULL nach ALTER) werden unten auf den Legacy-User gesetzt.
