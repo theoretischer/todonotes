@@ -29,35 +29,26 @@
 Details/Architektur: **`MIGRATION-CMP.md`** (technische Referenz) und
 **`WORKFLOW.md`** (Arbeitsablauf).
 
-## Offene Punkte
-
-Funktional:
-- [ ] **M10 – Desktop-Feinschliff**
-- [ ] **M10 – Desktop-Feinschliff** (rein funktional: Fenstergröße/-titel,
-      Scroll-Verhalten, Speichern beim Schließen — KEIN visuelles Styling)
-      + TODO: jpackage bundled JRE mit `-XX:UseAVX=2` patchen
-- [ ] **F7 – Bilder in Notizen** (Picker, downsamplen, PNG lokal, `ImageBlock`)
-- [ ] **F8 – Stift/Zeichnen** (Drawing-Layer, `DrawingBlock`, Palm-Rejection)
-- [ ] **F9 – Bild-Sync** (Endpoint + Nachladen fehlender Bilder, nach F7/F8)
-
-Später (visuell — Nutzer: „UI-Rework kommt, aktuelles Design ist funktional
-aber hässlich"; ALLES Optische wird dort gesammelt):
-- [ ] **UI-Rework**: Design-Politur (altes Block G), Notiz-Listen-Look (F11),
-      FAB-Polish (F12), responsive Layouts
+**Aktuelle offene Punkte:** siehe unten „Offene Punkte (Stand nach
+Bug-Fix-Session)".
 
 ## Erledigt (Kurzfassung)
 
 Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 
-- Block A–H der Original-App (Todos, Recurrence, Habits, Notizen, Chat,
-  Reorder) — ursprünglich native Android, im CMP-Projekt neu aufgebaut
+- Block A–H der Original-App — ursprünglich native Android, im
+  CMP-Projekt neu aufgebaut
 - CMP-Migration M1–M9 (Backend-Auth, KMP, Room KMP, Ktor, RRULE-Web,
   komplette UI in commonMain, Wasm + OPFS)
 - M8 Alarme + Benachrichtigungs-Stile, Android-Back-Handler (Ordner/Settings)
 - Echtzeit-Sync: Auto-Sync + SSE, Ping-Pong-Vermeidung, LWW + Clock-Skew,
-  CASCADE-Fix (`@Upsert`), Sync-Perf (~50–80ms gemessen)
+  Sync-Perf (~50–80ms gemessen)
 - Produktions-Deploy: Docker, Domain + HTTPS via NPM, Web-Dist im Repo
   (`deploy-web.sh`), COOP/COEP-Header, Self-Healing bei falscher Server-URL
+- Sync-A+ Notiz-Sync bombenfest (reaktiver Editor, safe flush)
+- Sync-FIX Full Up/Down-Sync + Anti-Resurrektion — vom Nutzer bestätigt
+- Bug-Fix-Session: 10 Bugs/Features (Editor-Lese-/Edit-Modi, Re-Arm,
+  2:00-Uhr, Checkbox-Datenverlust, Instant-Swipe, Tap-Position …)
 
 ## Sync-A+ – Notiz-Sync bombenfest (Erledigt)
 
@@ -143,6 +134,8 @@ CPU (AMD Zen 4) hat `avx512vbmi` → anfällig.
 **Empfehlung:** JDK updaten auf ≥17.0.22 (patched) sobald verfügbar, dann
 `-XX:UseAVX=2` wieder entfernen.
 
+## Sync bombensicher — Full Up/Down-Sync (Erledigt ✓ vom Nutzer bestätigt)
+
 **Problem:** Todos/Habits/Folders/Chat verschwanden nach Web-Reload und
 tauchten scheinbar random wieder (auch alte Wipe-Daten). Notizen
 funktionierten (reaktiver Editor).
@@ -174,136 +167,126 @@ der Todos/Habits rely auf `lastSyncedAt`-basierte Zustellung.
 
 `NoteEditorViewModel` sicher: skippt identische Daten. Full down-sync
 feuert Flow bei jedem Sync, Editor ignoriert unveränderte Notizen.
-Anti-Resurrektion bleibt (einmal gelöscht = gelöscht). (Commit `5d09c70`)
+Anti-Resurrektion bleibt (einmal gelöscht = gelöscht). (Commit `5d09c70`,
+vom Nutzer bestätigt: „alle Dateien sind jetzt in eine Session vereint,
+nach direktem Neuladen ist alles immer noch da")
 
-## SYNC-FIX – Todos/Habits/Folders/Chat syncen nicht zuverlässig (In Progress)
+## Bug-Fix-Session (Erledigt ✓ — alles vom Nutzer bestätigt)
 
-**Status: AKTUELLER BLOCKER.** Notizen syncen 1a (reaktiver Editor), aber
-alle anderen Entitäten (Todos, Habits, Folders, Chat-Messages) haben
-schwere Sync-Probleme auf Web (Wasm).
+Lange Nutzer-Test-Phase → Bugliste durchgearbeitet. Commits `d80236b` … `97947f7`.
 
-### Symptome (Nutzer-Report 2025-08-25)
-1. Todo auf PC erstellt → erscheint auf Handy ✓, aber nach Web-Reload
-   **weg**. Mehrmaliges Reload → mal da, mal weg, scheinbar random.
-2. Nach Minuten (wenn Sync endlich läuft) tauchen sie auf.
-3. **Alte gelöschte Daten von vor Wipe tauchen wieder auf** — Resurrektion.
-4. Nach Neuladen: mal nix, mal die 3 neuen, mal die alten vom Wipe, mal
-   gemischt.
+### 1. 2:00-Uhr-Bug bei wiederkehrenden Todos (Fix `d80236b`)
+**Ursache:** `RecurrenceEngine` (Android/Desktop, lib-recur) baute den
+RRULE-Start mit `DateTime(startMillis).toAllDay()` — `DateTime(long)`
+nutzt UTC, `toAllDay()` stript die Uhrzeit → Mitternacht UTC = 02:00
+CEST. Jede neue Occurrence lief auf 02:00 statt der Original-Zeit.
+Wasm (RecurrenceCalculator) war nie betroffen.
+**Fix:** `DateTime(TimeZone.getDefault(), startMillis)` — Original-Uhrzeit
+bleibt. Regressionstest `time_of_day_is_preserved` (ParityTest) prüft
+Uhrzeit-Erhaltung explizit (alter Test verglich nur das Datum → Bug
+fiel nie auf).
 
-### Verdächtige Ursachen (noch zu analysieren)
+### 2. Wiederkehrende Todos erinnerten nur 1× (Fix `6d6eca5`)
+**Ursache:** `setExactAndAllowWhileIdle` feuert exakt einmal, nächste
+Occurrence wurde nur beim ABHAKEN geplant. Nicht abgehakt → nie wieder
+Benachrichtigung.
+**Fix (Re-Arm-Kette):** `AlarmReceiver` plant beim Feuern direkt die
+nächste Occurrence (Todo offen + wiederkehrend → `nextOccurrence` →
+`scheduleAlarm`). Request-Code umgestellt auf `todoId.hashCode()`
+(vorher `dueAt/1000` — Re-Arm verschiebt das Datum → Cancel hätte den
+neuen Alarm nicht gefunden → Geister-Alarme).
+**Bekannte Lücken (bewusst offen):** Reboot/Force-Stop löscht Alarme
+(bräuchte BOOT_COMPLETED-Receiver); auf Web erstellte Todos bekommen
+keine Android-Alarme (Sync schreibt nur DB).
 
-#### A. `getSince(lastSyncedAt)` Off-by-One / Timing-Bug
-- `collectLocalChanges` nutzt `updatedAt > lastSyncedAt` (neu eingeführt
-  in Sync-A+). Wenn ein Todo erstellt wird, ist `updatedAt = nowMs()`.
-  Beim Push setzt der Server `updatedAt = server_now` und liefert
-  `newSyncedAt = server_now + 1`. Client speichert `lastSyncedAt =
-  server_now + 1`. Beim nächsten Push: `updatedAt = server_now` (die
-  Row vom letzten Sync) → `server_now > server_now + 1`? **NEIN** → wird
-  NICHT gepusht. Das ist korrekt (kein Re-Push).
-- ABER: bei einem **neuen** Todo, das LOKAL erstellt wurde (`updatedAt =
-  nowMs() ≈ server_now`), und dann der Sync läuft: Server setzt es auf
-  `server_now_s1`, Client bekommt `newSyncedAt = server_now_s1 + 1`. Wenn
-  der Client DANN nochmal reloadet und `getSince(lastSyncedAt =
-  server_now_s1 + 1)` macht → das neue Todo hat `updatedAt =
-  server_now_s1` → `server_now_s1 > server_now_s1 + 1`? **NEIN** → wird
-  NICHT gepusht. Korrekt.
-- **Verdacht:** Das Problem ist nicht `getSince`, sondern die **DB-Flow
-  feuert nicht / feuert stale Daten** auf Wasm nach `INSERT OR REPLACE`.
+### 3+4. Editor: Pfeiltasten/Markierung + Checkbox-Listener (Fix `07afc05`)
+**Bug 3:** Per-Zeilen-TextFields → Compose kann Cursor/Selektion
+prinzipbedingt nicht über Feldgrenzen. **Fix:** EIN mehrzeiliges
+BasicTextField (natives Verhalten) + `NoteBodyVisualTransformation`
+(Symbole nur Anzeige; später durch Lesemodus ersetzt, s.u.).
+**Bug 4 (Datenverlust!):** `migrateFromBlocks` hielt jeden mit `[`
+beginnenden Body für Block-JSON. Checkbox-Zeile 1 = `[ ] ...` → Decode
+scheiterte still → leerer Body → Auto-Save verteilte Datenverlust.
+**Fix:** `[ ] `/`[x] ` von JSON-Erkennung ausgenommen + Regressionstest.
 
-#### B. DB-Flow-Reaktivität auf Wasm (HAUPTVERDACHT)
-- `TodoViewModel.openTodos` = `repo.observeOpenTodos().stateIn(Eagerly)`.
-- `observeOpenTodos` = `dao.observeOpenTodos(): Flow<List<Todo>>` mit
-  `@Query("SELECT * FROM todos WHERE completedAt IS NULL AND deletedAt
-  IS NULL ORDER BY ...")`.
-- Nach `applyServerChanges` (`upsertAll` = `INSERT OR REPLACE`) sollte
-  die Flow neu feuern. Auf Wasm (Room3 + sqlite-web-worker) ist die
-  Invalidation-Tracker aber evtl. **nicht zuverlässig** — besonders wenn
-  `INSERT OR REPLACE` (DELETE+INSERT) die Tabelle invalidated.
-- **Mögliche Folge:** Nach Reload zeigt die Flow stale Daten oder nichts,
-  bis ein manuelles Refresh / SSE-Update kommt.
-- **Lösung Verdacht B:** `INSERT OR IGNORE` + `UPDATE` statt `INSERT OR
-  REPLACE` für alle Tabellen (wie schon für habits gemacht), weil REPLACE
-  = DELETE+INSERT die Invalidation-Tracker verwirrt.
+### 5. Editor-Architektur: Lesemodus + Edit-Modus (Option B, `e40c5d0`/`2c5b373`)
+Nutzer: „hätte es gerne wie es vorher war, einzelne Boxen mit schönen
+UI-Elementen — aber Mehrzeilen-Kopieren muss gehen". Zwei Fehlversuche:
+- InlineTextContent (Composables im Text): geht in Compose 1.8.2 NICHT —
+  Platzhalter-\uFFFC wurde als rohe „OBJ"-Tofu-Box gerendert, nur SpanStyles
+  (fett/kursiv) gingen. Basis `BasicTextField` unterstützt KEINE
+  Inline-Composables.
+- Final: **Lesemodus** = Row-Layout pro Zeile (echte Checkbox klickbar,
+  Canvas-Bullet/Pfeil, Nummer, abgehakt gedimmt) via `NoteBodyReadOnly`.
+  **Edit-Modus** = EIN BasicTextField (Pfeiltasten/Mehrzeilen-Markierung).
+  Tap auf Text → Edit-Modus; „Fertig"-Häkchen/Back → Lesemodus.
+  Beide teilen denselben Roh-Text — kein Format-Change, kein Server-Update.
 
-#### C. `INSERT OR REPLACE` = DELETE+INSERT → Invalidation-Tracker-Sturm
-- `INSERT OR REPLACE` macht bei PK-Konflikt **DELETE + INSERT**.
-- Room's Flow-Invalidation-Tracker feuert bei DELETE und bei INSERT.
-- Bei `upsertAll` mit N Rows → 2N Invalidation-Events → Flows feuern
-  mehrfach mit Zwischenzuständen → stale/UI-flicker.
-- Auf Wasm single-connection kann das zu Race-Conditions führen.
-- **Lösung Verdacht C:** `INSERT(IGNORE)` + `UPDATE` für ALLE Tabellen
-  (atomar, kein DELETE, kein Invalidation-Sturm).
+### 6. Doppeltipp Checkbox-Button → direkt `[x]` (`3eac34e`, `7540224`)
+Einfach-Tipp: keine Checkbox → `[ ]` einfügen; Checkbox da → entfernen.
+Doppeltipp ohne Checkbox → direkt `[x]`. Sequenz-Falle gelöst: 1. Tipp
+fügt `[ ]` ein, 2. Tipp (Doppeltipp <400ms) WANDELT das frische `[ ]`
+zu `[x]` (statt zu entfernen). Cursor hinter Präfix (nicht davor).
 
-#### D. Anti-Resurrektion greift nicht bei Folders/Chat-Messages
-- Die Anti-Resurrektion in `_upsert_row` prüft `existing["deletedAt"]`.
-- `chat_messages` und `folders` haben `deletedAt` → ok.
-- `todos` und `habits` haben `deletedAt` → ok.
-- **Aber:** `habit_logs` und `habit_history` haben KEIN `deletedAt` →
-  `has_deleted_at = False` → Anti-Resurrektion übersprungen. Append-only
-  → kein Problem (kein Löschen).
-- Sieht korrekt aus. Nicht die Ursache.
+### 7. ⋮-Menü aus Notizen entfernt (`80019eb`)
+Redundant (Drag auf Ordner + Reorder per Long-Press). Ordner-Menü
+bleibt (Umbenennen gibt's sonst nirgends).
 
-#### E. `serverTimeOffset` Race beim Page-Load
-- `SyncManager.init { serverTimeOffset = prefs.serverTimeOffset }`.
-- Wenn `prefs.serverTimeOffset` stale ist (z.B. von gestern), und die
-  Server-Zeit jetzt anders ist → `nowMs()` ist falsch → `updatedAt` für
-  neue Todos ist in der Zukunft/vergangenheit → LWW-Probleme.
-- Aber: nach erstem Sync wird `serverTimeOffset` aktualisiert. Das
-  erklärt nicht warum Items beim Reload verschwinden.
+### 8. Instant Swipe-Delete + Scroll-Reparatur (`8964d15`, `6e667ac`)
+Horizontal wischen = INSTANT löschen (vorher Long-Press nötig).
+Erster Versuch (EIN Erkenner für alles) brach das Scrollen. **Fix:
+ZWEI getrennte pointerInput-Erkenner:** horizontal instant
+(Swipe-Delete), vertikal am Handy NUR nach Long-Press (Reorder — sonst
+könnte die Liste nicht scrollen), Maus sofort.
 
-#### F. `lastSyncedAt` wird zu früh gesetzt → Pull verpasst
-- `prefs.lastSyncedAt = response.newSyncedAt` wird NACH `applyServerChanges`
-  gesetzt. Wenn `applyServerChanges` crasht (z.B. durch Invalidation-
-  Sturm) → `lastSyncedAt` wird nie gesetzt → nächster Sync ist Full-Pull.
-  Das wäre gut (nicht schlecht).
-- Wenn `applyServerChanges` TEILWEISE läuft (einige Rows upserted, dann
-  Exception) → `lastSyncedAt` wird nicht gesetzt → nächster Sync
-  re-pullt alles. Das ist ok (idempotent).
-- Sieht nicht nach der Ursache aus.
+### 9. Titel-Tap-Markierung (`6e667ac`)
+Synchron im onFocusChanged gesetzte Selection wurde von der Tap-Cursor-
+Positionierung des TextField (gleicher Frame) überschrieben → nie
+sichtbar. **Fix (Frame-Delay-Trick):** Selection EIN FRAME SPÄTER via
+`withFrameNanos` nach `requestFocus` → gewinnt. Notiz-Editor (bei jedem
+Fokus) + Chat (Tap auf Titel → Edit mit Select-All).
 
-### Plan zur Untersuchung & Fix
+### 10. Tap im Lesemodus → Cursor an Tap-Position (`97947f7`)
+`onTextLayout` jeder Zeile → `getOffsetForPosition(pos)` →
+`visualToRawOffset` (Inline-Marker ausblenden) → `+ prefixLen` (Präfix
+ist Widget, nicht Text) → Edit-Modus mit Cursor genau dort.
+Off-Text-Taps → Cursor ans Textende (wie vorher).
 
-1. **Debug-Logging in `applyServerChanges` + `collectLocalChanges`:**
-   - `APPLY: todos=N habits=N notes=N ...` pro Sync.
-   - `COLLECT: todos=N (since=X) ...` pro Push.
-   - `FLOW[todos]: emitting N items` wenn Flow feuert.
-2. **`INSERT OR REPLACE` → `INSERT(IGNORE)` + `UPDATE` für alle Tabellen**
-   (Verdacht C). Wie schon für habits gemacht.
-3. **DB-Flow-Reaktivität testen:** Nach `upsertAll` manuell eine Query
-   machen und vergleichen — wenn die Flow stale Daten zeigt aber die
-   DB frische hat → Invalidation-Tracker-Problem.
-4. **Fallback: manuelles Refresh nach Sync:** Wenn die Flow nicht feuert,
-   nach `applyServerChanges` einen manuellen Refresh der ViewModels
-   triggern (schmutzig, aber funktioniert).
-5. **Anti-Resurrektion verifizieren:** Server-Logs beim Push schauen, ob
-   `_upsert_row` gelöschte Items skippt.
+## Offene Punkte (Stand nach Bug-Fix-Session)
 
-### Wichtige Dateien
-- `compose-app/composeApp/src/commonMain/kotlin/com/earendil/todonotes/
-  data/sync/SyncManager.kt` — `collectLocalChanges`, `applyServerChanges`,
-  `syncInternal`.
-- `compose-app/composeApp/src/commonMain/kotlin/com/earendil/todonotes/
-  data/dao/TodoDao.kt` — `getSince`, `upsertAll`, `observeOpenTodos`.
-- `compose-app/composeApp/src/commonMain/kotlin/com/earendil/todonotes/
-  data/dao/HabitDao.kt` — `getHabitsSince`, `insertOrIgnoreHabits`,
-  `updateAllHabits`, `observeHabits`.
-- `compose-app/composeApp/src/commonMain/kotlin/com/earendil/todonotes/
-  data/dao/FolderDao.kt` — `getSince`, `upsertAll`, `observeFolders`.
-- `compose-app/composeApp/src/commonMain/kotlin/com/earendil/todonotes/
-  data/dao/ChatMessageDao.kt` — `getSince`, `upsertAll`.
-- `backend/app/sync.py` — `_upsert_row`, `_collect_server_changes`,
-  `sync`.
-- `backend/app/main.py` — `sync_endpoint`.
+Funktional:
+- [ ] **M10 – Desktop-Feinschliff** (Fenstergröße/-titel, Scroll,
+      Speichern beim Schließen) + jpackage bundled JRE mit
+      `-XX:UseAVX=2` patchen
+- [ ] **F7 – Bilder in Notizen** (Picker, downsamplen, PNG lokal, `ImageBlock`)
+- [ ] **F8 – Stift/Zeichnen** (Drawing-Layer, `DrawingBlock`, Palm-Rejection)
+- [ ] **F9 – Bild-Sync** (Endpoint + Nachladen fehlender Bilder, nach F7/F8)
+- [ ] **Reboot-Re-Arm:** BOOT_COMPLETED-Receiver, der offene
+      wiederkehrende Todos neu plant (Lücke aus Bug 2)
+- [ ] **Web→Android-Alarme:** nach Sync neu planen, falls Todos mit
+      fälligkeit neu reinkommen (Lücke aus Bug 2)
 
-### Commits (aktuelle Session)
-- `2a1e90e` — Sync-A+ (reaktiver Editor + safe flush + getSince)
-- `4a2547c` — @Upsert → INSERT OR REPLACE (Wasm-Transaktionsleck-Fix)
-- `74bd1be` — Sync beim App-Resume
-- `b8d4d39` — Initialer Sync beim Login
-- `5c232dc` — Auto-Sync resilient (Exception killt nicht mehr collect)
-- `a3a0e0e` — Sync-Indikator (Save-Icon + Sekunden)
-- `25185ec` — flush() NonCancellable (Connection-Leak-Fix)
-- `51f34c9` — Anti-Resurrektion + serverTimeOffset persistiert
+Später (visuell — Nutzer: „UI-Rework kommt, aktuelles Design ist
+funktional aber hässlich"; ALLES Optische wird dort gesammelt):
+- [ ] **UI-Rework**: Design-Politur, Notiz-Listen-Look, FAB-Polish,
+      responsive Layouts
+
+## Erledigt (Kurzfassung)
+
+Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
+
+- Block A–H der Original-App — ursprünglich native Android, im
+  CMP-Projekt neu aufgebaut
+- CMP-Migration M1–M9 (Backend-Auth, KMP, Room KMP, Ktor, RRULE-Web,
+  komplette UI in commonMain, Wasm + OPFS)
+- M8 Alarme + Benachrichtigungs-Stile, Android-Back-Handler
+- Echtzeit-Sync: Auto-Sync + SSE, Ping-Pong-Vermeidung, LWW + Clock-Skew,
+  Sync-Perf (~50–80ms)
+- Produktions-Deploy: Docker, Domain + HTTPS via NPM, Web-Dist im Repo
+  (`deploy-web.sh`), COOP/COEP-Header
+- Sync-A+ Notiz-Sync bombenfest (reaktiver Editor, safe flush)
+- Sync-FIX Full Up/Down-Sync (s.o.) — vom Nutzer bestätigt
+- Bug-Fix-Session: 10 Bugs/Features (s.o.) — vom Nutzer bestätigt
 
 ### Konstraints (Refresh)
 - `JAVA_HOME=/usr/lib/jvm/java-17-openjdk` für Gradle
