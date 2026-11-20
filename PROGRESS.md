@@ -35,6 +35,7 @@ Funktional:
 - [ ] **M10 – Desktop-Feinschliff**
 - [ ] **M10 – Desktop-Feinschliff** (rein funktional: Fenstergröße/-titel,
       Scroll-Verhalten, Speichern beim Schließen — KEIN visuelles Styling)
+      + TODO: jpackage bundled JRE mit `-XX:UseAVX=2` patchen
 - [ ] **F7 – Bilder in Notizen** (Picker, downsamplen, PNG lokal, `ImageBlock`)
 - [ ] **F8 – Stift/Zeichnen** (Drawing-Layer, `DrawingBlock`, Palm-Rejection)
 - [ ] **F9 – Bild-Sync** (Endpoint + Nachladen fehlender Bilder, nach F7/F8)
@@ -121,7 +122,26 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   löst das LWW-Problem nicht.
 - Feld-Level-LWW (Stufe 2) — später optional, wenn real auftretend.
 
-## Sync bombensicher — Full Up/Down-Sync (Erledigt ✓ vom Nutzer bestätigt)
+## Security: Java4Shell CVE-2026-114938 (Erledigt)
+
+**Lücke:** Base64-Decoder in OpenJDK 17.0.6+ nutzt AVX-512 VBMI Intrinsics
+auf x86-64. Malformed Base64-Input → 62-byte Heap-Overflow → RCE (pre-auth).
+CPU (AMD Zen 4) hat `avx512vbmi` → anfällig.
+
+**Betroffen (nur Build-Toolchain, nicht Runtime):**
+- Gradle nutzt java-17.0.21 (24.10.2026, vor Patch 17.11.2026)
+- Desktop-Distribution nutzt System-Java 27 (vor Patch)
+- Backend (Python) NICHT betroffen
+- Android-APK / Wasm-App NICHT betroffen (keine JVM-Runtime)
+
+**Fix:** `-XX:UseAVX=2` deaktiviert AVX-512, behält AVX2.
+- `gradle.properties` (compose-app + android): `org.gradle.jvmargs += -XX:UseAVX=2`
+- `build.gradle.kts`: TODO M10 jpackage bundled JRE patchen
+- **Server: nichts zu tun** — Backend ist reines Python:3.12-slim Docker-Image,
+  kein Java im Container. Wasm-App läuft im Browser. (Commit `e251ede`)
+
+**Empfehlung:** JDK updaten auf ≥17.0.22 (patched) sobald verfügbar, dann
+`-XX:UseAVX=2` wieder entfernen.
 
 **Problem:** Todos/Habits/Folders/Chat verschwanden nach Web-Reload und
 tauchten scheinbar random wieder (auch alte Wipe-Daten). Notizen
