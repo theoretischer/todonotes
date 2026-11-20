@@ -3,6 +3,12 @@
 **Stand: App ist LIVE und vollständig synchron** — Android-App + Web-App über
 `https://todo.christopherh.de`, Echtzeit-Sync in ~50–100ms.
 
+**Session 2026-11-20:** Sync-FIX bestätigt, Bug-Liste (Nr. 1–11) abgearbeitet,
+M11-Verlaufsfix (+ Migrations-Feuerwehr v13→14), M12 Links klickbar,
+M13 Quick-Add-Bar (FAB ersetzt, IME weich), M14 UI-Rework mit eigenem
+Farbsystem (Dynamic Color aus), Deploy-Script 60s→35-60s (yarn-Fix).
+88 Tests grün.
+
 ## Aktueller Stand
 
 - **Android** (natürlich installiert): Todos, Habits, Notizen (Rich-Text +
@@ -275,6 +281,75 @@ alter Server: Felder fallen beim JSON-Parse weg → kein Crash, kein Verlust.
 **Server-Tests:** Migrations-Spalten, LWW-Skip, Soft-Delete,
 Anti-Resurrektion, Log-Soft-Delete — alle grün (In-Memory-DB-Skript).
 
+### 12. Migrations-Feuerwehr: Room-Schema-Crash (Fix `c8a0f99`)
+M11 (v12→13) legte Indizes mit `idx_`-Präfix an — Room validiert
+aber `index_<table>_<column>`-Namen → App-Crash beim Start (Handy),
+Web-App zeigte alles leer (DB nicht öffnenbar). Reparatur-Migration
+v13→14 (DROP IF EXISTS + CREATE, Room-konform, no-op für intakte DBs).
+Daten selbst nie berührt — nur Indizes. Vom Nutzer bestätigt.
+
+### 13. Links klickbar (M12, `f88ca3b`)
+Neue `Linkify`-Util (`ui/components/Linkify.kt`): erkennt http(s)-URLs,
+`LinkAnnotation.Url` → nativ geöffnet (Android Intent / Desktop /
+Web window.open via Default-UriHandler). Satzzeichen am URL-Ende
+bleiben Text, unbalancierte Klammern auch. Angewandt auf: Todo-Titel
++ Notizen (Liste), Verlauf, Chat-Nachrichten, Notiz-Lesemodus (dort
+mit eigenem Tap-Abgleich, weil der Cursor-Tap-Handler die Geste
+konsumiert). 6 Linkify-Tests, 88 gesamt grün. Edit-Modus bewusst ohne.
+
+### 14. Quick-Add-Bar (M13, `61b3605`…`de78364`)
+Schwebende Box im Aufgaben-Tab über der BottomBar, ersetzt den
+FAB (Notizen-FAB bleibt). EIN Textfeld + Häkchen-Button DARIN
+(trailingIcon), darunter runde Options-Knöpfe (nur Icons): Datum
+(DatePicker→TimePicker, nochmal tippen=entfernen, zeigt gewähltes
+Datum), Wiederholung (BottomSheet mit RecurrenceEditor),
+Benachrichtigungs-Stil (Dropdown), Verlauf-Toggle, Notizen-Toggle.
+Nach Erstellen: Titel/Notzen leer, Optionen bleiben.
+**IME-Kollisionen (3 Runden):** (a) NavBar war ime-gepaddet → fuhr
+mit hoch; jetzt nur die Box (`9b497d0`). (b) Box startete über der
+NavBar + imePadding → doppelter Abstand zur Tastatur; Content-Padding
+fällt bei offener Tastatur weg (`4eb323c`). (c) binäre Umschaltung
+sprang hinter die animierende Tastatur; jetzt kontinuierliches
+`bottom = max(ime, NavBar-Höhe)` → gleicht weich mit (`de78364`).
+
+### 15. UI-Rework: eigenes Farbsystem (M14, `2d9729a`)
+`Theme.kt` komplett neu — EIGENES Farbsystem statt Material-Defaults,
+Dynamic Color DEAKTIVIERT (es würde unser System mit Wallpaper-
+Farben überschreiben):
+- Dark: BG `#1c1d21`, Fläche/Nav `#2a2c32`, Eingabe `#34363d`,
+  Text `#e8e9ec`, gedämpft `#8b8e97`, Akzent `#8ab4ff`,
+  Akzent-BG `#2c3d63`, Löschen `#a8322b`, Linie `#44464e`
+- Light: `#f6f6f8`/`#ffffff`/`#ececf0`/`#1c1d21`/`#6c6f78`,
+  Akzent `#2f5fc4`/`#dbe5fb`, Löschen `#B3261E`
+- Ein blauer Akzent, sonst Grautöne; Rot nur zum Löschen
+  (Swipe-Delete-BG via error/errorContainer = `#B3261E`)
+Visuell: Quick-Add-Bar als Karte in Nav-Farbe (Radius 24) mit
+Eingabe-Feld (Fläche 2, Radius 16) + transparenten Options-Knüpfen
+drauf, 12dp Abstand zur BottomBar (`de78364`). Checkbox-Kreis
+kleiner (22dp) + gedämpft statt fett/rot. Abschnitts-Header: kleine
+GROSSBUCHSTABEN mit Anzahl (`KEIN DATUM · 2`). Neue
+`ScreenTitle`-Komponente: große Titelzeile „Aufgaben"/
+„Gewohnheiten"/"Verlauf" oben links (Notizen bewusst ohne — dort
+ist der Ordner-Breadcrumb der Anker). Avatar mehr Abstand zur
+Statusleiste. TodoRow auf Hintergrund statt Kartenfläche.
+**Lucide-Icons verworfen:** KMP-Bindings ohne Wasm-Support würden
+die Web-App brechen — Material Icons `Outlined` hat denselben dünnen
+Outline-Stil.
+
+### 16. Deploy-Performance (M13+M14, `4eb323c`, `3ff6c24`)
+Gemessen statt geraten — die 60s pro Deploy verteilten sich:
+34s Binaryen-Optimize (Release-Veredelung des Wasm: 50MB→14MB,
+single-threaded, echte CPU-Arbeit) + 18s Wasm-Kompilieren + ~8s
+ksp/webpack. Früher KAM DAZU jedes Mal komplettes yarn install
+(`rm -rf build/wasm` löschte node_modules mit).
+- Fix 1 (`4eb323c`): `--no-daemon`/`--rerun-tasks` raus (Altlasten)
+- Fix 2 (`3ff6c24`): nur noch sqlite-worker-Kopie per rsync frisch
+  halten (Deckt den alten „veralteter Worker"-Bug weiter ab),
+  yarn-Cache bleibt intakt — kein yarn-Reinstall mehr
+- Heap 2GB→4GB getestet, bringt nichts → zurück auf 2GB
+- Ehrliche Rest-Wahrheit: ~35-60s pro Änderung bleiben (Binaryen),
+  unveränderte Deploys <1s (Build-Cache)
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -287,12 +362,13 @@ Funktional:
 - [ ] **Reboot-Re-Arm:** BOOT_COMPLETED-Receiver, der offene
       wiederkehrende Todos neu plant (Lücke aus Bug 2)
 - [ ] **Web→Android-Alarme:** nach Sync neu planen, falls Todos mit
-      fälligkeit neu reinkommen (Lücke aus Bug 2)
+      Fälligkeit neu reinkommen (Lücke aus Bug 2)
 
-Später (visuell — Nutzer: „UI-Rework kommt, aktuelles Design ist
-funktional aber hässlich"; ALLES Optische wird dort gesammelt):
-- [ ] **UI-Rework**: Design-Politur, Notiz-Listen-Look, FAB-Polish,
-      responsive Layouts
+UI-Rework läuft (M14 erledigt, `2d9729a`+`de78364`) — Rest fein-
+schleifen bei Bedarf:
+- [ ] Lucide-Icons manuell einbetten (nur die ~15 genutzten, als
+      ImageVector) — falls Material Outlined nicht reicht
+- [ ] FAB-Polish Notizen, responsive Layouts, weitere Detail-Politur
 
 ## Erledigt (Kurzfassung)
 
@@ -309,7 +385,14 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   (`deploy-web.sh`), COOP/COEP-Header
 - Sync-A+ Notiz-Sync bombenfest (reaktiver Editor, safe flush)
 - Sync-FIX Full Up/Down-Sync (s.o.) — vom Nutzer bestätigt
-- Bug-Fix-Session: 10 Bugs/Features (s.o.) — vom Nutzer bestätigt
+- Bug-Fix-Session: Bugs 1–11 (s.o.) — vom Nutzer bestätigt
+- M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
+- M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
+- M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
+- M14 UI-Rework: eigenes Farbsystem, Dynamic Color aus, Titel-
+  Anker, Header mit Anzahl, Quick-Add-Karte
+- Deploy-Perf: Daemon-Fix + kein yarn-Reinstall mehr
+      (Binaryen-Optimize bleibt ehrlich ~35-60s/Änderung)
 
 ### Konstraints (Refresh)
 - `JAVA_HOME=/usr/lib/jvm/java-17-openjdk` für Gradle
