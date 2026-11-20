@@ -6,7 +6,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -30,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -38,32 +41,34 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.ui.notes.ReorderKind
 import com.earendil.todonotes.ui.notes.ReorderSession
 import com.earendil.todonotes.ui.notes.reorderStep
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /**
  * Einheitliche Row: Swipe-Delete (horizontal) + Drag-Reorder (vertikal) +
  * Drag-auf-Ordner (Notiz auf Ordner loslassen = Verschieben).
  *
- * Ein einziger pointerInput-Handler entscheidet nach dem ersten Drag-Betrag:
- *   |dx| > |dy| → horizontal = Swipe-Delete
- *   |dy| ≥ |dx| → vertikal   = Reorder (innerhalb der Liste)
+ * ZWEI GETRENNTE Gesten-Erkenner (Fix „Scrollen kaputt“):
+ *  - INSTANT horizontal wischen → Swipe-Delete (sofort, kein Long-Press —
+ *    konsistent mit Aufgaben/Verlauf). Feuert NUR bei horizontal
+ *    dominanter Bewegung.
+ *  - Vertikal ziehen → Reorder: am Handy NUR nach Long-Press (sonst
+ *    könnte man die Liste nicht mehr scrollen), mit der Maus sofort
+ *    (vertikal-dominant — Desktop scrollt per Rad, nicht per Drag).
  *
- * Beim Loslassen wird geprüft ob der Finger über einem Ordner war (via
- * [folderBounds]) → [onDropOnFolder]. Das ist der Drag-Verschiebe-Modus.
+ * Das vertikale Listen-Scrollen bleibt frei: Beide Erkenner konsumieren
+ * erst, wenn ihre Richtung dominiert bzw. der Long-Press gefeuert ist.
  *
- * Nach jedem Swap wird dragOffsetY um heightPx korrigiert, damit die
- * gezogene Row optisch mit dem Finger verbunden bleibt (nicht eins springt).
+ * Beim Loslassen (Reorder) wird geprüft, ob der Finger über einem Ordner
+ * war (via [folderBounds]) → [onDropOnFolder] (= Verschieben). Bei
+ * Folder-Drop KEIN onReorderEnd — moveNote() macht den DB-Write.
  *
- * Touch: Drag beginnt SOFORT (kein Long-Press nötig) — Wischen zum
- * Löschen und vertikales Ziehen zum Verschieben gehen beide direkt
- * los. Die Richtung entscheidet die Geste, nicht der Long-Press.
- * (Vorher: Long-Press aktivierte beide — Löschen-Wischen brauchte
- * Gedrückthalten, Nutzer-Feedback „soll instant gehen wie in
- * Aufgaben/Verlauf“.)
+ * Nach jedem Swap wird dragOffsetY per Render-Zeit-Korrektur (im
+ * offset-Modifier) angeglichen, damit die gezogene Row optisch mit
+ * dem Finger verbunden bleibt (kein Einspringen).
  */
 @Composable
 fun SwipeOrReorderRow(
@@ -87,7 +92,7 @@ fun SwipeOrReorderRow(
     val maxOffset = with(density) { -deleteWidth.toPx() }
     val scope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
-
+    val isTouch = getPlatform().isTouch
 
     val currentRepos by rememberUpdatedState(repositories)
     val currentHeight by rememberUpdatedState(heightPx)
@@ -147,7 +152,7 @@ fun SwipeOrReorderRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset {
-                    // Position-basierte Korrektur: Die tatsaechliche Listen-
+                    // Positionsbasierte Korrektur: Die tatsaechliche Listen-
                     // Verschiebung = nodeRoot.y (jetzt) - nodeRootStartY (Start).
                     // Immer exakt, unabhaengig von Row-Hoehe oder spacedBy.
                     // Die Row folgt dem Finger 1:1 (kein Drift).
@@ -158,76 +163,69 @@ fun SwipeOrReorderRow(
                     )
                 }
                 .background(MaterialTheme.colorScheme.surface)
+                // --- Geste A: INSTANT horizontales Wischen → Swipe-Delete ---
+                // Feuert sofort (kein Long-Press), aber NUR wenn horizontal
+                // dominiert. Vertikale Bewegung wird NICHT konsumiert →
+                // LazyColumn scrollt frei.
                 .pointerInput(itemId) {
-                    // Mindest-Bewegung bevor die Richtung (löschen/verschieben)
-                    // festgelegt wird. Verhindert: Taps/leichte Zitter-Bewegungen
-                    // lösen sofort Reorder/Swipe aus. ~ViewConfiguration-Slop.
-                    var totalDx = 0f
-                    var totalDy = 0f
-                    val handleDrag: (dragAmount: Offset) -> Unit = { dragAmount: Offset ->
-                        totalDx += dragAmount.x
-                        totalDy += dragAmount.y
-                        if (!isSwipeDeleting && !isReordering) {
-                            // Richtung erst nach ausreichender Bewegung festlegen
-                            // (8px-Slop: Tips/Zittern lösen nichts aus).
-                            if (abs(totalDx) >= 8f || abs(totalDy) >= 8f) {
-                                if (abs(totalDx) > abs(totalDy)) {
-                                    isSwipeDeleting = true
-                                } else if (reorderEnabled) {
-                                    isReordering = true
-                                    val idx = currentRepos.indexOf(itemId)
-                                    if (idx >= 0) {
-                                        nodeRootStartY = nodeRoot.y
-                                        session = ReorderSession(itemId, reorderKind, idx, idx, 0f)
-                                        onReorderBegin()
-                                    }
-                                }
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            isSwipeDeleting = true
+                            isReordering = false
+                            session = null
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                val target =
+                                    if (offsetX.value < maxOffset / 2f) maxOffset else 0f
+                                offsetX.animateTo(target, tween(250))
+                                if (target == 0f) isSwipeDeleting = false
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch {
+                                offsetX.animateTo(0f, tween(150))
+                                isSwipeDeleting = false
                             }
                         }
-                        if (isSwipeDeleting) {
-                            scope.launch {
-                                offsetX.snapTo(
-                                    (offsetX.value + dragAmount.x).coerceIn(maxOffset, 0f)
-                                )
-                            }
-                        } else if (isReordering) {
-                            // dragOffsetY = reine Finger-Verschiebung seit Drag-Start.
-                            // KEINE Korrektur bei Swaps — die visuelle Korrektur
-                            // passiert zur Render-Zeit (siehe offset-Modifier unten).
-                            // Das verhindert Rubberbanding: nodeRoot (onGlobally-
-                            // Positioned) und dragOffsetY sind um einen Frame
-                            // versetzt auf Wasm — wenn beide im handleDrag korri-
-                            // giert werden, springt die Row.
-                            dragOffsetY += dragAmount.y
-                            val s = session
-                            if (s != null) {
-                                val step = reorderStep(
-                                    session = s,
-                                    repositories = currentRepos,
-                                    heightPx = currentHeight,
-                                    dragAmountPx = dragAmount.y,
-                                    onSwap = currentOnSwap
-                                )
-                                session = ReorderSession(itemId, reorderKind, step.newIndex, s.startIndex, step.newAccumPx)
+                    ) { change: PointerInputChange, dragAmount: Float ->
+                        change.consume()
+                        scope.launch {
+                            offsetX.snapTo(
+                                (offsetX.value + dragAmount).coerceIn(maxOffset, 0f)
+                            )
+                        }
+                    }
+                }
+                // --- Geste B: VERTIKALES Ziehen → Reorder ---
+                // Touch: erst nach Long-Press aktiv (sonst scrollt die Liste
+                // statt zu verschieben). Maus: sofort (vertikal-dominant,
+                // Desktop scrollt per Mausrad).
+                .pointerInput(itemId, isTouch, reorderEnabled) {
+                    val startReorder: () -> Unit = {
+                        isSwipeDeleting = false
+                        isReordering = false
+                        session = null
+                        if (reorderEnabled) {
+                            val idx = currentRepos.indexOf(itemId)
+                            if (idx >= 0) {
+                                nodeRootStartY = nodeRoot.y
+                                session = ReorderSession(itemId, reorderKind, idx, idx, 0f)
+                                isReordering = true
+                                onReorderBegin()
                             }
                         }
                     }
-
-                    val handleEnd: () -> Unit = {
+                    val endReorder: () -> Unit = {
                         scope.launch {
-                            if (isSwipeDeleting) {
-                                val target = if (offsetX.value < maxOffset / 2f) maxOffset else 0f
-                                offsetX.animateTo(target, tween(250))
-                                if (target == 0f) isSwipeDeleting = false
-                            } else if (isReordering) {
+                            if (isReordering) {
                                 // Finger-Position in Root-Koordinaten:
                                 // nodeRootStartY (Row-Oberkante beim Start)
                                 // + dragOffsetY (Finger-Verschiebung seit Start)
                                 // + currentHeight/2 (Row-Mitte — der Finger greift
-                                // die Row typischerweise in der Mitte, nicht an
-                                // der Oberkante). So trifft man die Breadcrumb
-                                // wenn man die Notiz AUF den Schriftzug zieht.
-                                val fingerY = nodeRootStartY + dragOffsetY + currentHeight.toFloat() / 2f
+                                // die Row typischerweise in der Mitte).
+                                val fingerY =
+                                    nodeRootStartY + dragOffsetY + currentHeight.toFloat() / 2f
                                 val hitId = currentBounds.entries.firstOrNull { (_, rect) ->
                                     fingerY in rect.top..rect.bottom
                                 }?.key
@@ -242,46 +240,64 @@ fun SwipeOrReorderRow(
                                     onReorderEnd()
                                 }
                             }
-                            // WICHTIG: Resets ERST nach den Checks oben,
-                            // innerhalb des Coroutines. Sonst sind sie schon
-                            // false bevor der Coroutine-Body läuft (scope.launch
-                            // ist async!).
                             dragOffsetY = 0f
                             isReordering = false
-                            isSwipeDeleting = false
                         }
                     }
-
-                    val handleCancel: () -> Unit = {
+                    val cancelReorder: () -> Unit = {
                         scope.launch {
-                            offsetX.animateTo(0f, tween(150))
                             if (isReordering) {
                                 session = null
                                 onReorderEnd()
                             }
                             dragOffsetY = 0f
                             isReordering = false
-                            isSwipeDeleting = false
+                        }
+                    }
+                    // dragOffsetY = reine Finger-Verschiebung seit Drag-Start.
+                    // KEINE Korrektur bei Swaps — die visuelle Korrektur
+                    // passiert zur Render-Zeit (siehe offset-Modifier oben).
+                    // Das verhindert Rubberbanding: nodeRoot (onGlobally-
+                    // Positioned) und dragOffsetY sind um einen Frame
+                    // versetzt auf Wasm.
+                    val dragReorder: (Offset) -> Unit = { dragAmount ->
+                        dragOffsetY += dragAmount.y
+                        val s = session
+                        if (s != null) {
+                            val step = reorderStep(
+                                session = s,
+                                repositories = currentRepos,
+                                heightPx = currentHeight,
+                                dragAmountPx = dragAmount.y,
+                                onSwap = currentOnSwap
+                            )
+                            session = ReorderSession(
+                                itemId, reorderKind, step.newIndex, s.startIndex, step.newAccumPx
+                            )
                         }
                     }
 
-                    // Sofort-Drag (kein Long-Press mehr): Wisch-Richtung entscheidet
-                    // die Aktion (horizontal=löschen, vertikal=reorder). Maus wie Touch.
-                    detectDragGestures(
-                        onDragStart = {
-                            isSwipeDeleting = false
-                            isReordering = false
-                            session = null
-                            totalDx = 0f
-                            totalDy = 0f
-                        },
-                        onDragEnd = handleEnd,
-                        onDragCancel = handleCancel,
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            handleDrag(dragAmount)
-                        }
-                    )
+                    if (isTouch) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { startReorder() },
+                            onDragEnd = { endReorder() },
+                            onDragCancel = { cancelReorder() },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragReorder(dragAmount)
+                            }
+                        )
+                    } else {
+                        detectVerticalDragGestures(
+                            onDragStart = { startReorder() },
+                            onDragEnd = { endReorder() },
+                            onDragCancel = { cancelReorder() },
+                            onVerticalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragReorder(Offset(0f, dragAmount))
+                            }
+                        )
+                    }
                 }
                 .clickable {
                     if (isSwipeDeleting || isReordering) return@clickable

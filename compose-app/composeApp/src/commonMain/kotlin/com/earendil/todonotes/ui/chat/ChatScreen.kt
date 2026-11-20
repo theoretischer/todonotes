@@ -154,6 +154,19 @@ fun ChatScreen(
     LaunchedEffect(isEditingTitle) {
         if (isEditingTitle) titleFocusRequester.requestFocus()
     }
+    // Titel-Markierung EINEN FRAME NACH dem Fokus setzen: Das TextField
+    // positioniert beim Tap/Fokus selbst den Cursor (im selben Frame) und
+    // überschreibt eine synchron gesetzte Selection. Ein Frame später
+    // gewinnt unsere Select-All-Selection → Tippen überschreibt direkt.
+    LaunchedEffect(isEditingTitle) {
+        if (isEditingTitle) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                androidx.compose.runtime.withFrameNanos { }
+            }
+            val t = titleText
+            titleText = t.copy(selection = TextRange(0, t.text.length))
+        }
+    }
     val focusManager = LocalFocusManager.current
     // Verlässt das Titel-Textfeld den Fokus → speichern + Edit-Modus beenden.
     // (Löst auf Android bei Tipp-weg und auf Desktop bei Tab/Esc aus.)
@@ -212,12 +225,11 @@ fun ChatScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable {
-                                    // Tap → Edit: gesamten Titel MARKIEREN (nicht nur
-                                    // Cursor ans Ende) → tippen überschreibt direkt.
-                                    titleText = TextFieldValue(
-                                        text = state.title,
-                                        selection = TextRange(0, state.title.length)
-                                    )
+                                    // Tap → Edit-Modus (Selection macht der
+                                    // LaunchedEffect oben — einen Frame später,
+                                    // damit die Tap-Cursor-Positionierung uns
+                                    // nichts überschreibt).
+                                    titleText = TextFieldValue(state.title)
                                     isEditingTitle = true
                                 }
                                 .padding(horizontal = 4.dp, vertical = 2.dp)

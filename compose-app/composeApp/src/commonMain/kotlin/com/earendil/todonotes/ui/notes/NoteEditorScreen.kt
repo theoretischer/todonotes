@@ -174,7 +174,6 @@ fun NoteEditorScreen(
     // --- Lokaler Editierzustand: Titel + EIN Body-Feld (Roh-Text) ---
     var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
     var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
-    var titleSelectedOnce by remember { mutableStateOf(false) }
     val titleFocusRequester = remember { FocusRequester() }
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -182,7 +181,6 @@ fun NoteEditorScreen(
     LaunchedEffect(noteId) {
         titleValue = null
         bodyValue = null
-        titleSelectedOnce = false
         editing = false
         vm.load(noteId, isNew, initialTitle, initialBody)
         val s = vm.state.first { it.loaded }
@@ -202,10 +200,31 @@ fun NoteEditorScreen(
         }
     }
 
-    // Neue Notiz: Titel fokussieren (Select-all via onFocusChanged unten).
+    // Neue Notiz: Titel fokussieren.
     LaunchedEffect(state.loaded, state.isNewNote) {
         if (state.loaded && state.isNewNote) {
             titleFocusRequester.requestFocus()
+        }
+    }
+
+    // Titel-Markierung (Nutzer-Wunsch: Tap auf Titel → alles markiert):
+    // onSelectAll wird bei JEDEM Fokus-Gewinn des Titel-Felds gesetzt
+    // (onFocusChanged unten) — hier im LaunchedEffect EINEN FRAME warten,
+    // dann Selection setzen. Der Frame-Delay ist der Trick: Der Tap-
+    // Cursor-Positionierung des TextField läuft im SELBEN Frame wie der
+    // Fokus-Gewinn — synchron gesetzte Selection wird einfach überschrieben.
+    // Einen Frame später gewinnt unsere Selection.
+    var selectTitleOnFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(selectTitleOnFocus) {
+        if (selectTitleOnFocus) {
+            selectTitleOnFocus = false
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                androidx.compose.runtime.withFrameNanos { }
+            }
+            val t = titleValue
+            if (t != null && t.selection == TextRange.Zero) {
+                titleValue = t.copy(selection = TextRange(0, t.text.length))
+            }
         }
     }
 
@@ -435,17 +454,11 @@ fun NoteEditorScreen(
                     .fillMaxWidth()
                     .focusRequester(titleFocusRequester)
                     .onFocusChanged { focusState ->
-                        // Bei JEDEM Fokus-Gewinn: gesamten Titel markieren →
-                        // Tippen überschreibt direkt (schnelles Löschen).
-                        // titleSelectedOnce wird bei Fokus-VERLUST zurückgesetzt,
-                        // damit der nächste Fokus wieder markiert.
-                        if (focusState.isFocused && !titleSelectedOnce) {
-                            titleSelectedOnce = true
-                            titleValue = currentTitleValue.copy(
-                                selection = TextRange(0, currentTitleValue.text.length)
-                            )
-                        } else if (!focusState.isFocused) {
-                            titleSelectedOnce = false
+                        // Bei JEDEM Fokus-Gewinn: Flag setzen → der LaunchedEffect
+                        // oben setzt EINEN FRAME SPÄTER die Select-All-Selection
+                        // (nach der Tap-Cursor-Positionierung des TextField).
+                        if (focusState.isFocused) {
+                            selectTitleOnFocus = true
                         }
                     },
                 placeholder = { Text("Titel") },
