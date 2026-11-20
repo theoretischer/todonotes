@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +66,6 @@ fun TodosScreen(
     onDeleteTodo: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var editingTodo by remember { mutableStateOf<Todo?>(null) }
     val groups = remember(todos) { groupOpenTodos(todos) }
 
@@ -82,7 +79,7 @@ fun TodosScreen(
                     Text("Keine Aufgaben", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Tippe auf + um eine neue Aufgabe zu erstellen.",
+                        "Schreibe unten in die Box, um eine Aufgabe zu erstellen.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -91,7 +88,7 @@ fun TodosScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 220.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (groups.overdue.isNotEmpty()) {
@@ -153,25 +150,15 @@ fun TodosScreen(
             }
         }
 
-        // FAB unten rechts (eigener Container, kein Scaffold nötig).
-        FloatingActionButton(
-            onClick = { showCreateDialog = true },
+        // Quick-Add-Bar (M13): schwebend über der Bottom-Bar, ersetzt den FAB.
+        // Kein imePadding nötig: die NavBar ist bereits ime-gepaddet (fährt
+        // bei offener Tastatur hoch) und der Content-Bereich (diese Box)
+        // schrumpft mit — die Bar liegt damit automatisch ÜBER der Tastatur.
+        QuickAddBar(
+            onCreateTodo = onCreateTodo,
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Neue Aufgabe")
-        }
-    }
-
-    if (showCreateDialog) {
-        TodoEditDialog(
-            existing = null,
-            onDismiss = { showCreateDialog = false },
-            onSubmit = { form ->
-                onCreateTodo(form)
-                showCreateDialog = false
-            }
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
 
