@@ -126,6 +126,10 @@ compose.desktop {
     application {
         mainClass = "MainKt"
 
+        // TODO M10: jpackage bundled JRE mit -XX:UseAVX=2 patchen (Java4Shell
+        //   CVE-2026-114938). Aktuell nutzt die Desktop-Distribution das
+        //   unpatched System-JRE 27.
+
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Msi)
             packageName = "todonotes"
