@@ -151,13 +151,13 @@ fun TodosScreen(
         }
 
         // Quick-Add-Bar (M13): schwebend über der Bottom-Bar, ersetzt den FAB.
-        // Kein imePadding nötig: die NavBar ist bereits ime-gepaddet (fährt
-        // bei offener Tastatur hoch) und der Content-Bereich (diese Box)
-        // schrumpft mit — die Bar liegt damit automatisch ÜBER der Tastatur.
+        // imePadding: bei offener Tastatur fährt NUR diese Box hoch (die
+        // Bottom-Bar bleibt unten — sie ist nicht mehr ime-gepaddet).
         QuickAddBar(
             onCreateTodo = onCreateTodo,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .imePadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }

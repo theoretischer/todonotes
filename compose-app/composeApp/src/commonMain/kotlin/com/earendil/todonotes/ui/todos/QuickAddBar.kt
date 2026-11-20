@@ -163,7 +163,10 @@ fun QuickAddBar(
             ) {
                 QuickOptionButton(
                     icon = if (hasDate) Icons.Filled.Event else Icons.Outlined.Event,
-                    label = if (hasDate) formatShortDateTime(pickedLdt) else "Datum",
+                    contentDescription = "Datum & Uhrzeit",
+                    // Nur wenn gesetzt: gewähltes Datum zeigen (sonst kein Text —
+                    // ausgewählt = farbiger Icon).
+                    label = if (hasDate) formatShortDateTime(pickedLdt) else null,
                     selected = hasDate,
                     onClick = {
                         if (hasDate) {
@@ -175,14 +178,16 @@ fun QuickAddBar(
                 )
                 QuickOptionButton(
                     icon = if (recurrenceState.freq != com.earendil.todonotes.ui.components.RecurFreq.NONE) Icons.Filled.Repeat else Icons.Outlined.Repeat,
-                    label = recurrenceShortLabel(recurrenceState),
+                    contentDescription = "Wiederholung",
+                    label = null,
                     selected = recurrenceState.freq != com.earendil.todonotes.ui.components.RecurFreq.NONE,
                     onClick = { showRecurrenceSheet = true }
                 )
                 Box {
                     QuickOptionButton(
                         icon = if (notificationStyle != NotificationStyle.SILENT.value) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                        label = notificationStyleShortLabel(notificationStyle),
+                        contentDescription = "Benachrichtigung",
+                        label = null,
                         selected = notificationStyle != NotificationStyle.SILENT.value,
                         onClick = { showNotificationMenu = true }
                     )
@@ -206,13 +211,15 @@ fun QuickAddBar(
                 }
                 QuickOptionButton(
                     icon = if (logToHistory) Icons.Filled.History else Icons.Outlined.History,
-                    label = "Verlauf",
+                    contentDescription = "In Verlauf eintragen",
+                    label = null,
                     selected = logToHistory,
                     onClick = { logToHistory = !logToHistory }
                 )
                 QuickOptionButton(
                     icon = if (notesOpen) Icons.Filled.Notes else Icons.Outlined.Notes,
-                    label = "Notizen",
+                    contentDescription = "Notizen",
+                    label = null,
                     selected = notesOpen,
                     onClick = { notesOpen = !notesOpen }
                 )
@@ -301,11 +308,13 @@ fun QuickAddBar(
     }
 }
 
-/** Runder Options-Knopf mit Icon + Label darunter (wie WhatsApp-Attachment). */
+/** Runder Options-Knopf: nur Icon (44dp), ausgewählt = farbig. [label] nur
+ *  beim Datum gesetzt (zeigt dann das gewählte Datum) — sonst kein Text. */
 @Composable
 private fun QuickOptionButton(
     icon: ImageVector,
-    label: String,
+    contentDescription: String,
+    label: String?,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -319,21 +328,23 @@ private fun QuickOptionButton(
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(
                     icon,
-                    contentDescription = label,
+                    contentDescription = contentDescription,
                     tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(top = 2.dp)
-        )
+        if (label != null) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
     }
 }
 
@@ -345,18 +356,6 @@ private fun formatShortDateTime(ldt: LocalDateTime): String {
     return "$d.$m. $h:$min"
 }
 
-private fun recurrenceShortLabel(state: RecurrenceState): String {
-    val n = if (state.interval > 1) "${state.interval} " else ""
-    return when (state.freq) {
-        com.earendil.todonotes.ui.components.RecurFreq.NONE -> "Wiederh."
-        com.earendil.todonotes.ui.components.RecurFreq.MINUTELY -> "${n}Min"
-        com.earendil.todonotes.ui.components.RecurFreq.HOURLY -> "${n}Std"
-        com.earendil.todonotes.ui.components.RecurFreq.DAILY -> "täglich"
-        com.earendil.todonotes.ui.components.RecurFreq.WEEKLY -> "woche"
-        com.earendil.todonotes.ui.components.RecurFreq.MONTHLY -> "monatl."
-        com.earendil.todonotes.ui.components.RecurFreq.YEARLY -> "jährl."
-    }
-}
 
 private fun notificationStyleShortLabel(style: Int): String = when (style) {
     NotificationStyle.FULLSCREEN.value -> "Vollbild"

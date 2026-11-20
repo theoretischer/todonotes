@@ -154,7 +154,10 @@ fun TodoNotesApp(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                // Nur navigationBars hier — KEIN ime! Die Bottom-Bar bleibt bei
+                // offener Tastatur unten liegen (die Tastatur schiebt sich drüber),
+                // nur die Quick-Add-Box fährt mit imePadding hoch. (M13)
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
             ) {
                 Tab.entries.forEach { tab ->
                     NavigationBarItem(
