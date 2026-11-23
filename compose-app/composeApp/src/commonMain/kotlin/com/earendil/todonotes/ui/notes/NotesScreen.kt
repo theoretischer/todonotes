@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.*
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -189,6 +190,7 @@ fun NotesScreen(
     if (showNewMenu) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showNewMenu = false },
             sheetState = sheetState
         ) {
@@ -481,6 +483,7 @@ private fun CreateFolderDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(
@@ -491,11 +494,13 @@ private fun CreateFolderDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            TextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Name") },
-                singleLine = true
+                singleLine = true,
+                colors = filledTextFieldColors(),
+                shape = RoundedCornerShape(16.dp)
             )
         }
     )

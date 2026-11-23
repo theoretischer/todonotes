@@ -42,11 +42,12 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material3.AlertDialog
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -584,9 +585,11 @@ private fun ChatInputBar(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        OutlinedTextField(
+        TextField(
             value = text,
             onValueChange = onTextChange,
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .weight(1f)
                 // Enter (ohne Shift) senden auf Desktop, nicht auf Touch.
@@ -618,8 +621,7 @@ private fun ChatInputBar(
             maxLines = 5,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences
-            ),
-            shape = RoundedCornerShape(16.dp)
+            )
         )
         Spacer(Modifier.padding(start = 4.dp))
         IconButton(
@@ -648,12 +650,15 @@ private fun EditMessageDialog(
     var editText by remember { mutableStateOf(message.text) }
 
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         title = { Text("Nachricht bearbeiten") },
         text = {
-            OutlinedTextField(
+            TextField(
                 value = editText,
                 onValueChange = { editText = it },
+                colors = filledTextFieldColors(),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 keyboardOptions = KeyboardOptions(

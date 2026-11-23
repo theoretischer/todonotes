@@ -1,6 +1,7 @@
 package com.earendil.todonotes.ui.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -95,6 +96,22 @@ fun TodoNotesTheme(
     val colorScheme = resolveColorScheme(darkTheme)
     MaterialTheme(colorScheme = colorScheme, content = content)
 }
+
+/**
+ * Gefüllte TextField-Farben (M14g-Kanon, wie die Aufgaben-Eingabe):
+ * Fläche surfaceContainerHigh, KEIN Indikator-Strich — der Fokus zeigt
+ * sich über die Flächenfarbe, nicht über eine Linie. Für alle Felder
+ * der App (Dialoge, Einstellungen, Chat, Auth, …).
+ */
+@Composable
+fun filledTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+)
 
 /** Statisches ColorScheme (commonMain). */
 internal fun staticColorScheme(dark: Boolean): ColorScheme =

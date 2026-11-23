@@ -20,11 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -143,9 +145,11 @@ private fun ServerUrlForm(vm: AuthViewModel, error: String?) {
             "Server verbinden",
             "Gib die Adresse deines TodoNotes-Servers ein."
         )
-        OutlinedTextField(
+        TextField(
             value = serverUrl,
             onValueChange = { serverUrl = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Server-URL") },
             placeholder = { Text("http://192.168.1.100:8001") },
             modifier = Modifier.fillMaxWidth(),
@@ -190,9 +194,11 @@ private fun SetupForm(vm: AuthViewModel, error: String?) {
             "Admin einrichten",
             "Erstelle den ersten Admin-Account. Bestehende Daten werden migriert."
         )
-        OutlinedTextField(
+        TextField(
             value = username,
             onValueChange = { username = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Benutzername") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -202,18 +208,22 @@ private fun SetupForm(vm: AuthViewModel, error: String?) {
             )
         )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        TextField(
             value = displayName,
             onValueChange = { displayName = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Anzeigename (optional)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
         )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        TextField(
             value = password,
             onValueChange = { password = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Passwort") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -262,9 +272,11 @@ private fun LoginForm(vm: AuthViewModel, state: AuthUiState.NeedsLogin, error: S
         LogoHeader(
             if (showRegister) "Account erstellen" else "Anmelden"
         )
-        OutlinedTextField(
+        TextField(
             value = username,
             onValueChange = { username = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Benutzername") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -274,9 +286,11 @@ private fun LoginForm(vm: AuthViewModel, state: AuthUiState.NeedsLogin, error: S
             )
         )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        TextField(
             value = password,
             onValueChange = { password = it },
+            colors = filledTextFieldColors(),
+            shape = RoundedCornerShape(16.dp),
             label = { Text("Passwort") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,

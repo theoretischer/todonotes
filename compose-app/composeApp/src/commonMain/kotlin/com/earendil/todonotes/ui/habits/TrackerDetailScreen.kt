@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -293,6 +294,7 @@ private fun HabitPeriodSection(
     editingPeriod?.let { p ->
         var editValue by remember(p) { mutableStateOf(p.count.toString()) }
         AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { editingPeriod = null },
             confirmButton = {
                 TextButton(onClick = {
@@ -315,9 +317,11 @@ private fun HabitPeriodSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+                    TextField(
                         value = editValue,
                         onValueChange = { editValue = it.filter { c -> c.isDigit() } },
+                        colors = filledTextFieldColors(),
+                        shape = RoundedCornerShape(16.dp),
                         label = { Text("Anzahl") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)

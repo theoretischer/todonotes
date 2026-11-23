@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.NotificationStyle
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.data.repo.formatDateGerman
+import com.earendil.todonotes.ui.components.RoundCheckbox
 import com.earendil.todonotes.ui.components.RecurrenceCodec
 import com.earendil.todonotes.ui.components.RecurrenceEditor
 import com.earendil.todonotes.ui.components.RecurrenceState
@@ -108,6 +110,7 @@ fun TodoEditDialog(
     if (showTimePicker) {
         val state = rememberTimePickerState(initialHour = hour, initialMinute = minute)
         AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
                 TextButton(onClick = {
@@ -122,6 +125,7 @@ fun TodoEditDialog(
     }
 
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
@@ -156,17 +160,21 @@ fun TodoEditDialog(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
+                TextField(
                     value = title,
                     onValueChange = { title = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Aufgabe") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                TextField(
                     value = notes,
                     onValueChange = { notes = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Notizen (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2
@@ -177,7 +185,7 @@ fun TodoEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(checked = hasDate, onCheckedChange = { hasDate = it })
+                    RoundCheckbox(checked = hasDate, onCheckedChange = { hasDate = it })
                     Text("Datum & Uhrzeit", style = MaterialTheme.typography.bodyMedium)
                 }
 
@@ -222,7 +230,7 @@ fun TodoEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(checked = logToHistory, onCheckedChange = { logToHistory = it })
+                    RoundCheckbox(checked = logToHistory, onCheckedChange = { logToHistory = it })
                     Column(modifier = Modifier.weight(1f)) {
                         Text("In Verlauf eintragen", style = MaterialTheme.typography.bodyMedium)
                         Text(

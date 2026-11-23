@@ -7,6 +7,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import com.earendil.todonotes.ui.components.RoundCheckbox
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,6 +91,7 @@ fun HabitEditDialog(
     }
 
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
@@ -129,17 +132,21 @@ fun HabitEditDialog(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
+                TextField(
                     value = title,
                     onValueChange = { title = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Gewohnheit") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                TextField(
                     value = notes,
                     onValueChange = { notes = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Notizen (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2
@@ -177,7 +184,7 @@ fun HabitEditDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Ziel: ", style = MaterialTheme.typography.bodyMedium)
-                        OutlinedTextField(
+                        TextField(
                             value = goalCount.toString(),
                             onValueChange = { v ->
                                 val n = v.toIntOrNull()
@@ -185,7 +192,9 @@ fun HabitEditDialog(
                             },
                             modifier = Modifier.width(80.dp).height(48.dp),
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            colors = filledTextFieldColors(),
+                            shape = RoundedCornerShape(16.dp)
                         )
                         Text(" mal", style = MaterialTheme.typography.bodyMedium)
                     }
@@ -221,7 +230,7 @@ fun HabitEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(checked = logToHistory, onCheckedChange = { logToHistory = it })
+                    RoundCheckbox(checked = logToHistory, onCheckedChange = { logToHistory = it })
                     Column(modifier = Modifier.weight(1f)) {
                         Text("In Verlauf eintragen", style = MaterialTheme.typography.bodyMedium)
                         Text(

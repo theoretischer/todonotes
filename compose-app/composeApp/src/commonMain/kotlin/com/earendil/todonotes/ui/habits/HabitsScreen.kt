@@ -150,6 +150,7 @@ fun HabitsScreen(
     if (showNewMenu) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showNewMenu = false },
             sheetState = sheetState
         ) {
@@ -209,6 +210,7 @@ fun HabitsScreen(
     if (finishConfirmHabit != null) {
         val h = finishConfirmHabit!!
         AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { finishConfirmHabit = null },
             confirmButton = {
                 TextButton(onClick = {

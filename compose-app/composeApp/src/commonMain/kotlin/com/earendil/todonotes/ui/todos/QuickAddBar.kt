@@ -276,6 +276,7 @@ fun QuickAddBar(
     if (showTimePicker) {
         val state = rememberTimePickerState(initialHour = pickedLdt.hour, initialMinute = pickedLdt.minute)
         AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
                 TextButton(onClick = {
@@ -294,6 +295,7 @@ fun QuickAddBar(
     if (showRecurrenceSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showRecurrenceSheet = false },
             sheetState = sheetState
         ) {

@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalUriHandler
+import com.earendil.todonotes.ui.components.RoundCheckbox
 import com.earendil.todonotes.ui.components.appendLinkified
 import com.earendil.todonotes.ui.components.UrlMatch
 import com.earendil.todonotes.data.richtext.ListType
@@ -134,9 +135,9 @@ private fun ReadOnlyNoteLine(
             ) {
                 when (line.type) {
                     ListType.BULLET -> BulletDot(textColor)
-                    ListType.CHECKBOX -> Checkbox(
+                    ListType.CHECKBOX -> RoundCheckbox(
                         checked = line.checked,
-                        onCheckedChange = { onToggleCheckbox?.invoke() },
+                        onCheckedChange = onToggleCheckbox?.let { cb -> { cb() } },
                         modifier = Modifier.size(22.dp)
                     )
                     ListType.ORDERED -> Text(

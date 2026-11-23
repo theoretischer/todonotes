@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,7 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -269,9 +270,11 @@ private fun ProfileSection(
                 fontWeight = FontWeight.Bold
             )
 
-            OutlinedTextField(
+            TextField(
                 value = displayName,
                 onValueChange = { displayName = it },
+                colors = filledTextFieldColors(),
+                shape = RoundedCornerShape(16.dp),
                 label = { Text("Anzeigename") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -280,9 +283,11 @@ private fun ProfileSection(
                 }
             )
 
-            OutlinedTextField(
+            TextField(
                 value = newPassword,
                 onValueChange = { newPassword = it },
+                colors = filledTextFieldColors(),
+                shape = RoundedCornerShape(16.dp),
                 label = { Text("Neues Passwort (optional)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -501,6 +506,7 @@ private fun UserRow(
 
     if (showDeleteConfirm) {
         androidx.compose.material3.AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Benutzer löschen?") },
             text = { Text("Soll @${user.username} wirklich gelöscht werden? Alle Daten dieses Users werden entfernt.") },
@@ -528,27 +534,34 @@ private fun CreateUserDialog(
     var showPassword by remember { mutableStateOf(false) }
 
     androidx.compose.material3.AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         title = { Text("Neuen Benutzer") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                TextField(
                     value = username,
                     onValueChange = { username = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Benutzername") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                TextField(
                     value = displayName,
                     onValueChange = { displayName = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Anzeigename (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                TextField(
                     value = password,
                     onValueChange = { password = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Passwort") },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None
@@ -679,6 +692,7 @@ private fun PasswordConfirmDialog(
     }
 
     AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -688,9 +702,11 @@ private fun PasswordConfirmDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
+                TextField(
                     value = password,
                     onValueChange = { password = it },
+                    colors = filledTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp),
                     label = { Text("Passwort zur Bestätigung") },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None
