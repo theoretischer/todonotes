@@ -180,7 +180,10 @@ fun TodoNotesApp(
         container.sharedText = null
         container.appScope.launch {
             container.syncManager.sync()
-            moveAppToBack()
+            // WIRKLICH schließen (finish) — nicht nur in den Hintergrund
+            // (moveTaskToBack ließ die Activity am Leben → App mehrfach
+            // im Recents + Share-Session überlebte, Nutzer-Report M16).
+            closeShareActivity()
         }
     }
     // Zufriedenheits-Tracker-Detail (Grafik-Overlay)
@@ -412,6 +415,16 @@ fun TodoNotesApp(
         ) {
             trackerDetailId = null
         }
+    }
+
+    // M16: System-Back während einer Share-Session (Prefill im Feld oder
+    // Pick-Modus) = Abbrechen → die durchs Teilen geöffnete App WIRKLICH
+    // schließen (finish, s. finishShare) — nicht nur in den Hintergrund
+    // (Nutzer-Report: App lag sonst mehrfach in den Recents + Notebook-
+    // Knopf überlebte). NACH allen anderen BackHandlern registriert →
+    // gewinnt, solange die Session läuft.
+    BackHandler(enabled = shareActive) {
+        finishShare()
     }
 }
 

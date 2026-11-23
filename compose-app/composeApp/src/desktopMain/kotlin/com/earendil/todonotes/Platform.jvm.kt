@@ -18,4 +18,4 @@ actual fun setupAppLifecyclePlatform(container: AppContainer) {
             }
         }
 }
-actual fun moveAppToBack() {}
+actual fun closeShareActivity() {}

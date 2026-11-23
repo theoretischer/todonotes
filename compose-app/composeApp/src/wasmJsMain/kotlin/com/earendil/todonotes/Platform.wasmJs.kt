@@ -32,4 +32,4 @@ private fun setupVisibilityListener(callback: () -> Unit) {
     });
     """)
 }
-actual fun moveAppToBack() {}
+actual fun closeShareActivity() {}

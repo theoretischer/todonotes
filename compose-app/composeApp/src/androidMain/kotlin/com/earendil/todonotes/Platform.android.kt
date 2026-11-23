@@ -20,7 +20,9 @@ internal object ActivityRefs {
     var current: androidx.activity.ComponentActivity? = null
 }
 
-/** Teilen-Endbedingung: App minimieren → zurück zur absendenden App. */
-actual fun moveAppToBack() {
-    ActivityRefs.current?.moveTaskToBack(true)
+/** Teilen-Endbedingung: Activity WIRKLICH schließen (finish — nicht
+ *  moveTaskToBack: das ließ sie im Hintergrund am Leben → mehrfach
+ *  offen + Share-Session überlebte). */
+actual fun closeShareActivity() {
+    ActivityRefs.current?.finish()
 }

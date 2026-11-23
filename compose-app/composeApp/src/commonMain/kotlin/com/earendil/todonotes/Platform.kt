@@ -18,9 +18,15 @@ expect fun getPlatform(): Platform
 expect fun setupAppLifecyclePlatform(container: AppContainer)
 
 /**
- * "Teilen mit der App"-Endbedingung: App minimieren und zur
- * Herkunfts-App zurückkehren (Android: moveTaskToBack — die Share-Activity
- * läuft im Task der absendenden App, damit landet man genau da wieder,
- * woher der Text kam). Desktop/Web: no-op (kein Task-Modell).
+ * "Teilen mit der App"-Endbedingung: die (durchs Teilen geöffnete)
+ * Activity WIRKLICH schließen (Android: finish — sie läuft im Task der
+ * absendenden App, damit landet man genau da wieder, woher der Text kam).
+ *
+ * Vorsicht beim replaces: moveTaskToBack ließ die Activity im Hintergrund
+ * AM LEBEN → App mehrfach offen (Recents) + Share-Session überlebte
+ * (Nutzer-Report). finish() schließt sie sauber; laufende Sync-Jobs
+ * laufen im appScope (Container, nicht Activity) weiter.
+ *
+ * Desktop/Web: no-op (kein Task-Modell).
  */
-expect fun moveAppToBack()
+expect fun closeShareActivity()
