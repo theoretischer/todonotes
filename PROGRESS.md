@@ -19,7 +19,8 @@ migrateFromBlocks hielt `[]` für leeres Block-JSON, und der Fix
 trennte zuerst den Legacy-[]-Leer-Marker nicht sauber ab —
 jetzt: exakt `[]`/`{}` = Leer-Marker, decodbare Blöcke = JSON,
 sonst Plaintext). Revert M14c (Flächen-Tausch — sah vorher besser
-aus). 92 Tests grün.
+aus). M14d: Notiz-Titel in die TopBar wie Chat-Notizen
+(Konsistenz). 92 Tests grün.
 
 ## Aktueller Stand
 
@@ -395,6 +396,19 @@ Plaintext, bleibt unangetastet.
 **Revert M14c (`f37e7e7`):** Flächen 1/2-Tausch (hellere Karten)
 nach Nutzer-Feedback zurück — altes Farbschema gefiel besser.
 
+### 18. M14d — Notiz-Titel in die TopBar (`1be6016`)
+
+Nutzer-Wunsch: Der Titel einer Notiz soll oben in der TopBar
+angezeigt werden wie bei Chat-Notizen — Konsistenz.
+Vorher war er ein TextField über dem Body im Content.
+Jetzt exakt das Chat-Muster: Lesemodus = halbfetter Text in der
+TopBar, Tap → Inline-Edit mit Select-All (Frame-Delay-Mechanik),
+Enter (ohne Shift) oder Fokus-Verlust → speichern. Neue
+Notiz startet direkt im Titel-Edit. Body/Checkboxen/Format-Bar
+unverändert (Lesemodus/Edit-Modus-Toggle bleibt). Aufgeräumt:
+transparentTextFieldColors (toter Code) + alte Titel-Select-All-
+LaunchedEffects entfernt.
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -434,6 +448,8 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Bug-Session 2: Bug 12 (OLED-Nacht), Bug 13 (Style bei
   Wiederholung), Bug 14/14b ([]-Datenverlust) — bestätigt
 - Revert M14c Flächen-Tausch (altes Farbschema gefiel besser)
+- M14d: Notiz-Titel in die TopBar (wie Chat) — Inline-Edit
+  mit Select-All/Enter/Fokus-Verlust-Speichern
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
