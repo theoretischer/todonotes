@@ -258,7 +258,9 @@ fun TodoNotesApp(
                     onSendToNotes = {
                         sharePickActive = true
                         currentTab = Tab.Notes
-                    }
+                    },
+                    // F7: Link-Vorschauen in den Aufgaben-Zeilen.
+                    linkPreviews = container.linkPreviewRepository
                 )
                 Tab.Habits -> HabitsScreen(
                     habits = habitsWithProgress,
@@ -378,7 +380,8 @@ fun TodoNotesApp(
                 initialTitle = target.initialTitle,
                 vm = chatVm,
                 onBack = { editorState = null },
-                syncState = syncState
+                syncState = syncState,
+                linkPreviews = container.linkPreviewRepository
             )
         } else {
             NoteEditorScreen(

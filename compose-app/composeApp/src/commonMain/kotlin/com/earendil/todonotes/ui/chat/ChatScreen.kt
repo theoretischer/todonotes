@@ -96,6 +96,7 @@ import com.earendil.todonotes.data.repo.formatTimeGerman
 import com.earendil.todonotes.getPlatform
 import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.ui.ChatViewModel
+import com.earendil.todonotes.ui.components.LinkPreviewForText
 import com.earendil.todonotes.ui.components.linkified
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,7 +119,9 @@ fun ChatScreen(
     vm: ChatViewModel,
     onBack: () -> Unit,
     syncState: com.earendil.todonotes.data.sync.SyncManager.SyncState =
-        com.earendil.todonotes.data.sync.SyncManager.SyncState()
+        com.earendil.todonotes.data.sync.SyncManager.SyncState(),
+    /** F7: Link-Vorschauen in den Blasen (null = Feature aus). */
+    linkPreviews: com.earendil.todonotes.data.repo.LinkPreviewRepository? = null
 ) {
     val state by vm.state.collectAsState()
     val messages by vm.messages.collectAsState()
@@ -306,6 +309,7 @@ fun ChatScreen(
                     is ChatListItem.DateSeparator -> DateDivider(item.label)
                     is ChatListItem.Bubble -> ChatBubble(
                         message = item.message,
+                        linkPreviews = linkPreviews,
                         quotedMessage = item.message.quotedMessageId?.let { messageMap[it] },
                         isBlinking = blinkId == item.message.id,
                         onTap = { editingMessage = item.message },
@@ -396,6 +400,7 @@ private fun DateDivider(label: String) {
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
+    linkPreviews: com.earendil.todonotes.data.repo.LinkPreviewRepository? = null,
     quotedMessage: ChatMessage?,
     isBlinking: Boolean,
     onTap: () -> Unit,
@@ -485,6 +490,14 @@ private fun ChatBubble(
                 text = linkified(message.text, linkColor, underline = true),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            // F7: Link-Vorschau (Bild + Titel) unter der Nachricht.
+            LinkPreviewForText(
+                text = message.text,
+                repository = linkPreviews,
+                modifier = Modifier.padding(top = 6.dp),
+                onBubble = true,
+                showPlaceholder = false
             )
             Spacer(Modifier.height(2.dp))
             Text(

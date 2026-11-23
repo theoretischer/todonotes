@@ -5,6 +5,7 @@ import com.earendil.todonotes.data.buildDatabase
 import com.earendil.todonotes.data.repo.ChatMessageRepository
 import com.earendil.todonotes.data.repo.FolderRepository
 import com.earendil.todonotes.data.repo.HabitRepository
+import com.earendil.todonotes.data.repo.LinkPreviewRepository
 import com.earendil.todonotes.data.repo.NoteRepository
 import com.earendil.todonotes.data.repo.TodoRepository
 import com.earendil.todonotes.data.sync.AuthManager
@@ -45,6 +46,10 @@ class AppContainer(
     val folderRepository: FolderRepository = FolderRepository(database, syncManager)
     val noteRepository: NoteRepository = NoteRepository(database, syncManager)
     val chatMessageRepository: ChatMessageRepository = ChatMessageRepository(database, syncManager)
+
+    /** F7 Link-Vorschau: Open-Graph-Fetch + lokaler Cache (kein Sync). */
+    val linkPreviewRepository: LinkPreviewRepository =
+        LinkPreviewRepository(database.linkPreviewDao(), httpClient)
 
     /** Globaler Coroutine-Scope für Hintergrund-Arbeit (z.B. Auto-Sync, M8). */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob())

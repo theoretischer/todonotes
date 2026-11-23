@@ -8,6 +8,7 @@ import androidx.room3.RoomDatabaseConstructor
 import com.earendil.todonotes.data.dao.ChatMessageDao
 import com.earendil.todonotes.data.dao.FolderDao
 import com.earendil.todonotes.data.dao.HabitDao
+import com.earendil.todonotes.data.dao.LinkPreviewDao
 import com.earendil.todonotes.data.dao.NoteDao
 import com.earendil.todonotes.data.dao.TodoDao
 import com.earendil.todonotes.data.entity.ChatMessage
@@ -15,13 +16,14 @@ import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.HabitLog
+import com.earendil.todonotes.data.entity.LinkPreview
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.Todo
 
 /**
  * Room 3 KMP Database für TodoNotes.
  *
- * Schema v10 (M1: userId auf alle Tabellen).
+ * Schema v15 (v10: userId auf allen Tabellen; v15: link_previews-Cache, F7).
  *
  * Die plattformspezifische Konstruktion (Database-Builder) liegt in
  * expect/actual: [getDatabaseBuilder] pro Plattform, dann [buildDatabase]
@@ -29,8 +31,8 @@ import com.earendil.todonotes.data.entity.Todo
  */
 @Database(
     entities = [Todo::class, Habit::class, HabitLog::class, HabitHistoryEntry::class,
-        Folder::class, Note::class, ChatMessage::class],
-    version = 14,
+        Folder::class, Note::class, ChatMessage::class, LinkPreview::class],
+    version = 15,
     exportSchema = true
 )
 @ColumnTypeConverters(IntSetConverter::class, HabitTypeConverter::class, NoteTypeConverter::class)
@@ -41,6 +43,9 @@ abstract class TodoNotesDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun folderDao(): FolderDao
     abstract fun chatMessageDao(): ChatMessageDao
+
+    /** F7 Link-Vorschau-Cache (rein lokal — kein Sync). */
+    abstract fun linkPreviewDao(): LinkPreviewDao
 }
 
 @Suppress("KotlinNoActualForExpect")

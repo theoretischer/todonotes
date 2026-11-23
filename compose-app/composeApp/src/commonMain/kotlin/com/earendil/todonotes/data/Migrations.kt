@@ -23,6 +23,7 @@ import androidx.sqlite.execSQL
  *  - v8: `notes.type` + `chat_messages` (Block H)
  *  - v9: `chat_messages.quotedMessageId` (Block H-Quote)
  *  - v10: `userId` auf alle 7 Daten-Tabellen (M1 Multi-User-Auth)
+ *  - v15: `link_previews` (F7 Link-Vorschau-Cache, rein lokal)
  *
  * NEVER use fallbackToDestructiveMigration — das löscht Nutzerdaten.
  */
@@ -286,6 +287,27 @@ object Migrations {
         }
     }
 
+    /** v14 → v15: `link_previews`-Cache-Tabelle (F7 Link-Vorschau).
+     *  Rein lokaler Client-Cache — kein Sync, keine userId. */
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override suspend fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `link_previews` (
+                    `url` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `description` TEXT NOT NULL,
+                    `siteName` TEXT NOT NULL,
+                    `imageBytes` BLOB,
+                    `fetchedAt` INTEGER NOT NULL,
+                    `failed` INTEGER NOT NULL,
+                    PRIMARY KEY(`url`)
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
     /** Alle Migrationen, die Room ausführen darf. */
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
@@ -300,6 +322,7 @@ object Migrations {
         MIGRATION_10_11,
         MIGRATION_11_12,
         MIGRATION_12_13,
-        MIGRATION_13_14
+        MIGRATION_13_14,
+        MIGRATION_14_15
     )
 }

@@ -28,6 +28,8 @@ import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.ui.components.SwipeToDeleteRow
 import com.earendil.todonotes.ui.components.ScreenTitle
 import androidx.compose.ui.unit.sp
+import com.earendil.todonotes.ui.components.LinkPreviewForText
+import com.earendil.todonotes.ui.components.firstUrlIn
 import com.earendil.todonotes.ui.components.linkified
 import kotlinx.coroutines.delay
 import kotlinx.datetime.Instant
@@ -77,7 +79,9 @@ fun TodosScreen(
     onSendToNotes: () -> Unit = {},
     /** Notebook-Knopf zeigen, solange die Share-Session läuft (nicht nur
      *  während der Prefill noch nicht konsumiert ist). */
-    sendToNotesVisible: Boolean = false
+    sendToNotesVisible: Boolean = false,
+    /** F7: Link-Vorschauen in den Zeilen (null = Feature aus). */
+    linkPreviews: com.earendil.todonotes.data.repo.LinkPreviewRepository? = null
 ) {
     var editingTodo by remember { mutableStateOf<Todo?>(null) }
     val groups = remember(todos) { groupOpenTodos(todos) }
@@ -123,7 +127,8 @@ fun TodosScreen(
                                 todo = todo,
                                 overdue = true,
                                 onComplete = onCompleteTodo,
-                                onEdit = { editingTodo = todo }
+                                onEdit = { editingTodo = todo },
+                                linkPreviews = linkPreviews
                             )
                         }
                     }
@@ -132,7 +137,7 @@ fun TodosScreen(
                     item { SectionHeader("Heute", groups.today.size) }
                     items(groups.today, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
-                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, linkPreviews = linkPreviews)
                         }
                     }
                 }
@@ -140,7 +145,7 @@ fun TodosScreen(
                     item { SectionHeader("Morgen", groups.tomorrow.size) }
                     items(groups.tomorrow, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
-                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, linkPreviews = linkPreviews)
                         }
                     }
                 }
@@ -148,7 +153,7 @@ fun TodosScreen(
                     item { SectionHeader("Diese Woche", groups.thisWeek.size) }
                     items(groups.thisWeek, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
-                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, linkPreviews = linkPreviews)
                         }
                     }
                 }
@@ -156,7 +161,7 @@ fun TodosScreen(
                     item { SectionHeader("Später", groups.later.size) }
                     items(groups.later, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
-                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, linkPreviews = linkPreviews)
                         }
                     }
                 }
@@ -164,7 +169,7 @@ fun TodosScreen(
                     item { SectionHeader("Kein Datum", groups.noDate.size) }
                     items(groups.noDate, key = { it.id }) { todo ->
                         SwipeToDeleteRow(onDelete = { onDeleteTodo(todo.id) }, onClick = { editingTodo = todo }) {
-                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo })
+                            TodoRow(todo, onComplete = onCompleteTodo, onEdit = { editingTodo = todo }, linkPreviews = linkPreviews)
                         }
                     }
                 }
@@ -244,7 +249,9 @@ private fun TodoRow(
     todo: Todo,
     overdue: Boolean = false,
     onComplete: (String) -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    /** F7: Link-Vorschau unter dem Titel (falls Titel/Notiz eine URL hat). */
+    linkPreviews: com.earendil.todonotes.data.repo.LinkPreviewRepository? = null
 ) {
     var completing by remember { mutableStateOf(false) }
     val strikeProgress by animateFloatAsState(
@@ -305,6 +312,20 @@ private fun TodoRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // F7: Link-Vorschau (kompakt, nur Titel) — der Link kann
+                // im Titel oder in der Notiz stehen; firstUrlIn nimmt den
+                // ersten Treffer über beide Felder.
+                val linkSource = remember(todo.title, todo.notes) {
+                    if (firstUrlIn(todo.title) != null) todo.title else todo.notes
+                }
+                if (firstUrlIn(linkSource) != null) {
+                    LinkPreviewForText(
+                        text = linkSource,
+                        repository = linkPreviews,
+                        modifier = Modifier.padding(top = 4.dp),
+                        compact = true
                     )
                 }
                 if (todo.dueAt != null) {
