@@ -92,6 +92,30 @@ def health() -> dict:
     return {"status": "ok", "time": int(time.time() * 1000)}
 
 
+# --- F7 Link-Vorschau: Meta-Proxy (CORS-Weg für die Web-App) ---
+
+from fastapi import Header  # noqa: E402
+
+from .linkmeta import LinkMetaRequest, LinkMetaResponse, get_link_meta  # noqa: E402
+
+
+@app.post("/linkmeta", response_model=LinkMetaResponse)
+def linkmeta_endpoint(
+    req: LinkMetaRequest,
+    authorization: str = Header(default=""),
+) -> LinkMetaResponse:
+    """Link-Metadaten (og/oembed) serverseitig holen — für die Web-App.
+
+    Kein offener Proxy: Bearer-Token nötig (wie /sync). Der Server
+    löst Redirects auf (max. 5 Hops), blockt private Hosts (SSRF) und
+    liefert og-Titel/Beschreibung/Bild inline.
+    """
+    if not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="token fehlt")
+    token = authorization[7:].strip()
+    return get_link_meta(req.url, token)
+
+
 # --- Auth-Endpunkte ---
 
 @app.post("/auth/register", response_model=AuthResponse)

@@ -2,6 +2,7 @@ package com.earendil.todonotes
 
 import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.buildDatabase
+import com.earendil.todonotes.data.linkpreview.createLinkMetaProxy
 import com.earendil.todonotes.data.repo.ChatMessageRepository
 import com.earendil.todonotes.data.repo.FolderRepository
 import com.earendil.todonotes.data.repo.HabitRepository
@@ -47,9 +48,17 @@ class AppContainer(
     val noteRepository: NoteRepository = NoteRepository(database, syncManager)
     val chatMessageRepository: ChatMessageRepository = ChatMessageRepository(database, syncManager)
 
-    /** F7 Link-Vorschau: Open-Graph-Fetch + lokaler Cache (kein Sync). */
-    val linkPreviewRepository: LinkPreviewRepository =
-        LinkPreviewRepository(database.linkPreviewDao(), httpClient)
+    /** F7 Link-Vorschau: Open-Graph-Fetch + lokaler Cache (kein Sync).
+     *  Auf Wasm blockt CORS jeden externen Fetch → dort läuft alles über
+     *  den Backend-Proxy /linkmeta (token + serverUrl live aus SyncPrefs,
+     *  damit Login-Wechsel sofort zieht). */
+    val linkPreviewRepository: LinkPreviewRepository by lazy {
+        LinkPreviewRepository(
+            database.linkPreviewDao(),
+            httpClient,
+            createLinkMetaProxy(httpClient, syncPrefs.serverUrl, syncPrefs.token)
+        )
+    }
 
     /** Globaler Coroutine-Scope für Hintergrund-Arbeit (z.B. Auto-Sync, M8). */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob())

@@ -3,13 +3,14 @@ package com.earendil.todonotes.data.repo
 import com.earendil.todonotes.data.dao.LinkPreviewDao
 import com.earendil.todonotes.data.entity.LinkPreview
 import com.earendil.todonotes.data.linkpreview.LinkMetaParser
+import com.earendil.todonotes.data.linkpreview.LinkMetaProxy
 import com.earendil.todonotes.data.linkpreview.RedditOembed
+import com.earendil.todonotes.data.linkpreview.createLinkMetaProxy
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
-import io.ktor.client.statement.request
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -21,14 +22,16 @@ import kotlinx.coroutines.sync.withLock
  * - Cache-TTL: 7 Tage (danach im Hintergrund neu holen).
  * - Negativ-Cache: gescheiterte URLs werden 1 Tag nicht erneut angefragt.
  * - Kein Sync: reiner Client-Cache.
- * - Bilder werden nur geladen, wenn sie nicht zu groß sind (max 3 MB)
- *   und halbwegs wie ein Bild aussehen.
+ * - [proxy]: Auf Wasm blockt CORS jeden externen Fetch — dort holt der
+ *   Backend-Proxy `/linkmeta` die Metadaten. Android/Desktop: null →
+ *   direkter Fetch (kein CORS).
  * - In-Flight-Dedupe: dieselbe URL wird nicht parallel mehrfach geholt
  *   (Chat/Liste zeigt dieselbe Vorschau oft mehrfach).
  */
 class LinkPreviewRepository(
     private val dao: LinkPreviewDao,
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
+    private val proxy: LinkMetaProxy? = null
 ) {
     companion object {
         private const val TTL_MS = 7L * 24 * 60 * 60 * 1000
@@ -123,6 +126,12 @@ class LinkPreviewRepository(
     }
 
     private suspend fun fetch(url: String, nowMs: Long): LinkPreview? {
+        // Wasm: erst den Proxy probieren — CORS blockt den direkten
+        // Weg im Browser immer. Liefert der Proxy nichts (Server down,
+        // 404 …), fällt fetch() weiter unten in den direkten Weg, der
+        // dann eh scheitert → Negativ-Cache. Auf Android/Desktop ist
+        // der Proxy null und das wird übersprungen.
+        proxy?.load(url)?.let { return storeProxyResult(url, it, nowMs) }
         return try {
             val response = httpClient.get(url) {
                 header("User-Agent", USER_AGENT)
@@ -233,6 +242,38 @@ class LinkPreviewRepository(
         }
         val location = resp.headers["Location"] ?: return null
         LinkMetaParser.resolveUrl(url, location).substringBefore('?')
+    } catch (e: Throwable) {
+        null
+    }
+
+    /** Ergebnis des Backend-Proxies in den Cache schreiben. Liefert
+     *  null bei leerem Proxy-Ergebnis (keine Metadaten gefunden) →
+     *  Negativ-Cache (wie bei jedem anderen Fehlschlag). */
+    private suspend fun storeProxyResult(
+        url: String,
+        meta: com.earendil.todonotes.data.linkpreview.LinkMetaProxyResponse,
+        nowMs: Long
+    ): LinkPreview? {
+        val imageBytes = if (meta.imageBase64.isNotBlank()) {
+            decodeBase64Bytes(meta.imageBase64)?.takeIf { it.size <= MAX_IMAGE_BYTES }
+        } else null
+        if (meta.title.isBlank() && imageBytes == null) {
+            storeFailed(url, nowMs)
+            return null
+        }
+        return store(url, LinkPreview(
+            url = url,
+            title = meta.title,
+            description = meta.description,
+            siteName = meta.siteName.ifBlank { LinkMetaParser.domainOf(url) },
+            imageBytes = imageBytes,
+            fetchedAt = nowMs
+        ))
+    }
+
+    /** Base64 → Bytes (Standard-Alphabet, mit Padding). */
+    private fun decodeBase64Bytes(s: String): ByteArray? = try {
+        kotlin.io.encoding.Base64.decode(s)
     } catch (e: Throwable) {
         null
     }
