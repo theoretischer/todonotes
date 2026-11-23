@@ -550,6 +550,58 @@ Sechs Runden Nutzer-Review-Feedback, jeweils kompiliert + getestet
   Tage, Reset bleibt Montag) + MONTH interval=3 — Nutzer-Sorge
   „akzeptiert er 2 Wochen wirklich?“ beantwortet: ja. 94 Tests.
 
+### 25. Bug-Hunting-Runde 3 + neues App-Icon (`726c42f` → `49cc189`)
+
+Die „Produktiv-Liste" — alles, was im Alltag aufgefallen war, in
+einer Session weg. **Damit ist die Feature-Liste für den ernsthaften
+Alltags-Einsatz komplett abgehakt** (Nutzer: „fühlt sich wie eine
+professionelle App an, nicht mehr wie eine Notlösung"):
+
+- **Bug 1 (2 Versuche):** Checkbox-/Format-Button riss den Cursor
+  ans Präfix — jetzt Cursor RELATIV um Präfix-Differenz verschieben
+  (hinter dem „d" von „hund" bleibt man hinter dem „d"). Zusätzlich:
+  Position beim „Fertig"-Check merken + beim nächsten Edit-Wechsel
+  wiederherstellen.
+- **Bug 2:** Tippen UNTER den geschriebenen Text → jetzt in den
+  Edit-Modus (Tap-Fläche = ganze Editor-Column statt nur Text-Block).
+- **Bug 3:** Kein Ripple/Hover-Layer mehr auf dem Lese-Block (war am
+  PC die eckige Markierung).
+- **Bug 5 (3 Versuche!):** Cursor-Sichtbarkeit beim Tippen. Erst
+  imePadding (→ Mini-Viewport, scrollte irre weit runter), dann
+  raus — Kompose-bringIntoView klemmte im Scaffold-Setup komplett.
+  Finale Lösung: SELBST messen (onTextLayout + getCursorRect +
+  Feld-Offset via positionInParent + Column-Höhe) und die Column per
+  LaunchedEffect animiert scrollen bis die Cursor-Zeile auf ~35 %
+  Viewport-Höhe sitzt (Luft für Format-Leiste/Tastatur).
+- **Bug 6:** Große Titel („Aufgaben" etc.) scrollen MIT der Liste
+  hoch (erstes Listenelement, alle 4 Tabs), nur der Avatar bleibt
+  fixiert — Nutzer bevorzugte das paradox „unprofessionellere"
+  scrollende Verhalten über TopBar-Masking.
+- **Bug 7:** „DIESE WOCHE" zählte ab Montag 7 volle Tage (bis
+  übernächster Montag!) — jetzt bis Sonntag 23:59
+  (`daysToSunday = 6 - ordinal`, vorher `7 - ordinal`). Neue
+  TodoGroupingTest (Berlin-Zeiten gelernt: UTC-23:59 landet in
+  Berlin am Folgetag — Tests in System-TZ rechnen!).
+- **Bug 8:** Alle Ripple/Hover-Flächen auf/in Karten auf ihre
+  Rundung geclippt (SwipeToDelete/OrReorderRow Wrapper + Delete-
+  Buttons, TodoRow, Breadcrumbs, Sheet-Menüeinträge, „3×"-Zähler).
+
+**Neues App-Icon** (artwork/app-icon-v2.svg, Nutzer genehmigt):
+Checkliste auf dunkler Karte im App-Theme (#1C1D21/#2A2C32/
+#8AB4FF-Haken). Als favicon.svg (Website) + Android Adaptive-Icon
+(ic_launcher[_round].xml + drawable ic_launcher_foreground/
+background). Android-Geometrie nach 2 Fehlversuchen exakt aus der
+SVG, komplett um 2 nach OBEN verschoben (sonst hellgrauer Schlitz
+am oberen Rand — Samsung maskiert asymmetrisch) + offener Kreis
+cx=39 (fluchtet mit der Haken-Visuell-Mitte, sonst linksbündig).
+
+**Arbeits-Lektionen (Nutzer-Feedback):** (1) Aufgaben SEQUENZIELL
+abarbeiten, nicht alle gleichzeitig im Kopf planen. (2) deploy-web
+nur wenn Web-relevante Änderungen (Android-only = kein Deploy).
+(3) Build-Checkpoints alle paar Aufgaben, nicht nach jeder.
+
+97 Tests grün (Stand `49cc189`).
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
