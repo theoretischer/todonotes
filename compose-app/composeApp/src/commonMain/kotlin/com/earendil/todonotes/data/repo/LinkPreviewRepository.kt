@@ -3,6 +3,7 @@ package com.earendil.todonotes.data.repo
 import com.earendil.todonotes.data.dao.LinkPreviewDao
 import com.earendil.todonotes.data.entity.LinkPreview
 import com.earendil.todonotes.data.linkpreview.LinkMetaParser
+import com.earendil.todonotes.data.linkpreview.RedditOembed
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -36,6 +37,8 @@ class LinkPreviewRepository(
          *  YouTube setzt seine og-Tags erst bei ~Zeichen 680.000
          *  (hinter einem riesigen Inline-Script) → 1 MB Deckel. */
         private const val MAX_HTML_CHARS = 1_000_000
+        /** oembed-Antworten sind winzig — 64 KB reichen dick. */
+        private const val MAX_JSON_CHARS = 64_000
 
         /** Bot-artige Anfragen werden von Reddit & Co. gern blockiert —
          *  ein normaler Browser-UA liefert die og-Tags zuverlässig. */
@@ -72,7 +75,18 @@ class LinkPreviewRepository(
         if (existing != null) {
             val age = nowMs - existing.fetchedAt
             val maxAge = if (existing.failed) FAIL_TTL_MS else TTL_MS
-            if (age in 0..maxAge) return existing.takeUnless { it.failed }
+            if (age in 0..maxAge) {
+                // Frühere Versionen haben Bot-Sperrseiten als gültige
+                // Vorschau gespeichert — erkennbar am nutzlosen Muster
+                // „kein Bild + Titel == Site-Name" (z. B. "youtube.com" /
+                // "YouTube" oder "reddit.com" / "Reddit"). Die sind 7 Tage
+                // gecacht und blockieren den besseren Weg (og/oembed).
+                // Als veraltet behandeln und neu holen.
+                val looksUseless = existing.imageBytes == null &&
+                    (existing.title.isBlank() ||
+                        existing.title.equals(existing.siteName, ignoreCase = true))
+                if (!looksUseless) return existing.takeUnless { it.failed }
+            }
         }
 
         // Doppel-Fetches derselben URL verhindern.
@@ -110,6 +124,16 @@ class LinkPreviewRepository(
             }
             val html = response.bodyAsText().take(MAX_HTML_CHARS)
             val meta = LinkMetaParser.parse(html)
+
+            // Reddit liefert eine Bot-Sperrseite, die IMMER ein
+            // <title>Reddit</title> hat — die Prüfung auf leeren Titel
+            // greift dort also nie (Nutzer-Report). Erkennungsmerkmal:
+            // Post-URL + kein og:image → oembed fragen. Klappt das
+            // nicht, nehmen wir das, was das HTML hergab.
+            if (RedditOembed.applies(url) && meta.imageUrl.isBlank()) {
+                redditFallback(url, nowMs)?.let { return it }
+            }
+
             if (meta.title.isBlank() && meta.imageUrl.isBlank()) {
                 storeFailed(url, nowMs)
                 return null
@@ -128,6 +152,37 @@ class LinkPreviewRepository(
         } catch (e: Exception) {
             // Netzwerk/Timeout/Decode — als Fehlschlag cachen, nicht crashen.
             storeFailed(url, nowMs)
+            null
+        }
+    }
+
+    /**
+     * Zweiter Versuch über Reddits oembed-Endpunkt.
+     *
+     * Liefert Titel + Subreddit, aber kein Bild (Reddits Bild-CDNs
+     * blocken ebenfalls). Gibt null zurück, wenn oembed nichts
+     * Brauchbares hat — der Aufrufer entscheidet dann weiter.
+     */
+    private suspend fun redditFallback(url: String, nowMs: Long): LinkPreview? {
+        if (!RedditOembed.applies(url)) return null
+        return try {
+            val resp = httpClient.get(RedditOembed.endpointFor(url)) {
+                header("User-Agent", USER_AGENT)
+                header("Accept", "application/json")
+            }
+            if (!resp.status.isSuccess()) return null
+            val meta = RedditOembed.parse(resp.bodyAsText().take(MAX_JSON_CHARS)) ?: return null
+            store(url, LinkPreview(
+                url = url,
+                title = meta.title,
+                description = meta.description,
+                siteName = meta.siteName,
+                imageBytes = null,
+                fetchedAt = nowMs
+            ))
+        } catch (e: Exception) {
+            // Netzwerkfehler im oembed-Weg ist kein Grund, die URL
+            // insgesamt als kaputt zu markieren.
             null
         }
     }
