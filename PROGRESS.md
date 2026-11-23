@@ -33,7 +33,12 @@ Stepper + Segment-Chips. M14j: Todo-Listen-Abstand 8dp +
 HabitCadencePicker auf dasselbe Chip-System. M14k–p: Feinschliff-
 Serie (Progress-Dot, Chat-Link, Switch/Avatar, Gefahrenzone,
 Tracker-Karte, Datum-Labels, Feld-Farben, Stepper-Zeilen,
-Intervall-Anzeige + Engine-Tests für interval>1). 94 Tests grün.
+Intervall-Anzeige + Engine-Tests für interval>1). Bug-Hunting 3:
+Editor-Hitbox, Cursor-Sichtbarkeit (3 Versuche: selbst messen +
+animiert scrollen), „Diese Woche“-Grenze + Tests, Ripple-Clipping,
+scrollende Titel, neues App-Icon v2 (Android Adaptive + Web-
+Favicon). **Feature-Liste für den ernsthaften Alltags-Einsatz
+KOMPLETT abgehakt.** 97 Tests grün.
 
 ## Aktueller Stand
 
@@ -675,6 +680,11 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   (Progress-Dot, Chat-Link-Kontrast, Switch/Avatar, Gefahrenzone,
   Tracker-Zeiträume-Karte, Datum-Anzeige deutsch, inputFillColor,
   „Ziel n über m Tage“, Intervall-Anzeige, Engine-Tests)
+- Bug-Hunting 3 + App-Icon v2 (`49cc189`): Cursor-Merken/relativ-
+  Verschieben, Hitbox ganze Column, kein Hover-Layer, Cursor-Sicht-
+  barkeit selbst gescrollt, „Diese Woche“ bis Sonntag 23:59 +
+  Tests, Ripple auf Rundungen geclippt, Titel scrollen mit,
+  Android-Icon nach 3 Iterationen (Samsung-Masking-Tuning)
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
