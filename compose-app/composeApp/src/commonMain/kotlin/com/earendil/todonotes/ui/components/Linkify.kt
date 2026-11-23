@@ -5,6 +5,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.buildAnnotatedString
 
 /**
@@ -40,9 +41,10 @@ internal fun findUrls(text: String): List<UrlMatch> =
         if (url.isEmpty()) null else UrlMatch(match.range, url)
     }.toList()
 
-/** Baut den [text] mit klickbaren Links in [linkColor]. */
-fun linkified(text: String, linkColor: Color): AnnotatedString =
-    buildAnnotatedString { appendLinkified(text, linkColor) }
+/** Baut den [text] mit klickbaren Links in [linkColor].
+ *  [underline]: Link unterstreichen (Chat — Extra-Kontrast auf der Blase). */
+fun linkified(text: String, linkColor: Color, underline: Boolean = false): AnnotatedString =
+    buildAnnotatedString { appendLinkified(text, linkColor, underline = underline) }
 
 /**
  * Hängt [text] an den Builder an, http(s)-URLs darin als klickbare Links
@@ -55,6 +57,7 @@ fun AnnotatedString.Builder.appendLinkified(
     text: String,
     linkColor: Color,
     baseStyle: SpanStyle? = null,
+    underline: Boolean = false,
     onLink: ((UrlMatch) -> Unit)? = null
 ) {
     var pos = 0
@@ -71,11 +74,13 @@ fun AnnotatedString.Builder.appendLinkified(
                 styles = TextLinkStyles(
                     style = SpanStyle(
                         color = linkColor,
+                        // Chat (M14k): Unterstreichung — Links klarer abheben.
+                        textDecoration = if (underline) TextDecoration.Underline
+                                         else baseStyle?.textDecoration,
                         // Basis-Stil (fett etc.) bleibt über die Link-Farbe erhalten.
                         fontStyle = baseStyle?.fontStyle,
                         fontWeight = baseStyle?.fontWeight,
-                        fontFamily = baseStyle?.fontFamily,
-                        textDecoration = baseStyle?.textDecoration
+                        fontFamily = baseStyle?.fontFamily
                     )
                 )
             )

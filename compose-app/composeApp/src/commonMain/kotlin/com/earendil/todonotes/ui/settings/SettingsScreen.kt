@@ -46,6 +46,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -405,7 +407,10 @@ private fun AdminSection(
                 }
                 Switch(
                     checked = openReg,
-                    onCheckedChange = onToggleRegistration
+                    onCheckedChange = onToggleRegistration,
+                    // M14k: Default-Aus-Zustand (surfaceContainerHighest) ist
+                    // auf den Karten kaum sichtbar — Kontrast-Typ, s.u.
+                    colors = settingsSwitchColors()
                 )
             }
 
@@ -579,7 +584,11 @@ private fun CreateUserDialog(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text("Admin-Rechte")
-                    Switch(checked = isAdmin, onCheckedChange = { isAdmin = it })
+                    Switch(
+                        checked = isAdmin,
+                        onCheckedChange = { isAdmin = it },
+                        colors = settingsSwitchColors()
+                    )
                 }
             }
         },
@@ -738,3 +747,15 @@ private fun PasswordConfirmDialog(
         }
     )
 }
+
+/** M14k: Switch-Farben für Einstellungen — der Aus-Zustand (Default:
+ *  track = surfaceContainerHighest, Thumb = onSurfaceVariant) ist auf den
+ *  surface-Karten fast unsichtbar. Hier: Track+Border in outline (deutlich),
+ *  Thumb onSurface (hell/dunkel entsprechend Theme). */
+@Composable
+private fun settingsSwitchColors(): SwitchColors =
+    SwitchDefaults.colors(
+        uncheckedTrackColor = MaterialTheme.colorScheme.outline,
+        uncheckedBorderColor = MaterialTheme.colorScheme.outline,
+        uncheckedThumbColor = MaterialTheme.colorScheme.onSurface
+    )

@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -472,9 +473,13 @@ private fun ChatBubble(
                 )
                 Spacer(Modifier.height(4.dp))
             }
+            val linkColor = if (isSystemInDarkTheme()) Color(0xFFB7D3FF)
+                            else MaterialTheme.colorScheme.primary
             Text(
                 // M12: Links in Chat-Nachrichten klickbar (LinkAnnotation).
-                text = linkified(message.text, MaterialTheme.colorScheme.primary),
+                // M14k: Link heller (#B7D3FF statt primary #8AB4FF — zu
+                // wenig Kontrast auf der dunkelblauen Blase) + unterstrichen.
+                text = linkified(message.text, linkColor, underline = true),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )

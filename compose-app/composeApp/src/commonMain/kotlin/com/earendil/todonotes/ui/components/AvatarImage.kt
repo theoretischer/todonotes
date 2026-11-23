@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,7 +43,11 @@ fun AvatarImage(
                 bitmap = bitmap,
                 contentDescription = "Avatar",
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(sizeDp.dp)
+                // M14k: Bild auf den Kreis clippen (vorher eckig ueber
+                // rundem Hintergrund).
+                modifier = Modifier
+                    .size(sizeDp.dp)
+                    .clip(CircleShape)
             )
         } else {
             val initial = remember(displayName) {

@@ -337,6 +337,9 @@ private fun HabitCard(
                 )
                 LinearProgressIndicator(
                     progress = { prog.ratio },
+                    // M14k: Default zeichnet einen Punkt am Track-Ende
+                    // (stopIndicator) — sieht komisch aus, weg damit.
+                    drawStopIndicator = {},
                     modifier = Modifier
                         .weight(1f)
                         .height(8.dp),
