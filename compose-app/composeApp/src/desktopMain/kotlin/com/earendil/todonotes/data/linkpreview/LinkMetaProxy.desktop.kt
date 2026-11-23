@@ -3,11 +3,11 @@ package com.earendil.todonotes.data.linkpreview
 import io.ktor.client.HttpClient
 
 /**
- * Android/Desktop: KEIN Proxy — kein CORS, der Client fetcht direkt
+ * Desktop: KEIN Proxy — kein CORS, der Client fetcht direkt
  * ([LinkPreviewRepository]). Die expect-Funktion liefert null zurück.
  */
 actual fun createLinkMetaProxy(
     httpClient: HttpClient,
-    serverUrl: String,
-    token: String
+    serverUrl: () -> String,
+    token: () -> String
 ): LinkMetaProxy? = null

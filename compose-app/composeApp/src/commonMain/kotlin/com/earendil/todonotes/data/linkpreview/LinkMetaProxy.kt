@@ -28,7 +28,8 @@ data class LinkMetaProxyResponse(
 )
 
 /** Holt Metadaten über den Backend-Proxy (Wasm) — oder null, wenn
- *  der Weg auf dieser Plattform nicht existiert / fehlschlägt. */
+ *  der Weg auf dieser Plattform nicht existiert / fehlschlägt.
+ *  serverUrl/token als getter: werden pro Aufruf frisch gelesen. */
 interface LinkMetaProxy {
     suspend fun load(url: String): LinkMetaProxyResponse?
 }
@@ -39,6 +40,6 @@ interface LinkMetaProxy {
  */
 expect fun createLinkMetaProxy(
     httpClient: HttpClient,
-    serverUrl: String,
-    token: String
+    serverUrl: () -> String,
+    token: () -> String
 ): LinkMetaProxy?

@@ -20,11 +20,14 @@ import kotlinx.coroutines.Dispatchers
  */
 private class BackendLinkMetaProxy(
     private val httpClient: HttpClient,
-    private val serverUrl: String,
-    private val token: String
+    private val getServerUrl: () -> String,
+    private val getToken: () -> String
 ) : LinkMetaProxy {
     override suspend fun load(url: String): LinkMetaProxyResponse? = try {
         withContext(Dispatchers.Default) {
+            val serverUrl = getServerUrl().trimEnd('/')
+            val token = getToken()
+            if (serverUrl.isBlank() || token.isBlank()) return@withContext null
             val resp = httpClient.post("$serverUrl/linkmeta") {
                 bearerAuth(token)
                 setBody(LinkMetaProxyRequest(url))
@@ -40,12 +43,12 @@ private class BackendLinkMetaProxy(
     }
 }
 
-/** Wasm: Proxy auf die Backend-URL (default window.location.origin). */
+/** Wasm: Proxy auf die Backend-URL (default window.location.origin).
+ *  serverUrl/token werden JEDES MAL frisch gelesen (getter statt
+ *  Snapshot) — nach Logout + Neu-Login greift der Proxy mit dem
+ *  aktuellen Token, sonst ginge /linkmeta auf 401. */
 actual fun createLinkMetaProxy(
     httpClient: HttpClient,
-    serverUrl: String,
-    token: String
-): LinkMetaProxy? {
-    if (serverUrl.isBlank() || token.isBlank()) return null
-    return BackendLinkMetaProxy(httpClient, serverUrl.trimEnd('/'), token)
-}
+    serverUrl: () -> String,
+    token: () -> String
+): LinkMetaProxy? = BackendLinkMetaProxy(httpClient, serverUrl, token)

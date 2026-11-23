@@ -8,6 +8,6 @@ import io.ktor.client.HttpClient
  */
 actual fun createLinkMetaProxy(
     httpClient: HttpClient,
-    serverUrl: String,
-    token: String
+    serverUrl: () -> String,
+    token: () -> String
 ): LinkMetaProxy? = null

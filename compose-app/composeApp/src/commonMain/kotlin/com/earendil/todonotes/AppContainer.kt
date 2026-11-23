@@ -50,13 +50,13 @@ class AppContainer(
 
     /** F7 Link-Vorschau: Open-Graph-Fetch + lokaler Cache (kein Sync).
      *  Auf Wasm blockt CORS jeden externen Fetch → dort läuft alles über
-     *  den Backend-Proxy /linkmeta (token + serverUrl live aus SyncPrefs,
-     *  damit Login-Wechsel sofort zieht). */
+     *  den Backend-Proxy /linkmeta (token + serverUrl live aus SyncPrefs
+     *  gelesen — Proxy hält keine Snapshots, Logout/Login zieht sofort). */
     val linkPreviewRepository: LinkPreviewRepository by lazy {
         LinkPreviewRepository(
             database.linkPreviewDao(),
             httpClient,
-            createLinkMetaProxy(httpClient, syncPrefs.serverUrl, syncPrefs.token)
+            createLinkMetaProxy(httpClient, { syncPrefs.serverUrl }, { syncPrefs.token })
         )
     }
 

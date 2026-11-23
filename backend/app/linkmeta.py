@@ -31,12 +31,11 @@ import ipaddress
 import json
 import re
 import socket
-import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from fastapi import Depends, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 from .auth import verify_token_str
