@@ -123,6 +123,50 @@ class LinkMetaParserTest {
     }
 
     @Test
+    fun `og-Tags weit hinter dem head werden gefunden (YouTube-Layout)`() {
+        // YouTube: Platzhalter-<title>YouTube</title> im Head, dann ein
+        // riesiges Inline-Script, die ECHTEN og-Tags erst bei ~Zeichen
+        // 680.000. Regression: der Parser schaute nur in die ersten 64 KB.
+        val filler = "x".repeat(700_000)
+        val html = """
+            <html><head>
+              <title>YouTube</title>
+            </head><body>
+              <script>var huge="$filler";</script>
+              <meta property="og:title" content="Echtes Video">
+              <meta property="og:image" content="https://i.ytimg.com/vi/abc/maxres.jpg">
+              <meta property="og:site_name" content="YouTube">
+            </body></html>
+        """.trimIndent()
+        val meta = LinkMetaParser.parse(html)
+        assertEquals("Echtes Video", meta.title)
+        assertEquals("https://i.ytimg.com/vi/abc/maxres.jpg", meta.imageUrl)
+        assertEquals("YouTube", meta.siteName)
+    }
+
+    @Test
+    fun `Platzhalter-title verliert gegen laengeren echten title`() {
+        // SPA-Muster: erst Platzhalter, dann der echte Titel.
+        val html = """
+            <head><title>YouTube</title></head>
+            <body><title>Rick Astley - Never Gonna Give You Up (Official Video)</title></body>
+        """.trimIndent()
+        assertEquals(
+            "Rick Astley - Never Gonna Give You Up (Official Video)",
+            LinkMetaParser.parse(html).title
+        )
+    }
+
+    @Test
+    fun `unaufgeloeste JS-Templates im title werden ignoriert`() {
+        val html = """
+            <head><title>Echter Titel der Seite</title></head>
+            <body><title>\u0024{videoTitle} - YouTube</title></body>
+        """.trimIndent()
+        assertEquals("Echter Titel der Seite", LinkMetaParser.parse(html).title)
+    }
+
+    @Test
     fun `leerer Content wird verworfen`() {
         val html = """<head><meta property="og:title" content="   "></head>"""
         val meta = LinkMetaParser.parse(html)

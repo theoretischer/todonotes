@@ -12,13 +12,13 @@ package com.earendil.todonotes.data.linkpreview
  *  - Bild:        og:image → og:image:url → twitter:image → twitter:image:src
  *  - Site-Name:   og:site_name (sonst aus der URL-Host abgeleitet)
  *
- * NUR der <head> wird durchsucht (begrenzt auf die ersten 64 KB) —
- * Body-Spam und Riesen-Seiten sind damit egal.
+ * ACHTUNG: NICHT auf den <head> beschränken! YouTube z. B. setzt eine
+ * Platzhalter-<title>YouTube</title> in den Head und die ECHTEN
+ * og-Tags erst bei ~Zeichen 680.000 (hinter einem riesigen Inline-
+ * Script) — ein Head-/64KB-Limit findet dort nur „YouTube" (Nutzer-
+ * Report). Deshalb wird das ganze Dokument gescannt.
  */
 object LinkMetaParser {
-
-    /** Obergrenze für den HTML-Ausschnitt, den wir ansehen. */
-    private const val MAX_HTML_CHARS = 64_000
 
     data class Meta(
         val title: String = "",
@@ -29,6 +29,14 @@ object LinkMetaParser {
 
     /** Meta-Tags: <meta property="og:title" content="..."> — Attribut-
      *  Reihenfolge ist beliebig, Quotes können ' oder " sein. */
+    /** Das Dollar-Zeichen — als escape geschrieben, damit Kotlin-Raw-
+     *  Strings drumherum nicht verwirren. */
+    private val DOLLAR = '\u0024'
+
+    /** Literale Escape-Schreibweise des Dollars, die unaufgelöst in
+     *  manchen SPAs steht: Backslash + "u0024" (case-insensitiv). */
+    private const val DOLLAR_ESCAPE = "\\" + "u0024"
+
     private val META_TAG = Regex(
         """<meta\s+([^>]*?)/?>""",
         RegexOption.IGNORE_CASE
@@ -43,11 +51,10 @@ object LinkMetaParser {
     )
 
     fun parse(html: String): Meta {
-        val head = html.take(MAX_HTML_CHARS)
 
         // Alle meta-Tags einsammeln: key (og:title etc.) → content
         val props = LinkedHashMap<String, String>()
-        for (m in META_TAG.findAll(head)) {
+        for (m in META_TAG.findAll(html)) {
             var key: String? = null
             var content: String? = null
             for (a in ATTR.findAll(m.groupValues[1])) {
@@ -70,7 +77,7 @@ object LinkMetaParser {
         val title = firstNonBlank(
             props["og:title"],
             props["twitter:title"],
-            titleFromTag(head)
+            titleFromTag(html)
         )
         val description = firstNonBlank(
             props["og:description"],
@@ -95,8 +102,39 @@ object LinkMetaParser {
             key == "twitter:image" || key == "twitter:image:src" ||
             key == "description"
 
-    private fun titleFromTag(head: String): String =
-        TITLE_TAG.find(head)?.groupValues?.get(1)?.let { decodeEntities(it).trim() }.orEmpty()
+    /**
+     * Fallback-Titel aus <title>-Tags: der LÄNGSTE gewinnt.
+     *
+     * Grund (Nutzer-Report YouTube): SPAs setzen oft einen Platzhalter
+     * wie <title>YouTube</title> und den echten Titel erst später —
+     * der erste Treffer ist dann Müll. Platzhalter sind kurz, echte
+     * Titel lang. Unaufgelöste JS-Templates im Titel fliegen raus.
+     */
+    private fun titleFromTag(html: String): String =
+        TITLE_TAG.findAll(html)
+            .map { decodeEntities(it.groupValues[1]).trim() }
+            .filter { it.isNotEmpty() && !isTemplate(it) }
+            .maxByOrNull { it.length }
+            .orEmpty()
+
+    /**
+     * Unaufgelöster JS-Template-Platzhalter im Titel? Erkannt wird ein `{`
+     * direkt nach einem Dollar — sowohl als echtes `$` (unescaptes JS)
+     * als auch als literale Escape-Sequenz (Backslash, u, 0, 0, 2, 4),
+     * die manche Server unaufgelöst ausliefern (z. B. YouTube-SPA).
+     */
+    private fun isTemplate(title: String): Boolean {
+        var i = title.indexOf('{')
+        while (i > 0) {
+            if (title[i - 1] == DOLLAR) return true
+            // Literale Escape-Sequenz vor der Klammer?
+            if (i >= 6 && title.substring(i - 6, i).equals(DOLLAR_ESCAPE, ignoreCase = true)) {
+                return true
+            }
+            i = title.indexOf('{', i + 1)
+        }
+        return false
+    }
 
     private fun firstNonBlank(vararg candidates: String?): String =
         candidates.firstOrNull { !it.isNullOrBlank() }?.trim().orEmpty()

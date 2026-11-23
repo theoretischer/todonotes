@@ -32,7 +32,10 @@ class LinkPreviewRepository(
         private const val TTL_MS = 7L * 24 * 60 * 60 * 1000
         private const val FAIL_TTL_MS = 24L * 60 * 60 * 1000
         private const val MAX_IMAGE_BYTES = 3 * 1024 * 1024
-        private const val MAX_HTML_CHARS = 200_000
+        /** Obergrenze für den HTML-String, den wir durchsuchen.
+         *  YouTube setzt seine og-Tags erst bei ~Zeichen 680.000
+         *  (hinter einem riesigen Inline-Script) → 1 MB Deckel. */
+        private const val MAX_HTML_CHARS = 1_000_000
 
         /** Bot-artige Anfragen werden von Reddit & Co. gern blockiert —
          *  ein normaler Browser-UA liefert die og-Tags zuverlässig. */
