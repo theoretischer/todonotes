@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,36 +25,66 @@ import androidx.compose.ui.unit.dp
 
 
 /**
- * Wiederholungs-Editor im Samsung-Reminder-Stil.
+ * Wiederholungs-Editor im Samsung-Reminder-Stil (M14h umgebaut):
  *
- * Vertikale Radio-Liste der Frequenz-Typen. Bei WEEKLY klappt die Wochentag-Auswahl auf,
- * bei MONTHLY die drei Monats-Modi. Separate Laufzeit-Sektion darunter.
+ * Statt Radio-Zeilen mit springenden Zahlen-Pillen ("Jeden 1 Tag"):
+ * ein Stepper (− n +) für das Intervall und darunter Segment-Buttons
+ * (Nie/Minütlich/Stündlich/Täglich/Wöchentlich/Monatlich/Jährlich).
+ * Nur die ausgewählte Einheit ist aktiv — das Intervall steckt im
+ * Stepper, es springt nichts mehr um.
+ *
+ * Bei WEEKLY klappt die Wochentag-Auswahl auf, bei MONTHLY die drei
+ * Monats-Modi. Separate Laufzeit-Sektion darunter (Zeilen 48dp).
  */
 @Composable
 fun RecurrenceEditor(
     state: RecurrenceState,
     onStateChange: (RecurrenceState) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showTitle: Boolean = true
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-        Text(
-            "Wiederholung",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold
-        )
+        if (showTitle) {
+            Text(
+                "Wiederholung",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
-        Column(modifier = Modifier.selectableGroup()) {
-            RecurFreq.entries.forEach { freq ->
-                RecurFreqRow(
-                    freq = freq,
-                    isSelected = state.freq == freq,
-                    interval = state.interval,
-                    onSelect = { onStateChange(state.copy(freq = freq)) },
-                    onIntervalChange = { n -> onStateChange(state.copy(interval = n)) }
+        // Intervall-Stepper (nur sinnvoll bei aktiver Wiederholung)
+        AnimatedVisibility(visible = state.freq != RecurFreq.NONE) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Alle",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                IntervalStepper(
+                    value = state.interval,
+                    onValueChange = { n -> onStateChange(state.copy(interval = n)) }
+                )
+                Text(
+                    state.freq.suffixPlural,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
+
+        // Segment-Buttons: Einheit der Wiederholung
+        RecurSegmented(
+            state = state,
+            onSelect = { freq ->
+                onStateChange(
+                    if (freq == RecurFreq.NONE) state.copy(freq = freq)
+                    else state.copy(freq = freq)
+                )
+            }
+        )
 
         // Untermenü: Wochentage bei WEEKLY
         AnimatedVisibility(visible = state.freq == RecurFreq.WEEKLY) {
@@ -98,10 +130,10 @@ fun RecurrenceEditor(
                     onClick = { onStateChange(state.copy(end = RecurEnd.COUNT)) }
                 )
                 Text("Wiederholen: ", style = MaterialTheme.typography.bodyMedium)
-                InlineIntField(
+                IntervalStepper(
                     value = state.endCount,
                     onValueChange = { n -> onStateChange(state.copy(endCount = n)) },
-                    modifier = Modifier.width(48.dp)
+                    range = 1..999
                 )
                 Text(" mal", style = MaterialTheme.typography.bodyMedium)
             }
@@ -109,70 +141,78 @@ fun RecurrenceEditor(
     }
 }
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+/**
+ * Segment-Buttons für die Frequenz-Einheit (M14h): eine Zeile,
+ * jede Einheit ein Segment — kein "Jeden 1 Tag"-Pillen-Springen.
+ * Zwei Zeilen, damit die Buttons nicht quetschen (7 Einheiten).
+ */
 @Composable
-private fun RecurFreqRow(
-    freq: RecurFreq,
-    isSelected: Boolean,
-    interval: Int,
-    onSelect: () -> Unit,
-    onIntervalChange: (Int) -> Unit
+private fun RecurSegmented(
+    state: RecurrenceState,
+    onSelect: (RecurFreq) -> Unit
 ) {
-    FlowRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .selectable(selected = isSelected, onClick = onSelect),
-        verticalArrangement = Arrangement.Center,
+    val units = listOf(
+        RecurFreq.NONE to "Nie",
+        RecurFreq.MINUTELY to "Min.",
+        RecurFreq.HOURLY to "Std.",
+        RecurFreq.DAILY to "Tag",
+        RecurFreq.WEEKLY to "Woche",
+        RecurFreq.MONTHLY to "Monat",
+        RecurFreq.YEARLY to "Jahr"
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        RadioButton(selected = isSelected, onClick = null)
-        if (freq == RecurFreq.NONE) {
-            Text(freq.prefix, style = MaterialTheme.typography.bodyMedium)
-        } else if (isSelected) {
-            // Inline: "Jede [1] Woche"
-            Text(freq.prefix, style = MaterialTheme.typography.bodyMedium)
-            InlineIntField(value = interval, onValueChange = onIntervalChange)
-            Text(freq.suffix, style = MaterialTheme.typography.bodyMedium)
-        } else {
-            // Nicht ausgewählt: n als normaler Text
-            Text(freq.labelWith(interval), style = MaterialTheme.typography.bodyMedium)
+        units.forEach { (freq, label) ->
+            val selected = state.freq == freq
+            FilterChip(
+                selected = selected,
+                onClick = { onSelect(freq) },
+                label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
+                shape = CircleShape,
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
 
-/** Kompaktes Inline-Int-Feld (kein eigener Rahmen-Text, fühlt sich wie Text an). */
+/** Stepper (− n +) für das Intervall (M14h). */
 @Composable
-private fun InlineIntField(
+private fun IntervalStepper(
     value: Int,
     onValueChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    range: IntRange = 1..9999
 ) {
-    BasicTextField(
-        value = value.toString(),
-        onValueChange = { v ->
-            val n = v.toIntOrNull()
-            if (n != null && n in 1..9999) onValueChange(n)
-        },
-        modifier = modifier.width(40.dp),
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.primary
-        ),
-        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-        decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                innerTextField()
-            }
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .height(32.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = { onValueChange((value - 1).coerceAtLeast(range.first)) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Filled.Remove, contentDescription = "Weniger", modifier = Modifier.size(18.dp))
         }
-    )
+        Text(
+            value.toString(),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier.width(36.dp)
+        )
+        IconButton(
+            onClick = { onValueChange((value + 1).coerceAtMost(range.last)) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Mehr", modifier = Modifier.size(18.dp))
+        }
+    }
 }
 
 @Composable
@@ -225,22 +265,21 @@ private fun MonthlyOptions(
 
         Column(modifier = Modifier.selectableGroup()) {
             // Am n. wiederholen
-            Row(modifier = Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = state.monthlyMode == MonthlyMode.DAY_OF_MONTH,
                     onClick = { onStateChange(state.copy(monthlyMode = MonthlyMode.DAY_OF_MONTH, monthlyDays = emptySet())) }
                 )
                 Text("Am ", style = MaterialTheme.typography.bodyMedium)
-                InlineIntField(
+                DayStepper(
                     value = state.monthlyDays.firstOrNull() ?: 1,
-                    onValueChange = { n -> onStateChange(state.copy(monthlyDays = setOf(n.coerceIn(1, 31)))) },
-                    modifier = Modifier.width(44.dp)
+                    onValueChange = { n -> onStateChange(state.copy(monthlyDays = setOf(n.coerceIn(1, 31)))) }
                 )
                 Text(". wiederholen", style = MaterialTheme.typography.bodyMedium)
             }
 
             // Am n. Wochentag wiederholen
-            Row(modifier = Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = state.monthlyMode == MonthlyMode.NTH_WEEKDAY,
                     onClick = { onStateChange(state.copy(monthlyMode = MonthlyMode.NTH_WEEKDAY)) }
@@ -272,7 +311,7 @@ private fun MonthlyOptions(
             }
 
             // Datumsangabe (mehrere Tage)
-            Row(modifier = Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(
                     selected = state.monthlyMode == MonthlyMode.MULTIPLE_DAYS,
                     onClick = { onStateChange(state.copy(monthlyMode = MonthlyMode.MULTIPLE_DAYS)) }
@@ -288,6 +327,15 @@ private fun MonthlyOptions(
             )
         }
     }
+}
+
+/** Wie IntervalStepper, aber fürs "Am n. des Monats" (1–31). */
+@Composable
+private fun DayStepper(
+    value: Int,
+    onValueChange: (Int) -> Unit
+) {
+    IntervalStepper(value = value, onValueChange = onValueChange, range = 1..31)
 }
 
 @Composable

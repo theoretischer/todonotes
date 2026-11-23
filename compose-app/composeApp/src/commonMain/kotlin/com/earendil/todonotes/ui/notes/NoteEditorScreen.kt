@@ -91,9 +91,9 @@ private fun CompactFormatBar(
 ) {
     androidx.compose.material3.Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 2.dp,
-        shadowElevation = 2.dp
+        // M14h: surface wie die TopBar (vorher surfaceContainer = das
+        // Grau, das sonst nirgends als Fläche vorkommt).
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier

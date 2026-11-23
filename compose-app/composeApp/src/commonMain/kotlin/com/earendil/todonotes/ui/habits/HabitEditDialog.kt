@@ -77,6 +77,9 @@ fun HabitEditDialog(
             initialSelectedDateMillis = initialMillis
         )
         DatePickerDialog(
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {

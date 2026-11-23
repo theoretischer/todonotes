@@ -17,6 +17,18 @@ enum class RecurFreq(val prefix: String, val suffix: String) {
     MONTHLY("Jeden", "Monat"),
     YEARLY("Jedes", "Jahr");
 
+    /** Plural-Form fürs Stepper-Layout („Alle 3 Tage“). M14h. */
+    val suffixPlural: String
+        get() = when (this) {
+            RecurFreq.NONE -> ""
+            RecurFreq.MINUTELY -> "Minuten"
+            RecurFreq.HOURLY -> "Stunden"
+            RecurFreq.DAILY -> "Tage"
+            RecurFreq.WEEKLY -> "Wochen"
+            RecurFreq.MONTHLY -> "Monate"
+            RecurFreq.YEARLY -> "Jahre"
+        }
+
     /** Label mit eingebettetem n (für nicht ausgewählte Zeilen, reiner Text). */
     fun labelWith(n: Int): String =
         if (this == RecurFreq.NONE) prefix else "$prefix $n $suffix"

@@ -92,6 +92,9 @@ fun TodoEditDialog(
         }
         val state = rememberDatePickerState(initialSelectedDateMillis = initialMs)
         DatePickerDialog(
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {

@@ -259,6 +259,9 @@ fun QuickAddBar(
         }
         val state = rememberDatePickerState(initialSelectedDateMillis = initialMs)
         DatePickerDialog(
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
@@ -314,7 +317,8 @@ fun QuickAddBar(
                 )
                 RecurrenceEditor(
                     state = recurrenceState,
-                    onStateChange = { recurrenceState = it }
+                    onStateChange = { recurrenceState = it },
+                    showTitle = false
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
