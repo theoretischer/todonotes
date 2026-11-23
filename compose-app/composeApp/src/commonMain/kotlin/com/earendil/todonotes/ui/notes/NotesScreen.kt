@@ -309,7 +309,9 @@ private fun NotesBreadcrumb(
                     overflow = TextOverflow.Ellipsis
                 )
             } else {
-                // HOME und Vorgänger-Ordner: blau, klickbar
+                // HOME und Vorgänger-Ordner: blau, klickbar. KEIN extra
+                // vertikales Padding — sonst sitzt HOME 6dp tiefer als die
+                // Sektions-Header der Aufgaben (Nutzer-Report).
                 Text(
                     text = crumb.name.uppercase(),
                     style = MaterialTheme.typography.labelMedium,
@@ -319,7 +321,6 @@ private fun NotesBreadcrumb(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .padding(vertical = 6.dp)
                         .combinedClickable(onClick = { onCrumb(crumb) })
                 )
             }
