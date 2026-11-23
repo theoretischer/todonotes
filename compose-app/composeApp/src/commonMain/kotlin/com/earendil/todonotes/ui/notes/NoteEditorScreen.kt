@@ -169,6 +169,10 @@ fun NoteEditorScreen(
     var editing by remember { mutableStateOf(false) }
     // Beim Wechsel in den Edit-Modus: Cursor ans Textende + Fokus anfordern.
     var focusEditOnSwitch by remember { mutableStateOf(false) }
+    // Bug 1: Cursor-Position beim Verlassen des Edit-Modus („Fertig“-Check)
+    // MERKEN und beim nächsten Edit-Wechsel wiederherstellen — sonst springt
+    // der Cursor an den Zeilenanfang, obwohl man mitten in einer Zeile war.
+    var savedCursor by remember { mutableStateOf(-1) }
     val bodyFocusRequester = remember { FocusRequester() }
     // Punkt 6: Zeitstempel des letzten Checkbox-Button-Taps (Doppeltipp-
     // Erkennung, < 400ms). Kein Compose-State nötig — wird nur im
@@ -208,6 +212,8 @@ fun NoteEditorScreen(
             focusEditOnSwitch = false
             bodyFocusRequester.requestFocus()
         }
+        // Bug 1: Edit-Modus VERLASSEN („Fertig“-Check, Back) → Cursor merken.
+        if (!editing) savedCursor = bodyValue?.selection?.min ?: -1
     }
 
     // Fokus auf Titel-Feld wenn Titel-Edit startet.
