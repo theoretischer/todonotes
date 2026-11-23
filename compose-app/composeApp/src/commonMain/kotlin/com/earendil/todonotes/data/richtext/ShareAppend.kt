@@ -3,72 +3,76 @@ package com.earendil.todonotes.data.richtext
 /**
  * "Teilen mit der App" — geteilten Text ans Ende einer Notiz anhängen.
  *
- * Nutzer-Regeln (an Textzeilen formuliert, hier aufs Block-Modell
- * übersetzt — Präfixe sind bei Listen implizit, nicht echt im Text):
- * - Letzte Zeile ist ein LEERES Listen-Item (z. B. "[ ] " ohne Inhalt):
- *   Text kommt HINTER das Präfix (Item wird gefüllt, Checked-Status
- *   bleibt wie er war).
- * - Letzte Zeile ist ein Listen-Item MIT Inhalt ("[ ] hund"):
- *   neue Zeile mit GLEICHEM Präfix-Typ (neues Item; Nummerierung
- *   zählt beim Rendern automatisch weiter).
- * - Letzte Zeile ist normaler Text mit Inhalt ("hund"):
- *   neue Zeile OHNE Präfix (neuer Paragraph).
- * - Letzte Zeile ist ein LEERER Paragraph: Text füllt ihn.
- * - Notiz leer / letzter Block ist ein Bild: neuer Paragraph.
+ * WICHTIG: Arbeitet auf der PLAIN-TEXT-Ebene (so wie der Body in der
+ * DB liegt — Checkboxen etc. sind echte Präfixe im Text, das Block-JSON
+ * ist Legacy und wird beim Laden via migrateFromBlocks migriert).
+ * Der 1. Versuch decodete den Plain-Text als Block-JSON → decode
+ * scheiterte still → EMPTY_BODY → **ganze Notiz gelöscht** (Nutzer-
+ * Datenverlust-Report: „wenn als prefix [ ] steht löscht er das
+ * ganze dokument").
  *
- * Mehrzeiliger geteilter Text: eine Zeile pro Durchlauf — die erste
- * füllt ggf. das leere letzte Item/Paragraph, jede weitere wird
- * regulär angehängt. Leerzeilen werden verworfen.
+ * Nutzer-Regeln (Zeilen-Sicht, direkt auf dem Text):
+ * - Letzte Zeile ist ein LEERES Listen-Item („[ ] ", „- ", „→ ", „1. "
+ *   ohne Inhalt, nur Leerzeichen dahinter): Text kommt HINTER das
+ *   Präfix — bei Checkbox BLEIBT der Haken-Status („[x] " → „[x] Text").
+ * - Letzte Zeile ist ein Listen-Item MIT Inhalt („[ ] hund"): neue
+ *   Zeile mit GLEICHEM Präfix-Typ; Nummerierung zählt weiter
+ *   („3. " — beim Rendern wird ohnehin fortlaufend vergeben).
+ * - Letzte Zeile ist Text MIT Inhalt („hund"): neue Zeile OHNE Präfix.
+ * - Letzte Zeile LEER (kein Präfix, kein Inhalt): Text füllt sie.
+ * - Notiz leer: Text füllt sie (nichts davor).
+ *
+ * Mehrzeiliger geteilter Text: Zeile für Zeile durch dieselben Regeln
+ * (die erste füllt ggf. das leere letzte Item/Zeile, jede weitere wird
+ * regulär angehängt). Leerzeilen im geteilten Text werden verworfen.
  */
-fun appendSharedTextToBody(body: NoteBody, rawText: String): NoteBody {
-    val lines = rawText
+fun appendSharedTextToText(bodyText: String, rawText: String): String {
+    val shared = rawText
         .replace("\r\n", "\n")
         .split("\n")
         .map { it.trim() }
         .filter { it.isNotEmpty() }
-    if (lines.isEmpty()) return body
+    if (shared.isEmpty()) return bodyText
 
-    val blocks = body.blocks.toMutableList()
-    for (line in lines) {
-        when (val last = blocks.lastOrNull()) {
-            is Block.ListBlock -> {
-                val lastItem = last.items.lastOrNull()
-                if (lastItem != null && lastItem.segments.isBlankText()) {
-                    // Leeres Item ("[ ] " ohne Inhalt) → Text dahinter.
-                    // Checked-Status des Items bleibt erhalten.
-                    blocks[blocks.lastIndex] = last.copy(
-                        items = last.items.dropLast(1) +
-                                lastItem.copy(segments = listOf(Segment(line)))
-                    )
-                } else {
-                    // Item mit Inhalt → neues Item desselben Typs
-                    // (Nummerierung zählt beim Rendern weiter).
-                    blocks[blocks.lastIndex] = last.copy(
-                        items = last.items + ListItem(segments = listOf(Segment(line)))
-                    )
+    // Bestehende Zeilen; NICHT trimmen — Einrückungen sind Inhalt.
+    val existing = if (bodyText.isEmpty()) emptyList() else bodyText.split("\n")
+    val result = existing.toMutableList()
+
+    for (line in shared) {
+        val last = result.lastOrNull()
+        val lastType = last?.let { NoteTextBody.detectListType(it) }
+        if (lastType != null) {
+            val content = NoteTextBody.stripPrefix(last ?: "")
+            if (content.isBlank()) {
+                // Leeres Item → Text hinter das Präfix. Checkbox-Haken-
+                // Status ([x] vs [ ]) bleibt wie er ist.
+                val prefix = last!!.substring(0, last.length - content.length)
+                result[result.lastIndex] = prefix + line
+            } else {
+                // Item mit Inhalt → neue Zeile mit gleichem Präfix-Typ.
+                val newPrefix = when (lastType) {
+                    ListType.CHECKBOX -> NoteTextBody.CHECKBOX_OPEN
+                    ListType.BULLET -> NoteTextBody.BULLET_PREFIX
+                    ListType.ARROW -> NoteTextBody.ARROW_PREFIX
+                    // Nächste Nummer = letzte Nummer + 1 (beim Rendern wird
+                    // fortlaufend vergeben — der gespeicherte Wert ist nur
+                    // ein plausibler Startpunkt).
+                    ListType.ORDERED -> {
+                        val m = Regex("^(\\d+)\\. ").find(last)
+                        ((m?.groupValues?.get(1)?.toIntOrNull() ?: 0) + 1).toString() + ". "
+                    }
                 }
+                result += newPrefix + line
             }
-
-            is Block.Paragraph -> {
-                if (last.segments.isBlankText()) {
-                    // Leerer Paragraph → Text füllt ihn.
-                    blocks[blocks.lastIndex] = Block.Paragraph(listOf(Segment(line)))
-                } else {
-                    // Inhalt → neuer Paragraph dahinter.
-                    blocks += Block.Paragraph(listOf(Segment(line)))
-                }
-            }
-
-            else -> {
-                // Leerer Body oder letzter Block ist ein Bild:
-                // neuer Paragraph.
-                blocks += Block.Paragraph(listOf(Segment(line)))
+        } else {
+            // Kein Listen-Präfix auf der letzten Zeile: leer → füllen,
+            // sonst neue Zeile ohne Präfix.
+            if (last == null || last.isBlank()) {
+                if (result.isEmpty()) result += line else result[result.lastIndex] = line
+            } else {
+                result += line
             }
         }
     }
-    return NoteBody(blocks = blocks)
+    return result.joinToString("\n")
 }
-
-/** True, wenn die Segmente zusammen nur leeren Text (leer/Whitespace) ergeben. */
-private fun List<Segment>.isBlankText(): Boolean =
-    joinToString("") { it.text }.isBlank()

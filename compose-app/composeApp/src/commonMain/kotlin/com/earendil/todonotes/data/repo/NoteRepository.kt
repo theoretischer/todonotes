@@ -5,8 +5,8 @@ import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.sync.SyncManager
-import com.earendil.todonotes.data.richtext.NoteBodyJson
-import com.earendil.todonotes.data.richtext.appendSharedTextToBody
+import com.earendil.todonotes.data.richtext.NoteTextBody
+import com.earendil.todonotes.data.richtext.appendSharedTextToText
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -109,9 +109,12 @@ class NoteRepository(
      *  gelöscht ist. */
     suspend fun appendSharedText(id: String, rawText: String): Boolean {
         val note = dao.getLiveById(id) ?: return false
-        val body = NoteBodyJson.decodeOrNew(note.bodyJson)
-        val newBody = appendSharedTextToBody(body, rawText)
-        dao.updateBody(id, note.title, NoteBodyJson.encode(newBody), nowMs())
+        // Plain-Text-Ebene (Body liegt so in der DB; Block-JSON ist Legacy)!
+        // 1. Versuch decodete als Block-JSON → still-leerer Body → die
+        // ganze Notiz wurde GELÖSCHT (Nutzer-Report).
+        val migrated = NoteTextBody.migrateFromBlocks(note.bodyJson)
+        val newBody = appendSharedTextToText(migrated, rawText)
+        dao.updateBody(id, note.title, newBody, nowMs())
         dirty()
         return true
     }
