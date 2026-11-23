@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Neues App-Icon (artwork/app-icon-v2.svg) — Geometrie 1:1 aus der SVG,
-     exakt um (54,54) zentriert. Adaptive-Icon: Der Launcher zeigt das
-     mittlere ~72er-Quadrat des 108er-Canvas — die Karte (18..90) füllt
-     genau das sichtbare Fenster. Hintergrund: @drawable/ic_launcher_background
-     (#1C1D21), Vordergrund: Karte #2A2C32 + Haken #8AB4FF + weisse Zeilen. -->
+<!-- Neues App-Icon (artwork/app-icon-v2.svg) — Geometrie aus der SVG,
+     komplett um 2 Einheiten NACH OBEN verschoben (Nutzer-Report: Inhalt
+     saß minimal zu tief → hellgrauer Schlitz am oberen Rand) und der
+     offene Kreis auf cx=39 nach rechts gerückt (fluchtet mit der
+     visuellen Mitte der Haken — die laufen von links unten nach rechts
+     oben, cx=36 wirkte linksbündig).
+     Hintergrund: @drawable/ic_launcher_background (#1C1D21, volle Fläche). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Karte 18..90, Mitte (54,54), Ecken 20 -->
+    <!-- Karte 18..90 x 16..88, Ecken 20 (alles y-2 gegenueber der SVG) -->
     <path
         android:fillColor="#2A2C32"
-        android:pathData="M 38,18 h 52 a 20,20 0 0 1 20,20 v 52 a 20,20 0 0 1 -20,20 h -52 a 20,20 0 0 1 -20,-20 v -52 a 20,20 0 0 1 20,-20 z" />
+        android:pathData="M 38,16 h 52 a 20,20 0 0 1 20,20 v 52 a 20,20 0 0 1 -20,20 h -52 a 20,20 0 0 1 -20,-20 v -52 a 20,20 0 0 1 20,-20 z" />
 
     <!-- Zeile 1: Haken (blau) -->
     <path
@@ -22,12 +24,12 @@
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M 32,38 l 4.5,4.5 l 9,-10" />
+        android:pathData="M 32,36 l 4.5,4.5 l 9,-10" />
     <!-- Zeile 1: Strich -->
     <path
         android:fillColor="#FFFFFF"
         android:fillAlpha="0.92"
-        android:pathData="M 54.5,34 h 19 a 2.5,2.5 0 0 1 0,5 h -19 a 2.5,2.5 0 0 1 0,-5 z" />
+        android:pathData="M 54.5,32 h 19 a 2.5,2.5 0 0 1 0,5 h -19 a 2.5,2.5 0 0 1 0,-5 z" />
 
     <!-- Zeile 2: Haken (blau) -->
     <path
@@ -36,23 +38,23 @@
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M 32,58 l 4.5,4.5 l 9,-10" />
-    <!-- Zeile 2: Strich (kürzer) -->
+        android:pathData="M 32,56 l 4.5,4.5 l 9,-10" />
+    <!-- Zeile 2: Strich (kuerzer) -->
     <path
         android:fillColor="#FFFFFF"
         android:fillAlpha="0.92"
-        android:pathData="M 54.5,54 h 13 a 2.5,2.5 0 0 1 0,5 h -13 a 2.5,2.5 0 0 1 0,-5 z" />
+        android:pathData="M 54.5,52 h 13 a 2.5,2.5 0 0 1 0,5 h -13 a 2.5,2.5 0 0 1 0,-5 z" />
 
-    <!-- Zeile 3: offener Kreis -->
+    <!-- Zeile 3: offener Kreis (cx 36→39: fluchtet mit den Haken-Mitten) -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeAlpha="0.4"
         android:strokeWidth="3"
         android:fillColor="#00000000"
-        android:pathData="M 36,76 m -4,0 a 4,4 0 1 0 8,0 a 4,4 0 1 0 -8,0" />
+        android:pathData="M 39,74 m -4,0 a 4,4 0 1 0 8,0 a 4,4 0 1 0 -8,0" />
     <!-- Zeile 3: Strich (gedimmt) -->
     <path
         android:fillColor="#FFFFFF"
         android:fillAlpha="0.35"
-        android:pathData="M 54.5,72.5 h 19 a 2.5,2.5 0 0 1 0,5 h -19 a 2.5,2.5 0 0 1 0,-5 z" />
+        android:pathData="M 54.5,70.5 h 19 a 2.5,2.5 0 0 1 0,5 h -19 a 2.5,2.5 0 0 1 0,-5 z" />
 </vector>
