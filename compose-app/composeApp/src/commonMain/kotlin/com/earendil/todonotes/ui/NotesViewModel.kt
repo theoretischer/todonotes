@@ -29,7 +29,7 @@ data class NotesBrowserState(
     val notes: List<Note>
 ) {
     companion object {
-        val EMPTY = NotesBrowserState(null, listOf(Crumb(null, "Notizen")), emptyList(), emptyList())
+        val EMPTY = NotesBrowserState(null, listOf(Crumb(null, "Home")), emptyList(), emptyList())
     }
 }
 
@@ -55,7 +55,7 @@ class NotesViewModel(
 
     // aktuell geöffneter Ordner (null = Wurzel) + Pfad dorthin.
     private val currentFolderId = MutableStateFlow<String?>(null)
-    private val breadcrumbs = MutableStateFlow<List<Crumb>>(listOf(Crumb(null, "Notizen")))
+    private val breadcrumbs = MutableStateFlow<List<Crumb>>(listOf(Crumb(null, "Home")))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val foldersInCurrent = currentFolderId.flatMapLatest { id ->

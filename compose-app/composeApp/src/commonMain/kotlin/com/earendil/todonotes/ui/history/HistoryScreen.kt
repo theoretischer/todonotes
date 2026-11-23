@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.earendil.todonotes.data.entity.HabitHistoryEntry
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.data.repo.formatDateGerman
@@ -65,9 +66,10 @@ fun HistoryScreen(
             if (habitHistory.isNotEmpty()) {
                 item {
                     Text(
-                        "Gewohnheiten",
+                        "Gewohnheiten".uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
@@ -124,9 +126,10 @@ fun HistoryScreen(
             if (completedTodos.isNotEmpty()) {
                 item {
                     Text(
-                        "Aufgaben",
+                        "Aufgaben".uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )

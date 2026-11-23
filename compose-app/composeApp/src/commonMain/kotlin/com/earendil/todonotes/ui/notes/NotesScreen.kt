@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.earendil.todonotes.data.entity.Folder
 import com.earendil.todonotes.data.entity.Note
@@ -38,6 +39,7 @@ import com.earendil.todonotes.ui.BackHandler
 import com.earendil.todonotes.data.richtext.NoteTextBody
 import com.earendil.todonotes.ui.Crumb
 import com.earendil.todonotes.ui.NotesViewModel
+import com.earendil.todonotes.ui.components.ScreenTitle
 import com.earendil.todonotes.ui.components.SwipeOrReorderRow
 import androidx.compose.runtime.collectAsState
 
@@ -83,14 +85,20 @@ fun NotesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        // Header-Box: umschließt nur die Breadcrumb (48dp oben). So ist
-        // die ROOT-Drop-Hitbox genau auf dem Root-Schriftzug.
+        // M14e: Große Titelzeile als Anker (wie Aufgaben/Verlauf/Gewohnheiten)
+        // — der Breadcrumb-Pfad rückt als kleine blaue CAPS-Zeile DARUNTER
+        // (Konsistenz mit den Sektions-Überschriften der Aufgaben).
+        ScreenTitle("Notizen", modifier = Modifier.align(Alignment.TopStart))
+
+        // Header-Box: umschließt nur die Breadcrumb (unter dem Titel). So
+        // bleibt die ROOT-Drop-Hitbox genau auf dem HOME-Schriftzug.
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .zIndex(5f)
                 .statusBarsPadding()
+                .padding(top = 64.dp)
                 .onGloballyPositioned { coords ->
                     folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
                 }
@@ -106,7 +114,7 @@ fun NotesScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 104.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(state.folders, key = { it.id }) { folder ->
@@ -266,35 +274,56 @@ private fun NotesBreadcrumb(
     onCrumb: (Crumb) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // M14e: Pfad als kleine blaue CAPS-Zeile — im Stil der Sektions-
+    // Überschriften („HEUTE“, „MORGEN“ …) der Aufgaben. Alles klickbar:
+    // Tap auf HOME (oder einen Ordner davor) navigiert dorthin.
+    // Der aktuelle Ordner (letzter Crumb) ist nur Anzeige (kein Tap).
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .padding(horizontal = 8.dp),
+            .height(32.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         crumbs.forEachIndexed { idx, crumb ->
             if (idx > 0) {
                 Text(
-                    "›",
-                    style = MaterialTheme.typography.titleMedium,
+                    "/",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 2.dp)
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(horizontal = 3.dp)
                 )
             }
             val isLast = idx == crumbs.lastIndex
-            Text(
-                text = crumb.name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (isLast) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isLast) MaterialTheme.colorScheme.onSurface
-                        else MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .padding(horizontal = 4.dp, vertical = 6.dp)
-                    .combinedClickable(onClick = { onCrumb(crumb) })
-            )
+            if (isLast && crumbs.size > 1) {
+                // Aktueller Ordner: halbfette Anzeige in normaler Farbe
+                // (wie der letzte Crumb vorher).
+                Text(
+                    text = crumb.name.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                // HOME und Vorgänger-Ordner: blau, klickbar
+                Text(
+                    text = crumb.name.uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(vertical = 6.dp)
+                        .combinedClickable(onClick = { onCrumb(crumb) })
+                )
+            }
         }
     }
 }
