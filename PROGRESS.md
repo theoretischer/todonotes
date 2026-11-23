@@ -810,6 +810,9 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
 - M14 UI-Rework: eigenes Farbsystem, Dynamic Color aus, Titel-
   Anker, Header mit Anzahl, Quick-Add-Karte
+- M16 Teilen mit der App (ACTION_SEND → Quick-Add/Notizen-Anhäng)
+- F7 Link-Vorschau: og-Karten in Chat + Aufgaben; Reddit über
+  oembed (Share-Redirect-Auflösung); Cache-TTL/Negativ-Cache
 - Deploy-Perf: Daemon-Fix + kein yarn-Reinstall mehr
       (Binaryen-Optimize bleibt ehrlich ~35-60s/Änderung)
 
