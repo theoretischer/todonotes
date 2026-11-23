@@ -30,8 +30,10 @@ Eingabefelder überall, runde Checkboxen, Dialog/Sheet-
 Farben = surface. M14h/i: Editor-BottomBar, DatePicker-
 Farben (auch im Kalender-Grid!), Recurrence-Editor als
 Stepper + Segment-Chips. M14j: Todo-Listen-Abstand 8dp +
-HabitCadencePicker auf dasselbe Chip-System (inkl. Lektion:
-Chips immer FlowRow, nie weight(1f)). 92 Tests grün.
+HabitCadencePicker auf dasselbe Chip-System. M14k–p: Feinschliff-
+Serie (Progress-Dot, Chat-Link, Switch/Avatar, Gefahrenzone,
+Tracker-Karte, Datum-Labels, Feld-Farben, Stepper-Zeilen,
+Intervall-Anzeige + Engine-Tests für interval>1). 94 Tests grün.
 
 ## Aktueller Stand
 
@@ -519,6 +521,35 @@ Zwei Bugs aus dem UI-Review:
   gelernt: Chips IMMER in FlowRow mit natürlicher Breite,
   nie weight(1f)).
 
+### 24. M14k–p — Feinschliff-Serie (`fa211e4` → `27b8fd6`)
+
+Sechs Runden Nutzer-Review-Feedback, jeweils kompiliert + getestet
++ deployed + gepusht:
+
+- **k:** Progress-Stop-Dot weg (`drawStopIndicator = {}` — Compose
+  1.8.2 heißt den Parameter so, AndroidX 1.7 `stopIndicator`!);
+  Chat-Link #B7D3FF + Unterstreichung (`linkified(underline=)`);
+  Switch-Aus-Zustand outline/onSurface; Avatar-Bitmap auf Kreis
+  geclippt.
+- **l:** Gefahrenzone-Buttons weiß gefüllt + rote Schrift (Karte ist
+  errorContainer-rot — Outline-Rot-auf-Rot war unsichtbar).
+- **m:** TrackerDetail Zeiträume-Karte + navigationBars-Insets;
+  TopBar-Abstand; Datum „Di, 24. Nov · 00:00“ (formatDueShort) +
+  „Mo, 23. Nov 2026“ (formatStartLabel) statt ISO; Settings-Felder
+  inputFillColor() (ein Ton kräftiger als Karten — identisch war
+  unsichtbar); „Neues Passwort“ + „optional“ als supportingText.
+- **n:** Habit-Stepper-Zeile; Chat-Icons pur (Check-Button, Trash-Icon,
+  Text-Abbrechen); Admin-Liste lädt Profilbilder
+  (fetchUserAvatar, LaunchedEffect pro UserRow).
+- **o:** „Ziel (− n +)“ + „über (− m +) Tag(e/Woche/…)“ in ZWEI
+  Zeilen (eine Row war zu knapp, Text brach mehrzeilig um) —
+  „über“ bei ALLEN Einheiten, Einheit folgt dem Chip.
+- **p:** Cadence-Labels zeigen Intervall: „2x pro 2 Wochen“ /
+  „3x alle 2 Tage“ (vorher log — Anzeige ohne Intervall). Neue
+  Engine-Tests verifizieren WEEK interval=2 (Periode wirklich 14
+  Tage, Reset bleibt Montag) + MONTH interval=3 — Nutzer-Sorge
+  „akzeptiert er 2 Wochen wirklich?“ beantwortet: ja. 94 Tests.
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -538,6 +569,16 @@ schleifen bei Bedarf:
 - [ ] Lucide-Icons manuell einbetten (nur die ~15 genutzten, als
       ImageVector) — falls Material Outlined nicht reicht
 - [ ] FAB-Polish Notizen, responsive Layouts, weitere Detail-Politur
+- [ ] **Kindle-Client (F) — nur wenn der Kindle da ist:** Compose/Wasm
+      wird der Paperwhite-Browser nicht handeln (SSE, Lazy-Columns,
+      Animations-Chips, SQLite-Worker/OPFS). Nötig wäre eine komplett
+      eigene, stark vereinfachte Web-Oberfläche OHNE Compose — statisch,
+      ohne Animationen, eventuell reduzierte Features (nur Listen +
+      Checkboxen + Notizen lesen/schreiben?). Server-Sync-Endpunkte sind
+      vollständig wiederverwendbar. Erster Schritt: aktuelle Web-App im
+      Kindle-Browser testen → dann entscheiden, ob sich der Aufwand
+      lohnt. Lokale Theme-Präferenz (dunkel/hell/schwarz-weiß) unabhängig
+      davon sinnvoll (nicht pro Account — nur Client-seitig).
 
 ## Erledigt (Kurzfassung)
 
@@ -571,6 +612,10 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   Sheet ohne Fertig/Keine-Wiederholung
 - M14j: Todo-Abstand 8dp, HabitCadencePicker =
   RecurrenceEditor-Chip-System (Stepper nur bei NDAYS)
+- M14k–p: Feinschliff-Serie — 6 Review-Runden bis `27b8fd6`
+  (Progress-Dot, Chat-Link-Kontrast, Switch/Avatar, Gefahrenzone,
+  Tracker-Zeiträume-Karte, Datum-Anzeige deutsch, inputFillColor,
+  „Ziel n über m Tage“, Intervall-Anzeige, Engine-Tests)
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
