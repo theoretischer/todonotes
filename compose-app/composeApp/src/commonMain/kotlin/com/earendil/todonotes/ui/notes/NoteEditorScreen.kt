@@ -5,6 +5,7 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,13 +51,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -65,6 +68,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.richtext.ListType
 import com.earendil.todonotes.data.richtext.NoteTextBody
@@ -171,28 +175,34 @@ fun NoteEditorScreen(
     // onClick-Handler gelesen/geschrieben (keine Rekompilierung nötig).
     var lastCheckboxTapMs by remember { mutableStateOf(0L) }
 
-    // --- Lokaler Editierzustand: Titel + EIN Body-Feld (Roh-Text) ---
-    var titleValue by remember { mutableStateOf<TextFieldValue?>(null) }
+    // --- Lokaler Editierzustand: EIN Body-Feld (Roh-Text) ---
+    // Titel: NICHT mehr als Feld im Content, sondern INLINE in der TopBar
+    // (wie Chat-Notizen — Konsistenz, Nutzer-Wunsch). Lesemodus = Text,
+    // Tap → Edit; Enter/Fokus-Verlust → speichern.
     var bodyValue by remember { mutableStateOf<TextFieldValue?>(null) }
+    var isEditingTitle by remember { mutableStateOf(false) }
+    var titleText by remember { mutableStateOf(TextFieldValue("")) }
     val titleFocusRequester = remember { FocusRequester() }
+    var hadTitleFocus by remember { mutableStateOf(false) }
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     // Bei Notizwechsel: Editor-State zurücksetzen und neu laden.
     LaunchedEffect(noteId) {
-        titleValue = null
         bodyValue = null
         editing = false
+        isEditingTitle = false
+        hadTitleFocus = false
         vm.load(noteId, isNew, initialTitle, initialBody)
         val s = vm.state.first { it.loaded }
-        titleValue = TextFieldValue(s.title)
         bodyValue = TextFieldValue(s.body, TextRange(s.body.length))
-        // Neue Notiz direkt in den Edit-Modus (Titel fokussiert).
-        if (isNew) editing = true
+        titleText = TextFieldValue(s.title)
+        // Neue Notiz direkt in den Edit-Modus — Titel in der TopBar
+        // fokussieren (wie im Chat).
+        if (isNew) isEditingTitle = true
     }
 
-    // Beim Wechsel in den Edit-Modus: Fokus ins Body-Feld holen (Cursor
-    // ans Ende via TextFieldValue im Body selbst). Läuft nach dem
-    // Rekompilieren von editing=true.
+    // Beim Wechsel in den Edit-Modus (Body): Fokus ins Body-Feld holen
+    // (Cursor-Position kommt aus dem TextFieldValue selbst).
     LaunchedEffect(editing) {
         if (editing && focusEditOnSwitch) {
             focusEditOnSwitch = false
@@ -200,32 +210,35 @@ fun NoteEditorScreen(
         }
     }
 
-    // Neue Notiz: Titel fokussieren.
-    LaunchedEffect(state.loaded, state.isNewNote) {
-        if (state.loaded && state.isNewNote) {
-            titleFocusRequester.requestFocus()
-        }
+    // Fokus auf Titel-Feld wenn Titel-Edit startet.
+    LaunchedEffect(isEditingTitle) {
+        if (isEditingTitle) titleFocusRequester.requestFocus()
     }
-
-    // Titel-Markierung (Nutzer-Wunsch: Tap auf Titel → alles markiert):
-    // onSelectAll wird bei JEDEM Fokus-Gewinn des Titel-Felds gesetzt
-    // (onFocusChanged unten) — hier im LaunchedEffect EINEN FRAME warten,
-    // dann Selection setzen. Der Frame-Delay ist der Trick: Der Tap-
-    // Cursor-Positionierung des TextField läuft im SELBEN Frame wie der
-    // Fokus-Gewinn — synchron gesetzte Selection wird einfach überschrieben.
-    // Einen Frame später gewinnt unsere Selection.
-    var selectTitleOnFocus by remember { mutableStateOf(false) }
-    LaunchedEffect(selectTitleOnFocus) {
-        if (selectTitleOnFocus) {
-            selectTitleOnFocus = false
+    // Titel-Markierung EINEN FRAME NACH dem Fokus setzen (wie Chat):
+    // Das TextField positioniert beim Tap/Fokus selbst den Cursor (im
+    // selben Frame) und überschreibt eine synchron gesetzte Selection.
+    // Ein Frame später gewinnt unsere Select-All-Selection → Tippen
+    // überschreibt direkt.
+    LaunchedEffect(isEditingTitle) {
+        if (isEditingTitle) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 androidx.compose.runtime.withFrameNanos { }
             }
-            val t = titleValue
-            if (t != null && t.selection == TextRange.Zero) {
-                titleValue = t.copy(selection = TextRange(0, t.text.length))
-            }
+            titleText = titleText.copy(selection = TextRange(0, titleText.text.length))
         }
+    }
+
+    // Verlässt das Titel-Feld den Fokus → speichern + Edit-Modus beenden.
+    // (onFocusChanged feuert auch beim ERSTEN Zeichnen mit isFocused=false
+    // — deshalb merken wir uns, ob das Feld VORHER fokussiert war.)
+    val focusManager = LocalFocusManager.current
+    fun commitTitleEdit() {
+        val newTitle = titleText.text
+        // Nur wirklich ändern/speichern, wenn was geändert wurde — sonst
+        // würde ein reiner Fokus-Verlust (z.B. Back ins Chat) dirty machen
+        // und den updatedAt-Stamp (LWW) anstoßen.
+        if (newTitle != state.title) vm.updateTitle(newTitle)
+        isEditingTitle = false
     }
 
     // Sync-A+: Notiz wurde von einem anderen Gerät gelöscht → Editor schließen.
@@ -241,7 +254,7 @@ fun NoteEditorScreen(
         if (state.remoteUpdate == 0) return@LaunchedEffect
         if (!state.loaded || bodyValue == null) return@LaunchedEffect
         val v = bodyValue!!
-        if (state.body == v.text && state.title == (titleValue?.text ?: "")) {
+        if (state.body == v.text && state.title == titleText.text) {
             return@LaunchedEffect
         }
         val len = state.body.length
@@ -250,7 +263,7 @@ fun NoteEditorScreen(
             state.body,
             TextRange(sel.min.coerceAtMost(len), sel.max.coerceAtMost(len))
         )
-        titleValue = TextFieldValue(state.title)
+        titleText = TextFieldValue(state.title)
     }
 
     // System-Back: Edit-Modus → erst zurück in den Lesemodus; sonst speichern + schließen
@@ -366,14 +379,13 @@ fun NoteEditorScreen(
 
     // --- UI ---
 
-    if (!state.loaded || titleValue == null || bodyValue == null) {
+    if (!state.loaded || bodyValue == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
         return
     }
 
-    val currentTitleValue = titleValue!!
     val currentBodyValue = bodyValue!!
 
     Scaffold(
@@ -381,7 +393,53 @@ fun NoteEditorScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = {},
+                // Titel INLINE in der TopBar wie Chat-Notizen (Konsistenz,
+                // Nutzer-Wunsch). Lesemodus = Text (Tap → Edit);
+                // Edit = BasicTextField (Enter/Fokus-Verlust → speichern).
+                title = {
+                    if (isEditingTitle) {
+                        BasicTextField(
+                            value = titleText,
+                            onValueChange = { titleText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(titleFocusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    // Enter (ohne Shift) = speichern + Fokus weg
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
+                                        focusManager.clearFocus()
+                                        true
+                                    } else false
+                                }
+                                .onFocusChanged { focusState ->
+                                    if (hadTitleFocus && !focusState.isFocused) {
+                                        commitTitleEdit()
+                                    }
+                                    hadTitleFocus = focusState.isFocused
+                                },
+                            textStyle = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            singleLine = true
+                        )
+                    } else {
+                        Text(
+                            state.title.ifBlank { "Notiz" },
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    // Tap → Edit-Modus (Select-All macht der
+                                    // LaunchedEffect — einen Frame später).
+                                    titleText = TextFieldValue(state.title)
+                                    isEditingTitle = true
+                                }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         vm.flushNow()
@@ -444,33 +502,6 @@ fun NoteEditorScreen(
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            TextField(
-                value = currentTitleValue,
-                onValueChange = { newVal ->
-                    titleValue = newVal
-                    vm.updateTitle(newVal.text)
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(titleFocusRequester)
-                    .onFocusChanged { focusState ->
-                        // Bei JEDEM Fokus-Gewinn: Flag setzen → der LaunchedEffect
-                        // oben setzt EINEN FRAME SPÄTER die Select-All-Selection
-                        // (nach der Tap-Cursor-Positionierung des TextField).
-                        if (focusState.isFocused) {
-                            selectTitleOnFocus = true
-                        }
-                    },
-                placeholder = { Text("Titel") },
-                textStyle = MaterialTheme.typography.titleLarge,
-                singleLine = true,
-                colors = transparentTextFieldColors(),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Next
-                )
-            )
-
             Spacer(Modifier.height(4.dp))
 
             if (!editing) {
@@ -563,11 +594,3 @@ fun NoteEditorScreen(
         }
     }
 }
-
-@Composable
-private fun transparentTextFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent,
-    focusedIndicatorColor = Color.Transparent,
-    unfocusedIndicatorColor = Color.Transparent
-)
