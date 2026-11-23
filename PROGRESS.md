@@ -568,7 +568,14 @@ UI-Rework läuft (M14 erledigt, `2d9729a`+`de78364`) — Rest fein-
 schleifen bei Bedarf:
 - [ ] Lucide-Icons manuell einbetten (nur die ~15 genutzten, als
       ImageVector) — falls Material Outlined nicht reicht
-- [ ] FAB-Polish Notizen, responsive Layouts, weitere Detail-Politur
+- [ ] FAB-Polish Notizen, weitere Detail-Politur
+- [ ] **M15 – UI-Rework Querkant/Desktop (Web am PC):** Hochkant
+      (M14d–p) ist fertig, nur noch Gelegenheits-Tweaks. Am Desktop
+      fehlt das ganze responsive Layout: breite Fenster → mehrere
+      Spalten/große Flächen statt gestreckter Handy-Screens,
+      Hover-Zustände, ggf. Navigation ohne BottomBar (Seitenleiste).
+      Erst nach Bug-Hunting-Priorität, Einzellücken sammeln und
+      dann als eigene M15-Serie.
 - [ ] **Kindle-Client (F) — nur wenn der Kindle da ist:** Compose/Wasm
       wird der Paperwhite-Browser nicht handeln (SSE, Lazy-Columns,
       Animations-Chips, SQLite-Worker/OPFS). Nötig wäre eine komplett
