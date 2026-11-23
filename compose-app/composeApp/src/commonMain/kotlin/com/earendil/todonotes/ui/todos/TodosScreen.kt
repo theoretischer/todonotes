@@ -184,8 +184,13 @@ fun TodosScreen(
         // TodoNotesApp).
         val bottomBarPx = bottomBarPadding
         val imeBottomPx = WindowInsets.ime.getBottom(density)
-        // max(ime, NavBar) in px → dp
-        val liftPx = if (imeBottomPx > bottomBarPx) imeBottomPx else bottomBarPx
+        // M16: Share-Session (BottomBar versteckt) → bottomBarPx=0 → Box
+        // rutschte unter die System-Navigation. Abstand jetzt gegen
+        // max(ime, NavBar-Inset) — BottomBar da? Dann deckt bottomBarPx
+        // das eh ab (NavBar-Inset <= BottomBar-Höhe).
+        val navBarPx = WindowInsets.navigationBars.getBottom(density)
+        // max(ime, NavBar, BottomBar) in px
+        val liftPx = maxOf(imeBottomPx, navBarPx, bottomBarPx)
         QuickAddBar(
             onCreateTodo = onCreateTodo,
             prefill = sharedPrefill,
