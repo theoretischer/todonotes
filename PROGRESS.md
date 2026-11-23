@@ -20,7 +20,12 @@ trennte zuerst den Legacy-[]-Leer-Marker nicht sauber ab —
 jetzt: exakt `[]`/`{}` = Leer-Marker, decodbare Blöcke = JSON,
 sonst Plaintext). Revert M14c (Flächen-Tausch — sah vorher besser
 aus). M14d: Notiz-Titel in die TopBar wie Chat-Notizen
-(Konsistenz). 92 Tests grün.
+(Konsistenz). M14e: Titelzeilen-/Label-Konsistenz über alle
+Tabs (ScreenTitle überall, blaue CAPS-Labels einheitlich,
+Breadcrumb in die Liste, HOME klickbar). M14f: Eckenradius-
+System (16dp Karten, 28dp Dialoge, 8dp Abstand) inkl. drei
+Fixes (Wrapper-Hintergrund kassierte Rundung, rote Lösch-
+Box, Todo-Karten surface statt background). 92 Tests grün.
 
 ## Aktueller Stand
 
@@ -409,6 +414,45 @@ unverändert (Lesemodus/Edit-Modus-Toggle bleibt). Aufgeräumt:
 transparentTextFieldColors (toter Code) + alte Titel-Select-All-
 LaunchedEffects entfernt.
 
+### 19. M14e — Titel-/Label-Konsistenz über alle Tabs (`ccb57b9` → `e5faa41`)
+
+Nutzer-Wunsch: Die blauen CAPS-Labels saßen in Aufgaben/
+Notizen/Verlauf an verschiedenen Orten und in verschiedenen
+Größen; „HOME“ überlappte die erste Notiz.
+
+- **Notizen:** ScreenTitle(„Notizen“) wie Aufgaben/Verlauf;
+  darunter der Pfad als erste blaue CAPS-Zeile. Root heißt
+  jetzt „Home“ → HOME klickbar (Wurzel), Vorgänger-Ordner
+  klickbar, aktueller Ordner nur Anzeige.
+- **Fix 1:** Breadcrumb war eine Overlay-Box mit festem
+  Offset → Überlappung. Jetzt ERSTES Listenelement
+  (96dp, gleiche Paddings/Typo wie der SectionHeader der
+  Aufgaben).
+- **Fix 2:** Klickbare Crumbs hatten noch vertical-6dp-
+  Padding → HOME saß 6dp tiefer als HEUTE/GEWOHNHEITEN.
+  Padding raus — überall bündig.
+- **Verlauf:** Sektions-Header labelLarge → labelMedium +
+  gleiche Paddings wie Aufgaben.
+
+### 20. M14f — Eckenradius-System (`5d75d56` → `c399e2f`)
+
+Nutzer-Wunsch: Karten einheitlich rund (vorher 12dp/
+ListItem+Divider gemischt mit 24dp-Eingaben).
+
+- **System: 16dp Karten, 28dp Dialoge/Sheets (M3-Default,
+  unverändert), 8dp Abstand zwischen Karten.**
+- **Verlauf:** ListItems jetzt echte Karten (HistoryCard,
+  16dp, surface) mit 8dp-Abstand statt Divider.
+- **Fix 1:** SwipeOrReorderRow/SwipeToDeleteRow malen einen
+  background HINTER die Karte — rechteckig, vollflächig,
+  gleiche Farbe wie die Card → füllte die runden Ecken
+  auf („90-Grad-Kasten“). Wrapper-Hintergrund jetzt mit
+  RoundedCornerShape(16.dp).
+- **Fix 2:** Rote Lösch-Box (errorContainer) ebenso.
+- **Fix 3:** TodoRow malte sich mit der Hintergrund-Farbe
+  → Aufgaben-„Karten“ unsichtbar. Eigene background raus —
+  der SwipeToDeleteRow-Wrapper liefert surface + 16dp.
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -450,6 +494,10 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Revert M14c Flächen-Tausch (altes Farbschema gefiel besser)
 - M14d: Notiz-Titel in die TopBar (wie Chat) — Inline-Edit
   mit Select-All/Enter/Fokus-Verlust-Speichern
+- M14e: Titel-/Label-Konsistenz (ScreenTitle überall, HOME-
+  Breadcrumb in der Liste, Verlauf-Header wie Aufgaben)
+- M14f: Eckenradius-System (16dp Karten / 28dp Dialoge /
+  8dp Abstand) + Verlauf-Karten statt ListItem+Divider
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
