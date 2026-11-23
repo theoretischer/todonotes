@@ -38,7 +38,10 @@ Editor-Hitbox, Cursor-Sichtbarkeit (3 Versuche: selbst messen +
 animiert scrollen), „Diese Woche“-Grenze + Tests, Ripple-Clipping,
 scrollende Titel, neues App-Icon v2 (Android Adaptive + Web-
 Favicon). **Feature-Liste für den ernsthaften Alltags-Einsatz
-KOMPLETT abgehakt.** 97 Tests grün.
+KOMPLETT abgehakt.** Danach: Alarm-Screen im M14-Stil + M16 „Teilen
+mit der App“ (ACTION_SEND → Prefill/Notiz-Anhäng, finish statt
+moveTaskToBack, Share-Append-Datenverlust-Bug auf Textebene
+gefixt, BottomBar in der Session versteckt). 109 Tests grün.
 
 ## Aktueller Stand
 
@@ -606,6 +609,61 @@ nur wenn Web-relevante Änderungen (Android-only = kein Deploy).
 (3) Build-Checkpoints alle paar Aufgaben, nicht nach jeder.
 
 97 Tests grün (Stand `49cc189`).
+
+### 26. Alarm-Screen M14-Stil + M16 „Teilen mit der App" (`9923c12` → `a9c5259`)
+
+**Alarm-Screen im M14-Stil:** FullScreenAlarmActivity umgestellt —
+Gradient-Overlay raus, Inhalt (Icon-Badge, Titel, Body, Buttons)
+zentriert in einer surfaceContainer-KARTE mit 16dp-Rundung wie alle
+Karten der App. „Erledigt" = gefüllter Primär-Button mit Haken,
+„Schließen" = TextButton statt Outline. Für den adb-Test gab es ein
+Debug-Manifest-Overlay (exported=true via tools:replace), nach dem
+Test wieder entfernt — Release blieb immer dicht.
+
+**M16 „Teilen mit der App"** (Nutzer-Feature-Wunsch, nach der als
+abgeschlossen erklärten Alltags-Liste doch noch entdeckt):
+- `ACTION_SEND`-Intent-Filter (text/* — auch text/html etc., Text
+  via getCharSequenceExtra). MainActivity empfängt in onCreate +
+  onNewIntent (ShareFlowController, handleOnce gegen Doppel-Feuer).
+- Geteilter Text landet als **Prefill im Quick-Add** (Aufgaben-Tab).
+  Zwei Wege: Haken → Aufgabe direkt erstellt; **Notebook-Knopf**
+  (MenuBook, nur Icon) in den Quick-Optionen → **Pick-Modus** im
+  Notizen-Tab (blaues Banner „Geteilten Text anhängen" mit Vorschau
+  + Abbrechen; Ordner-Klicks navigieren normal).
+- Notiz/Chat antippen → Text ans Ende **ohne die Notiz zu öffnen**;
+  Chat → neue Nachricht.
+- **Endbedingung** (Erstellen/Anhängen/Back): finaler Sync (läuft im
+  appScope) + `closeShareActivity()` = Activity.**finish()** — NICHT
+  moveTaskToBack (das ließ die Activity am Leben → mit jedem Share
+  eine weitere Recents-Instanz + Session überlebte, Nutzer-Report).
+  Man landet automatisch wieder in der absendenden App (Share läuft
+  in deren Task).
+- **State-Trennung gelernt:** shareText (Session, lebt bis End-
+  bedingung) vs. sharePrefill (One-Shot, beim Landen im Feld
+  konsumiert). 1. Versuch: Konsument nullte den SESSION-Text →
+  Pick-Modus leer, Notiz-Klick öffnete statt anzuhängen.
+
+**Datenverlust-Bug beim Share-Append (gefixt):** 1. Versuch decodete
+den Notiz-Body als Block-JSON — er liegt aber als PLAIN TEXT in der
+DB (Präfixe sind echter Text, Block-JSON ist Legacy!). Decode
+scheiterte still → EMPTY_BODY → **ganze Notiz beim Anhängen
+gelöscht** (Nutzer-Report; Inhalt ließ sich über die Web-App
+retten). Jetzt: `migrateFromBlocks` (Legacy-Fallback) +
+`appendSharedTextToText` direkt auf Textebene (detectListType/
+stripPrefix): leeres Item `[ ] ` → Text hinter Präfix (Haken-Status
+bleibt, auch `[x] `), Item mit Inhalt → neue Zeile mit gleichem
+Präfix (Nummerierung zählt hoch), normale Zeile → neue Zeile ohne
+Präfix, leere Zeile → füllen. 12 Tests inkl. Regression gegen den
+Verlust.
+
+**Share-Session-Feinschliff (Nutzer-Feedback):** „Notiz"-Label unterm
+Notebook-Knopf weg; **BottomBar während der Session versteckt** (kein
+versehentliches Tab-Springen); QuickAdd-Abstand
+max(ime, navigationBars, bottomBar) — bei versteckter BottomBar
+rutschte die Box sonst unter die Systemknöpfe; System-Back in der
+Session = Abbrechen + finish().
+
+109 Tests grün (Stand `a9c5259`).
 
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
