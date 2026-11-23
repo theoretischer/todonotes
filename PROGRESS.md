@@ -69,7 +69,7 @@ grün, Web deployt.
 | Backend | Server: `git pull && docker compose up -d --build` (in `backend/`) |
 | Web-App | Lokal: `./deploy-web.sh` → committen → pushen → Server wie oben |
 | Domain | `todo.christopherh.de` via Nginx Proxy Manager (HTTPS, HSTS, HTTP/2, Force-SSL) |
-| Lokale Entwicklung | Backend `:8001`, Web `:8090` (`/tmp/opfs_server.py`), `JAVA_HOME=/usr/lib/jvm/java-17-openjdk` |
+| Lokale Entwicklung | Backend `:8001` oder besser: App+API auf EINEM Port via `WEB_DIR=<dist>` (`python3 -m uvicorn app.main:app --port 8090`), `JAVA_HOME=/usr/lib/jvm/java-17-openjdk` |
 
 Details/Architektur: **`MIGRATION-CMP.md`** (technische Referenz) und
 **`WORKFLOW.md`** (Arbeitsablauf).
@@ -727,6 +727,74 @@ today?" · u/camerasnake.
 **Tests:** 11 Parser-Tests + 9 oembed-Tests; 132 grün. Web deployt
 (`ec6a1c7`).
 
+### 28. F7-Web: Backend-Proxy `/linkmeta` + Layout-Bugs 1+2 (`e53fddf` → `1a0afd9`)
+
+**Warum Proxy:** Alles andere (`/sync`, `/auth/me`, Avatare) läuft
+gegen den EIGENEN Server — same-origin, kein CORS. Die Vorschau
+braucht aber Fremd-Inhalte (reddit.com/youtube.com), und DER Browser
+verweigert die (CORS, „Access-Control-Allow-Origin fehlt",
+Status 301/405 — im Nutzer-Log schwarz auf weiß). Auf Android gibt es
+kein CORS → Proxy dort `null`, direkter Fetch bleibt.
+
+**Backend `backend/app/linkmeta.py`:** POST `/linkmeta` mit Bearer-
+Token (wie /sync, kein offener Proxy/SSRF). Redirect-Verfolgung
+manuell (max 5 Hops, SSRF-Check pro Hop: private/loopback IPs +
+`.local`/`.internal` blockt), Reddit-`/s/`-Auflösung + oembed
+SERVERSEITIG, og:image inline als base64 (max 3 MB — spart den
+Browser-Bild-Fetch, der auch an CORS scheitern würde). HTML-Deckel
+1 MB. Zwei Backend-Bugs dabei gefixt: urllib wirft bei 3xx mit
+`_NoRedirect`-Handler `HTTPError` (abgefangen), und die og-props
+ohne `og:`-Präfix (`get("og:title")` → YouTube ohne Bild).
+
+**Kotlin:** `data/linkpreview/LinkMetaProxy.kt` (commonMain, expect),
+actuals: android/desktop → `null` (direkter Weg), wasmJs →
+`BackendLinkMetaProxy` (POST `$serverUrl/linkmeta`, Bearer,
+`LinkMetaProxyRequest/Response`). `LinkPreviewRepository.fetch()`:
+`proxy?.load(url)` VOR dem direkten Weg; `storeProxyResult`
+decodiert `imageBase64`. serverUrl/token als GETTER (kein Snapshot —
+sonst altes Token nach Logout+Re-Login → 401 bis Neustart).
+Settings: „Cache leeren“-Knopf (gescheiterte Previews sind 24h
+negativ gecacht).
+
+**Der lange Weg zum Fix (Lehrstück):** Proxy funktionierte auf
+Wasm nicht — null `/linkmeta`-Requests, nur direkte CORS-blockierte
+Fetches. `kotlin.Error: Fail to fetch` wird von `catch (Exception)`
+NICHT gefangen → alle Catches auf `Throwable` (`8d6f18f`). Brachte
+nichts. Dann 2,5h in lokale Reproduktion verbrannt: eigener
+Proxy-Server (`opfs_proxy.py`, 8090→8001 — unnötig, `WEB_DIR`
+servt App+API auf EINEM Port exakt wie Produktion), dann 5
+chromium-headless-Anläufe — Skia bekommt hier in KEINER Konfig einen
+WebGL-Kontext (`getParameter`-Crash beim Start), Weg per Definition
+unmöglich. Nach Nutzer-Konfrontation: Diagnose-`println` in
+`load()` deployt (`2554fd9`) — Nutzer-Log zeigte: `load()` FEUERT,
+serverUrl+token da, aber kein Request. Der einzige Code zwischen
+Log und Request: `withContext(Dispatchers.Default)` — Android-
+Reflex, auf Wasm kaputt (kein Thread-Pool, Eventloop). **Fix
+(`4826c22`): withContext raus, Proxy exakt wie SyncManager gebaut
+(contentType explizit) — der funktionierende Sync-Code war die
+ganze Zeit die Blaupause.** Bestätigt: `LinkProxy.load: 200,
+decodiere …`, 2 von 3 Links zeigen Karten.
+
+**Bug 1 (letzte Aufgabe verdeckt):** `contentPadding bottom = 220.dp`
+war statisch, die QuickAddBar ist je nach Zustand (Notizen-Feld,
+Labels) unterschiedlich hoch. Fix (`1a0afd9`): Bar-Höhe per
+`onSizeChanged` messen, contentPadding dynamisch = Bar-Höhe +
+Lift (BottomBar/IME) + 8dp Luft.
+
+**Bug 2 (Durchsehen unter der BottomBar am Handy):**
+`Modifier.windowInsetsPadding(navigationBars)` hob die GANZE
+NavigationBar-Surface über den System-Nav-Streifen — darunter lag
+nichts. Die M3-NavigationBar polstert intern nur ihren CONTENT
+(`windowInsets`-Parameter, Default systemBars Bottom+Horizontal),
+die Surface füllt bis zum Rand. Fix: Modifier weg,
+`windowInsets = NavigationBarDefaults.windowInsets`.
+
+**Offen:** dritter Link (GLEICHE Reddit-URL wie die funktionierende!)
+zeigt an EINER Stelle keine Karte — Fetch + Cache nachweislich ok,
+dann liegt es an der Stelle (Titel vs. Notizen vs. Chat) → beim
+nächsten Mal erfragen. Diagnose-`println`s wieder raus, sobald
+bestätigt.
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -815,6 +883,14 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   oembed (Share-Redirect-Auflösung); Cache-TTL/Negativ-Cache
 - Deploy-Perf: Daemon-Fix + kein yarn-Reinstall mehr
       (Binaryen-Optimize bleibt ehrlich ~35-60s/Änderung)
+- F7-Web: Backend-Proxy /linkmeta (SSRF-Guard, Redirects,
+      Reddit-/s/ + oembed serverseitig, og:image inline base64);
+      Wasm-Proxy = exakt SyncManager-Bau (KEIN withContext auf Wasm!);
+      „Cache leeren“ in Settings; 2/3 Links verifiziert im
+      Nutzer-Log (Lehrstück: Blaupause danebenlegen > Debugging)
+- Layout-Bugs 1+2: contentPadding dynamisch (gemessene
+      QuickAddBar-Höhe), NavigationBar deckt System-Nav-Streifen
+      (windowInsets-Parameter, nicht Modifier)
 
 ### Konstraints (Refresh)
 - `JAVA_HOME=/usr/lib/jvm/java-17-openjdk` für Gradle
@@ -825,7 +901,7 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - `windowSoftInputMode="adjustNothing"`, `contentWindowInsets =
   WindowInsets(0,0,0,0)`, `windowInsetsPadding(ime.union(navigationBars))`
   nur auf bottomBar
-- German quotes: `„..."` (U+201C zum Schließen), nicht ASCII `"`
+- German quotes: `„...“` (U+201C zum Schließen), nicht ASCII `"`
 - `catch (e: Throwable)` auf Wasm (kotlin.Error wird nicht von
   catch(Exception) gefangen)
 - Wasm: `@Insert(REPLACE)` = DELETE+INSERT → Invalidation-Sturm.
@@ -834,6 +910,35 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   Konflikt → Transaktionsleck. Nicht verwenden.
 - Sync-Server: `SYNC_TOKEN=T14xI6zQmBv7JONHGwiqPCkIOgv1Cwmig6MrydqhMdQ`
 - Produktion: `https://todo.christopherh.de` via NPM (HTTPS, HSTS, HTTP/2)
-- Lokales Dev-Backend: Port 8001
-- Lokale Webapp: `http://localhost:8090` (`python3 /tmp/opfs_server.py`)
+- Lokales Dev: App+API auf EINEM Port wie Produktion:
+  `WEB_DIR=<dist> SYNC_TOKEN=test123 DB_PATH=/tmp/x.db python3 -m uvicorn
+  app.main:app --port 8090` (NICHT opfs_server/proxy — komplexer Umweg,
+  App crashed ohne Backend sowieso)
 - Commit + pushen, Nutzer macht `git pull && docker compose up -d --build`
+
+### Konstraints (Session 28 — die harten Lektionen)
+- **Vor jedem Umbau: den FUNKTIONIERENDEN Code danebenlegen.** Der
+  Sync-Request war die Blaupause für den Proxy-Fix — 30 Sekunden
+  Vergleichen statt 2,5h Debugging. „Wenn der Sync so gebaut ist,
+  baue ich identisch.“
+- **Kein `withContext(Dispatchers.*)` auf Wasm um Netzwerk-Code
+  „sauber auszulagern“** — auf Wasm ist Default KEIN Thread-Pool,
+  sondern Eventloop-Gebilde. Der Sync-Request läuft OHNE den Wrapper
+  nachweislich. Android-Reflexe dort NICHT übernehmen.
+- **Wenn es ein NUTZER-LOG gibt, KEINE lokale Reproduktion bauen.**
+  Nutzer-Log ist die verlässlichste Messgröße (App lädt X, request
+  Y fehlschlägt mit Z). Erst Log-Daten sammeln (Diagnose-`println`),
+  deployen, Nutzer-Log lesen — NICHT Selenium/Browser-Pipeline auf-
+  setzen, wenn der Nutzer bereits das Log liefert.
+- **Nach 2 Fehlschlägen in dieselbe Richtung: STOPP + Neustart.**
+  Nicht Flag Nummer 3 probieren. 2,5h Chromium-WebGL (per Definition
+  hier kaputt, Skia kriegt keinen Kontext) — nach dem 2. Versuch war
+  klar dass der Weg nicht geht, 3 weitere Anläufe waren reines
+  Zeitverbrennen.
+- **Hintergrundprozesse sterben zwischen bash-Aufrufen** — Server +
+  Test IMMER in einem Kommando. Selenium/uvicorn als separates
+  Kommando startet den Server, beim Kommando-Ende ist er tot.
+- **Wenn der Nutzer die letzte Zeit begeistert war und dann die
+  „Was machst du da?!“-Nachricht kommt: sofort innehalten und
+  selbst prüfen, wo der Fokus abgedriftet ist** — meist ist es
+  Reproduktion statt Lesen, oder Tools bauen statt fixes liefern.
