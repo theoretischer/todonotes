@@ -177,6 +177,23 @@ class NoteTextBodyTest {
     }
 
     @Test
+    fun migrateFromBlocks_legacyEmptyMarker_becomesEmpty() {
+        // "[]"/"{}" sind die LEGACY-LEER-MARKER neuer Notizen (Default
+        // in NoteRepository/SyncDTOs) — als sole zu "" (leere Notiz).
+        assertEquals("", NoteTextBody.migrateFromBlocks("[]"))
+        assertEquals("", NoteTextBody.migrateFromBlocks("{}"))
+    }
+
+    @Test
+    fun migrateFromBlocks_checkboxOpenPrefix_onlyPrefix_staysText() {
+        // „[ “ oder „[x“ halb getippt: bleibt Text (nicht JSON, nicht Marker)
+        assertEquals("[", NoteTextBody.migrateFromBlocks("["))
+        assertEquals("[ ", NoteTextBody.migrateFromBlocks("[ "))
+        assertEquals("[x", NoteTextBody.migrateFromBlocks("[x"))
+        assertEquals("[x]", NoteTextBody.migrateFromBlocks("[x]"))
+    }
+
+    @Test
     fun migrateFromBlocks_emptyObjectBraces_notJson_noDataLoss() {
         // Dasselbe für `{}` und echtes Legacy-JSON (Blöcke vorhanden)
         // wird weiterhin migriert:

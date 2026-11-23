@@ -324,7 +324,13 @@ object NoteTextBody {
      */
     fun migrateFromBlocks(bodyJson: String): String {
         if (bodyJson.isBlank()) return ""
-        val trimmed = bodyJson.trimStart()
+        val trimmed = bodyJson.trim()
+        // BUG 14b („[] löscht alles“, Fortsetzung): „[]“/„{}“ sind die
+        // LEGACY-LEER-MARKER neuer/ungeschriebener Notizen (Default in
+        // NoteRepository/SyncDTOs) — als solche zu "" migrieren.
+        // (Nur wenn der Body EXAKT daraus besteht — „[]\nEinkaufen“ ist
+        // echter Text und bleibt unverändert!)
+        if (trimmed == "[]" || trimmed == "{}") return ""
         // BUGFIX („Checkbox in Zeile 1 löscht alles“): Ein Body, der mit
         // „[ ] “ oder „[x] “ beginnt (Checkbox-Liste), ist KEIN Block-JSON —
         // das alte startsWith("[") hat ihn fehlinterpretiert, der Decode
@@ -333,7 +339,7 @@ object NoteTextBody {
                 trimmed.startsWith("{")
         if (looksLikeJson) {
             // BUGFIX (Bug 14 — „[] löscht ganze Notiz“): Auch valides JSON
-            // („[]" = leeres Array) darf NICHT migriert werden — decode
+            // („[]“ = leeres Array) darf NICHT migriert werden — decode
             // liefert stille einen LEEREN Body, blocksToText("[]") → ""
             // → ganzer Inhalt gelöscht. Nur migrieren, wenn echte Blöcke
             // decodet werden; sonst ist der Text schlicht Plaintext.
