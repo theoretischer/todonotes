@@ -402,18 +402,20 @@ fun NoteEditorScreen(
             else -> NoteTextBody.CHECKBOX_OPEN + content
         }
         val newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd)
-        // Cursor-Position nach dem Toggle:
-        // - Präfix wurde ENTFERNT (gleicher Typ nochmal) → Zeilenanfang
-        // - sonst → HINTER den (neuen) Präfix, in den INHALT
-        val prefixRemoved = newLine == content
-        val newCursor = if (prefixRemoved) lineStart else when (type) {
-            ListType.CHECKBOX -> lineStart + (
-                if (newLine.startsWith(NoteTextBody.CHECKBOX_DONE)) NoteTextBody.CHECKBOX_DONE.length
-                else NoteTextBody.CHECKBOX_OPEN.length
-            )
-            ListType.BULLET -> lineStart + NoteTextBody.BULLET_PREFIX.length
-            ListType.ORDERED -> lineStart + orderedNumber(text, lineStart).let { "$it. ".length }
-            ListType.ARROW -> lineStart + NoteTextBody.ARROW_PREFIX.length
+        // Bug 1 (2. Versuch, Nutzer-Report): Cursor NICHT fix hinter das
+        // Präfix setzen, sondern RELATIV um die Präfix-Längen-Differenz
+        // verschieben — wer hinter dem „d“ von „hund“ stand, steht danach
+        // wieder hinter dem „d“. Nur vor dem alten Präfix (cursor <
+        // prefixAlt) → ans Inhalts-Anfangspunkt setzen.
+        val prefixAlt = fullLine.length - content.length
+        val prefixNeu = newLine.length - content.length
+        val relCursor = cursor - lineStart - prefixAlt // Position im INHALT
+        val newCursor = if (relCursor < 0) {
+            // Cursor saß im/aktuelles Präfix (z. B. Zeilenanfang) → an den
+            // neuen Inhalts-Anfang.
+            lineStart + prefixNeu
+        } else {
+            lineStart + prefixNeu + relCursor
         }
         commitBody(TextFieldValue(newText, TextRange(newCursor)))
     }
