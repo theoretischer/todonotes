@@ -167,6 +167,26 @@ class NoteTextBodyTest {
     }
 
     @Test
+    fun migrateFromBlocks_emptyArrayBrackets_notJson_noDataLoss() {
+        // BUG 14 („[] löscht ganze Notiz“): `[]` ist valides JSON (leeres
+        // Array) — decode liefert stille einen LEEREN Body, migration
+        // ergab "" → ganzer Inhalt weg. MUSS unverändert bleiben.
+        val plain = "[]\nEinkaufen\nKatze füttern"
+        val migrated = NoteTextBody.migrateFromBlocks(plain)
+        assertEquals(plain, migrated) // MUSS unverändert bleiben
+    }
+
+    @Test
+    fun migrateFromBlocks_emptyObjectBraces_notJson_noDataLoss() {
+        // Dasselbe für `{}` und echtes Legacy-JSON (Blöcke vorhanden)
+        // wird weiterhin migriert:
+        val plain = "{} irgendwas"
+        assertEquals(plain, NoteTextBody.migrateFromBlocks(plain))
+        val legacy = NoteBodyJson.encode(NoteBody(blocks = listOf(Block.Paragraph(listOf(Segment("Alt"))))) )
+        assertEquals("Alt", NoteTextBody.migrateFromBlocks(legacy))
+    }
+
+    @Test
     fun parseInlineStyles_removesBoldMarkers() {
         val segs = NoteTextBody.parseInlineStyles("Hallo **fett** Welt")
         assertEquals(3, segs.size)

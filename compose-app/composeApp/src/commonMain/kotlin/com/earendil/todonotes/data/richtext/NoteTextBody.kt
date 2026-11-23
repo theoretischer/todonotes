@@ -332,7 +332,13 @@ object NoteTextBody {
         val looksLikeJson = (trimmed.startsWith("[") && !trimmed.startsWith("[ ] ") && !trimmed.startsWith("[x] ")) ||
                 trimmed.startsWith("{")
         if (looksLikeJson) {
-            return runCatching { blocksToText(NoteBodyJson.decode(bodyJson)) }
+            // BUGFIX (Bug 14 — „[] löscht ganze Notiz“): Auch valides JSON
+            // („[]" = leeres Array) darf NICHT migriert werden — decode
+            // liefert stille einen LEEREN Body, blocksToText("[]") → ""
+            // → ganzer Inhalt gelöscht. Nur migrieren, wenn echte Blöcke
+            // decodet werden; sonst ist der Text schlicht Plaintext.
+            return runCatching { NoteBodyJson.decode(bodyJson) }
+                .map { body -> if (body.blocks.isEmpty()) bodyJson else blocksToText(body) }
                 .getOrElse { bodyJson }
         }
         return bodyJson
