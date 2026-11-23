@@ -151,13 +151,20 @@ fun TodoNotesApp(
     // beendet ist (Aufgabe erstellt / an Notiz angehängt / abgebrochen) —
     // NICHT nur solange der Prefill noch nicht im Feld gelandet ist
     // (1. Versuch: Knopf verschwand sofort, Nutzer-Report).
-    var sharedText by remember { mutableStateOf<String?>(null) }
+    // [shareText] = der Session-Text (für Notiz-Anhängen), [sharePrefill] =
+    // ein One-Shot (wird beim Landen im Quick-Add konsumiert — NICHT die
+    // Session beenden, sonst ist der Pick-Modus leer! 2. Versuch-Fix:
+    // Konsumenten setzten frueher den SESSION-Text null → Pick-Modus ohne
+    // Text, Notiz-Klick oeffnete statt anzufuegen).
+    var shareText by remember { mutableStateOf<String?>(null) }
+    var sharePrefill by remember { mutableStateOf<String?>(null) }
     var shareActive by remember { mutableStateOf(false) }
     var sharePickActive by remember { mutableStateOf(false) }
     LaunchedEffect(container.sharedText) {
         val t = container.sharedText
         if (t != null && !t.isBlank()) {
-            sharedText = t
+            shareText = t
+            sharePrefill = t
             shareActive = true
             currentTab = Tab.Todos  // Prefill landet im Quick-Add
         }
@@ -166,7 +173,8 @@ fun TodoNotesApp(
      *  (falls noch nicht geschehen — Auto-Sync greift sonst) und App
      *  minimieren → zurück zur absendenden App (moveTaskToBack). */
     fun finishShare() {
-        sharedText = null
+        shareText = null
+        sharePrefill = null
         shareActive = false
         sharePickActive = false
         container.sharedText = null
@@ -237,8 +245,8 @@ fun TodoNotesApp(
                     bottomBarPadding = with(LocalDensity.current) { padding.calculateBottomPadding().toPx().toInt() },
                     // M16 Share: Prefill (einmalig) + Notebook-Knopf,
                     // solange die Session läuft (shareActive).
-                    sharedPrefill = sharedText,
-                    onSharedPrefillConsumed = { sharedText = null },
+                    sharedPrefill = sharePrefill,
+                    onSharedPrefillConsumed = { sharePrefill = null },
                     sendToNotesVisible = shareActive,
                     onSendToNotes = {
                         sharePickActive = true
@@ -261,11 +269,11 @@ fun TodoNotesApp(
                 )
                 Tab.Notes -> NotesScreen(
                     notesVm = notesVm,
-                    pickModeText = if (sharePickActive) sharedText else null,
+                    pickModeText = if (sharePickActive) shareText else null,
                     onPicked = { noteId ->
                         // Geteilten Text ans Ende der Notiz/Chat hängen —
                         // NOTIZ WIRD NICHT GEÖFFNET (Nutzer-Regel M16).
-                        val text = sharedText
+                        val text = shareText
                         if (text != null) {
                             container.appScope.launch {
                                 val note = container.noteRepository.getById(noteId)
@@ -278,7 +286,9 @@ fun TodoNotesApp(
                                     finishShare()
                                 } else {
                                     // Notiz gelöscht in der Zwischenzeit → Abbruch.
-                                    sharedText = null
+                                    shareText = null
+                                    sharePrefill = null
+                                    shareActive = false
                                     sharePickActive = false
                                     container.sharedText = null
                                 }

@@ -260,7 +260,7 @@ fun QuickAddBar(
                     QuickOptionButton(
                         icon = Icons.AutoMirrored.Filled.MenuBook,
                         contentDescription = "An Notiz anhängen",
-                        label = "Notiz",
+                        label = null,
                         selected = true,
                         onClick = onSendToNotes
                     )
