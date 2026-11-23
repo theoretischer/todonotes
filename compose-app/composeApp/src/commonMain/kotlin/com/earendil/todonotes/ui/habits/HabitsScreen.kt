@@ -424,12 +424,15 @@ private fun SatisfactionCard(
 
 /** Label wie "2x pro Woche" / "1x pro Tag" / "1x alle 3 Tage". */
 private fun cadenceLabel(habit: Habit): String {
+    // M14p: Intervall (>1) mit in die Anzeige — "2x pro 2 Wochen",
+    // "3x alle 2 Tage" (vorher log "2x pro Woche" bei über-2-Wochen).
+    val n = habit.interval
     val per = when (habit.cadenceType) {
-        CadenceType.DAY -> "Tag"
-        CadenceType.WEEK -> "Woche"
-        CadenceType.MONTH -> "Monat"
-        CadenceType.YEAR -> "Jahr"
-        CadenceType.NDAYS -> "${habit.interval} Tage"
+        CadenceType.DAY -> if (n == 1) "Tag" else "$n Tage"
+        CadenceType.WEEK -> if (n == 1) "Woche" else "$n Wochen"
+        CadenceType.MONTH -> if (n == 1) "Monat" else "$n Monaten"
+        CadenceType.YEAR -> if (n == 1) "Jahr" else "$n Jahren"
+        CadenceType.NDAYS -> if (n == 1) "Tag" else "$n Tage"
     }
     return if (habit.cadenceType == CadenceType.NDAYS) {
         "${habit.goalCount}x alle $per"

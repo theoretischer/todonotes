@@ -91,6 +91,60 @@ class HabitEngineTest {
     }
 
     @Test
+    fun week_every2weeks_periodIs2Weeks() {
+        // M14p: Nutzer-Verifikation — Ziel 2 "über 2 Wochen": die Periode
+        // muss wirklich 14 Tage lang sein, Reset alle 2 Wochen.
+        val start = cal(2025, 8, 1)  // Freitag
+        val habit = Habit(
+            id = "w2",
+            title = "Sport",
+            cadenceType = CadenceType.WEEK,
+            interval = 2,
+            goalCount = 2,
+            startDate = start,
+            createdAt = start,
+            updatedAt = start
+        )
+        // Start 01.08 (Freitag): 1. Periode beginnt am startDate selbst
+        // (Engine klemmt: nie vor startDate).
+        assertEquals("2025-8-1", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 8, 1))))
+        // 08.08 liegt noch in der 1. Periode …
+        assertEquals("2025-8-1", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 8, 8))))
+        // … ab 11.08 (Montag, 14 Tage nach Wochen-Beginn 28.07) beginnt
+        // die 2. Periode — Reset bleibt am Montag, Periode bleibt 14 Tage.
+        assertEquals("2025-8-11", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 8, 11))))
+        assertEquals("2025-8-11", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 8, 24))))
+        // Nächste Periode = +14 Tage
+        val s1 = HabitEngine.currentPeriodStart(habit, cal(2025, 8, 11))
+        assertEquals(s1 + 14L * 24 * 60 * 60 * 1000, HabitEngine.nextPeriodStart(habit, s1))
+    }
+
+    @Test
+    fun month_every3months_periodIs3Months() {
+        val start = cal(2025, 8, 1)
+        val habit = Habit(
+            id = "m3",
+            title = "Bericht",
+            cadenceType = CadenceType.MONTH,
+            interval = 3,
+            goalCount = 1,
+            startDate = start,
+            createdAt = start,
+            updatedAt = start
+        )
+        // 1. Periode ab startDate (01.08) …
+        assertEquals("2025-8-1", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 8, 1))))
+        // … Nov liegt in der 2. Periode (ab 01.11 = startDate + 3 Monate) …
+        assertEquals("2025-11-1", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 11, 2))))
+        // … Dez ebenfalls (3-Monats-Periode: 01.11–31.01).
+        assertEquals("2025-11-1", dayStr(HabitEngine.currentPeriodStart(habit, cal(2025, 12, 1))))
+        // Nächste Periode = +3 Monate (Monats-Arithmetik über kotlinx).
+        val s1 = HabitEngine.currentPeriodStart(habit, cal(2025, 8, 1))
+        val next = HabitEngine.nextPeriodStart(habit, s1)
+        assertEquals("2025-11-1", dayStr(next))
+    }
+
+    @Test
     fun ndays_every3days_periodIs3Days() {
         val start = cal(2025, 8, 1)
         val habit = Habit(

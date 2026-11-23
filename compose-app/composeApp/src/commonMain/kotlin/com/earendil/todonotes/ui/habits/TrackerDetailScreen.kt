@@ -359,16 +359,20 @@ private fun periodRangeLabel(p: PeriodStat): String {
     return if (endExclusive - p.start <= 24L * 60 * 60 * 1000) start else "$start – $end"
 }
 
-/** "Woche" / "Monat" / "Tag" / "3 Tage" für den Ziel-Hinweis. */
-private fun periodUnitLabel(habit: Habit): String = when (habit.cadenceType) {
-    CadenceType.DAY -> "Tag"
-    CadenceType.WEEK -> "Woche"
-    CadenceType.MONTH -> "Monat"
-    CadenceType.YEAR -> "Jahr"
-    CadenceType.NDAYS -> "${habit.interval} Tage"
+/** "Woche" / "2 Monate" / "Tag" / "3 Tage" für den Ziel-Hinweis —
+ *  M14p: Intervall > 1 mit anzeigen. */
+private fun periodUnitLabel(habit: Habit): String {
+    val n = habit.interval
+    return when (habit.cadenceType) {
+        CadenceType.DAY -> if (n == 1) "Tag" else "$n Tage"
+        CadenceType.WEEK -> if (n == 1) "Woche" else "$n Wochen"
+        CadenceType.MONTH -> if (n == 1) "Monat" else "$n Monaten"
+        CadenceType.YEAR -> if (n == 1) "Jahr" else "$n Jahren"
+        CadenceType.NDAYS -> if (n == 1) "Tag" else "$n Tage"
+    }
 }
 
-/** "2x pro Woche" / "1x pro Tag" / "1x alle 3 Tage". */
+/** "2x pro 2 Wochen" / "1x pro Tag" / "1x alle 3 Tage" (M14p). */
 private fun cadenceLabel(habit: Habit): String {
     val per = periodUnitLabel(habit)
     return if (habit.cadenceType == CadenceType.NDAYS) {
