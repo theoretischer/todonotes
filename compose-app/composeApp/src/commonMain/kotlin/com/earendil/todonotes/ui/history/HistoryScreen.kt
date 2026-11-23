@@ -42,33 +42,32 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // M14: Titel-Anker.
-        com.earendil.todonotes.ui.components.ScreenTitle(
-            "Verlauf",
-            modifier = Modifier.align(Alignment.TopStart)
-        )
-
+        // Bug 6: Titel scrollt MIT der Liste (erstes Listenelement statt
+        // fixiert) — Avatar oben rechts bleibt fix (TodoNotesApp).
         if (completedTodos.isEmpty() && habitHistory.isEmpty()) {
-        Box(
-            modifier = modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Verlauf", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "Noch nichts erledigt.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Verlauf", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Noch nichts erledigt.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-        }
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (habitHistory.isNotEmpty()) {
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item(key = "title") {
+                    com.earendil.todonotes.ui.components.ScreenTitle("Verlauf")
+                }
+                if (habitHistory.isNotEmpty()) {
                 item {
                     Text(
                         "Gewohnheiten".uppercase(),

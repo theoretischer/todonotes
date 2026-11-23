@@ -5,6 +5,8 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -505,8 +508,29 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding() // Bug 5: Column endet ueber der Tastatur → das
+                              // automatische Cursor-Scrollen (bringIntoView)
+                              // landet im SICHTBAREN, nicht unterm IME/BottomBar.
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
+                // Bugs 2+3: Tap-Flaeche ist jetzt die GANZE Column (fuellt den
+                // Screen) — unter dem geschriebenen Text tippen geht auch in
+                // den Edit-Modus. Kein clickable mehr auf dem Lese-Block:
+                // kein Ripple/Hover-Layer mehr (die eckige Markierung am
+                // Desktop). Taps auf Text/Checkboxen konsumieren die Kinder,
+                // der aeussere Handler feuert nur im leeren Raum.
+                .pointerInput(Unit) {
+                    detectTapGestures { _ ->
+                        if (!editing) {
+                            // Edit-Modus mit Cursor ans Textende (wie vorher
+                            // beim Tap auf leeren Raum).
+                            val t = bodyValue?.text ?: ""
+                            bodyValue = TextFieldValue(t, TextRange(t.length))
+                            focusEditOnSwitch = true
+                            editing = true
+                        }
+                    }
+                }
         ) {
             Spacer(Modifier.height(4.dp))
 
@@ -518,15 +542,7 @@ fun NoteEditorScreen(
                     text = currentBodyValue.text,
                     onToggleCheckbox = { lineStart -> toggleCheckboxAt(lineStart) },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            // Tap auf leeren Raum (nicht auf Text): Edit-Modus
-                            // mit Cursor ans Textende.
-                            val t = bodyValue?.text ?: ""
-                            bodyValue = t.let { TextFieldValue(it, TextRange(it.length)) }
-                            focusEditOnSwitch = true
-                            editing = true
-                        },
+                        .fillMaxWidth(),
                     onTextTap = { rawOffset ->
                         // Tap AUF den Text: Edit-Modus mit Cursor genau an
                         // der Tap-Position (Roh-Text-Offset aus dem

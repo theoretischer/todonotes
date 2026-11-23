@@ -64,17 +64,17 @@ fun HabitsScreen(
     val rowHeights = remember { mutableStateMapOf<String, Int>() }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // M14: Titel-Anker (Notizen bekommen keinen — dort ist der Breadcrumb der Anker).
-        com.earendil.todonotes.ui.components.ScreenTitle(
-            "Gewohnheiten",
-            modifier = Modifier.align(Alignment.TopStart)
-        )
-
+        // Bug 6: Titel scrollt MIT der Liste (erstes Listenelement statt
+        // fixiert) — Avatar oben rechts bleibt fix (TodoNotesApp).
         if (habits.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
+                com.earendil.todonotes.ui.components.ScreenTitle(
+                    "Gewohnheiten",
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Noch nichts zum Tracken", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
@@ -88,9 +88,12 @@ fun HabitsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                item(key = "title") {
+                    com.earendil.todonotes.ui.components.ScreenTitle("Gewohnheiten")
+                }
                 items(habits, key = { it.habit.id }) { hwp ->
                     val habit = hwp.habit
                     Box(

@@ -85,19 +85,19 @@ fun NotesScreen(
     val folderBounds = remember { mutableStateMapOf<String, Rect>() }  // für Breadcrumb-Drop (unbenutzt, Drag deaktiviert)
 
     Box(modifier = modifier.fillMaxSize()) {
-
-        // M14e: Große Titelzeile als Anker (wie Aufgaben/Verlauf/Gewohnheiten).
-        ScreenTitle("Notizen", modifier = Modifier.align(Alignment.TopStart))
-
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
+            ScreenTitle("Notizen", modifier = Modifier.align(Alignment.TopStart))
             EmptyNotesHint()
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // M14e: Breadcrumb-Pfad als ERSTES Listenelement — die kleine
+                // Bug 6: Titel scrollt MIT der Liste (erstes Listenelement
+                // statt fixiert) — Avatar oben rechts bleibt fix (TodoNotesApp).
+                item(key = "title") { ScreenTitle("Notizen") }
+                // M14e: Breadcrumb-Pfad — die kleine
                 // blaue CAPS-Zeile sitzt damit exakt dort, wo bei Aufgaben der
                 // erste Sektions-Header („HEUTE“) sitzt: 96dp unten, gleiche
                 // Typo/Paddings → erste Karte/Notiz überall auf gleicher Höhe.

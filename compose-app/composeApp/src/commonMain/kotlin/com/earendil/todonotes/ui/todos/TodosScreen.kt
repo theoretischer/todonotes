@@ -76,14 +76,17 @@ fun TodosScreen(
     val density = LocalDensity.current
 
     Box(modifier = modifier.fillMaxSize()) {
-        // M14: Große Titelzeile als Anker (über der Liste, scrollt nicht mit).
-        ScreenTitle("Aufgaben", modifier = Modifier.align(Alignment.TopStart))
+        // Bug 6: Titel scrollt MIT der Liste (Nutzer-Wunsch: hochgeschoben
+        // statt verdeckt). Er ist jetzt erstes Listenelement, nicht fixiert;
+        // sein statusBarsPadding sitzt er mitbringend ganz oben, das Avatar
+        // rechts oben bleibt fix (liegt in TodoNotesApp).
 
         if (groups.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
+                ScreenTitle("Aufgaben", modifier = Modifier.align(Alignment.TopStart))
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Keine Aufgaben", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
@@ -97,9 +100,10 @@ fun TodosScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 220.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 220.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                item(key = "title") { ScreenTitle("Aufgaben") }
                 if (groups.overdue.isNotEmpty()) {
                     item { SectionHeader("Überfällig", groups.overdue.size, color = MaterialTheme.colorScheme.error) }
                     items(groups.overdue, key = { it.id }) { todo ->
