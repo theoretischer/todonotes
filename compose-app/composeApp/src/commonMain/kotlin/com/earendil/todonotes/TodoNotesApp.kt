@@ -198,7 +198,11 @@ fun TodoNotesApp(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar(
+            // M16: Während einer Share-Session („Teilen mit der App") KEINE
+            // Navigation — man soll die geteilte Aufgabe speichern oder eine
+            // Notiz dafür aussuchen, nicht versehentlich durch die App
+            // springen (Nutzer-Wunsch: BottomBar einfach verstecken).
+            if (!shareActive) NavigationBar(
                 // Nur navigationBars hier — KEIN ime! Die Bottom-Bar bleibt bei
                 // offener Tastatur unten liegen (die Tastatur schiebt sich drüber),
                 // nur die Quick-Add-Box fährt mit imePadding hoch. (M13)
