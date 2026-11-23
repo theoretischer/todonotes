@@ -9,6 +9,18 @@ M13 Quick-Add-Bar (FAB ersetzt, IME weich), M14 UI-Rework mit eigenem
 Farbsystem (Dynamic Color aus), Deploy-Script 60s→35-60s (yarn-Fix).
 88 Tests grün.
 
+88 Tests grün.
+
+**Session 2026-11-23:** Bug-Session 2 — Bug 12 (OLED nachts dank
+FLAG_KEEP_SCREEN_ON im Vollbild-Alarm), Bug 13 (Notification-Style
+geriet beim Anlegen der nächsten Occurrence unter — Wiederholung
+fiel auf Vollbild zurück), Bug 14+14b (`[]`-Datenverlust:
+migrateFromBlocks hielt `[]` für leeres Block-JSON, und der Fix
+trennte zuerst den Legacy-[]-Leer-Marker nicht sauber ab —
+jetzt: exakt `[]`/`{}` = Leer-Marker, decodbare Blöcke = JSON,
+sonst Plaintext). Revert M14c (Flächen-Tausch — sah vorher besser
+aus). 92 Tests grün.
+
 ## Aktueller Stand
 
 - **Android** (natürlich installiert): Todos, Habits, Notizen (Rich-Text +
@@ -350,6 +362,39 @@ ksp/webpack. Früher KAM DAZU jedes Mal komplettes yarn install
 - Ehrliche Rest-Wahrheit: ~35-60s pro Änderung bleiben (Binaryen),
   unveränderte Deploys <1s (Build-Cache)
 
+### 17. Bug-Session 2 (2026-11-23)
+
+**Bug 12 — OLED brannte die Nacht (`39d8ec6`):**
+`FLAG_KEEP_SCREEN_ON` in der Vollbild-Alarm-Activity hielt das
+Display an, solange das Fenster sichtbar (über Sperrbildschirm
+→ die GANZE Nacht, OLED-Burn-in + Akku). Fix: Flag entfernt —
+`setTurnScreenOn` weckt beim Alarm, dann greift der normale
+Display-Timeout; Power-Taste zeigt die Meldung weiter überm
+Sperrbildschirm (`setShowWhenLocked` bleibt).
+
+**Bug 13 — Notification-Style ging bei Wiederholung verloren
+(`e901df7`):** `completeTodo()` legt die nächste Occurrence per
+`createTodo()` an — ohne `notificationStyle` → jede folgende
+Wiederholung fiel auf Default (Vollbild) zurück, obwohl der
+Re-Arm selbst den Style korrekt frisch aus der DB liest. Fix:
+`todo.notificationStyle` wird beim Anlegen der nächsten
+Occurrence durchgereicht. Alle anderen Pfade (Re-Arm,
+updateTodoFromForm, Sync-Down, ViewModel) geprüft: ok.
+
+**Bug 14/14b — `[]` löschte ganze Notiz (`585b6b0`, `6475cc0`):**
+migrateFromBlocks hielt `[]` für leeres Block-JSON (decode
+liefert stille einen LEEREN Body) → Migration → "" → Auto-Save
+schrieb den Datenverlust fest. Fix 14: nur migrieren, wenn der
+Decode BLÖCKE liefert. Fix 14b (Lücke im ersten Fix): `[]` ist
+doppelt belegt — echter Text UND Legacy-Leer-Marker (Default
+`bodyJson="[]"` in NoteRepository/SyncDTOs). Jetzt getrennt:
+exakt `[]`/`{}` = Leer-Marker → ""; JSON mit decodbaren
+Blöcken → migrieren; sonst (`[`, `[]\nText`, `[ ]\nText`)
+Plaintext, bleibt unangetastet.
+
+**Revert M14c (`f37e7e7`):** Flächen 1/2-Tausch (hellere Karten)
+nach Nutzer-Feedback zurück — altes Farbschema gefiel besser.
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -386,6 +431,9 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - Sync-A+ Notiz-Sync bombenfest (reaktiver Editor, safe flush)
 - Sync-FIX Full Up/Down-Sync (s.o.) — vom Nutzer bestätigt
 - Bug-Fix-Session: Bugs 1–11 (s.o.) — vom Nutzer bestätigt
+- Bug-Session 2: Bug 12 (OLED-Nacht), Bug 13 (Style bei
+  Wiederholung), Bug 14/14b ([]-Datenverlust) — bestätigt
+- Revert M14c Flächen-Tausch (altes Farbschema gefiel besser)
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
