@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -508,9 +507,11 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding() // Bug 5: Column endet ueber der Tastatur → das
-                              // automatische Cursor-Scrollen (bringIntoView)
-                              // landet im SICHTBAREN, nicht unterm IME/BottomBar.
+                // KEIN imePadding() hier: Die Format-Leiste in der BottomBar
+                // hat bereits windowInsetsPadding(ime) — das Scaffold hebt den
+                // Content damit ueber die Tastatur. Ein ZUSAETZLICHES imePadding
+                // wuerde die Tastatur-Hoehe DOPPELT abziehen → Mini-Viewport →
+                // bringIntoView scrollt weit uebers Ziel (Nutzer-Report).
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState())
                 // Bugs 2+3: Tap-Flaeche ist jetzt die GANZE Column (fuellt den
