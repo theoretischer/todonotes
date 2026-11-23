@@ -675,30 +675,21 @@ private fun EditMessageDialog(
             )
         },
         confirmButton = {
-            // M14m: gefüllter Speichern-Button (wie in den anderen Dialogen)
-            // + Icon; Speichern als grauer Textbutton fiel nicht auf.
+            // M14n: nur Icon — der Text ist überflüssig (Icon spricht für sich).
             Button(
                 onClick = { onConfirm(editText) },
                 enabled = editText.isNotBlank() && editText != message.text
             ) {
-                Icon(Icons.Default.Check, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Speichern")
+                Icon(Icons.Default.Check, contentDescription = "Speichern")
             }
         },
         dismissButton = {
             Row {
-                // M14m: Löschen mit Icon links, danach Abbrechen — Icon-Buttons.
+                // M14n: Löschen links als Icon-Button (rot), Abbrechen nur Text.
                 TextButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error)
                 }
-                TextButton(onClick = onDismiss) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Abbrechen")
-                }
+                TextButton(onClick = onDismiss) { Text("Abbrechen") }
             }
         }
     )

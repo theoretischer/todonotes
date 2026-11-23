@@ -1,6 +1,5 @@
 package com.earendil.todonotes.ui.habits
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
@@ -15,16 +14,16 @@ import com.earendil.todonotes.ui.components.IntervalStepper
 /**
  * Zeitraum-Picker für Gewohnheiten — M14j: dasselbe Auswahl-System
  * wie der Recurrence-Editor (Stepper + Segment-Chips), statt der
- * Radio-Zeilen mit Inline-Zahlen-Pillen. M14m: die Stepper-Zeile
- * steht jetzt IMMER über den Chips (wie im Aufgaben-Menü), mit der
- * Zahl, die zum gewählten Chip passt:
+ * Radio-Zeilen mit Inline-Zahlen-Pillen.
  *
- *  - „Alle (− n +) Tage" bei NDAYS (n = Intervall)
- *  - „Ziel (− n +) pro Tag/Woche/Monat/Jahr" sonst (n = goalCount)
+ * Stepper-Zeile über den Chips (M14m/M14n):
+ *  - NDAYS → „Ziel (− n +) über (− m +) Tage“: n = goalCount,
+ *    m = interval — das Ziel ist über die n Tage verteilt.
+ *  - Tag/Woche/Monat/Jahr → nur „Ziel (− n +) pro Woche“ (das
+ *    Intervall ist dort die Periodenlänge 1, kein Extra-Stepper).
  *
- * Das alte separate „Ziel: n mal"-Feld im Dialog ist damit weg —
- * das Ziel wird hier editiert. Keine Wochentags-/Monats-Extras:
- * der Reset-Tag ergibt sich aus dem Startdatum.
+ * Keine Wochentags-/Monats-Extras: der Reset-Tag ergibt sich aus
+ * dem Startdatum.
  */
 @Composable
 fun HabitCadencePicker(
@@ -44,25 +43,26 @@ fun HabitCadencePicker(
             fontWeight = FontWeight.SemiBold
         )
 
-        // Stepper-Zeile über den Chips — Zahl je nach Chip (M14m).
+        // Stepper-Zeile über den Chips — Ziel immer, Intervall nur
+        // bei „Alle n Tage“ (M14n: „Ziel 3 über 2 Tage verteilt“).
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Text("Ziel", style = MaterialTheme.typography.bodyMedium)
+            IntervalStepper(
+                value = goalCount,
+                onValueChange = onGoalCountChange
+            )
             if (cadenceType == CadenceType.NDAYS) {
-                Text("Alle", style = MaterialTheme.typography.bodyMedium)
+                Text("über", style = MaterialTheme.typography.bodyMedium)
                 IntervalStepper(
                     value = interval,
                     onValueChange = onIntervalChange
                 )
                 Text("Tage", style = MaterialTheme.typography.bodyMedium)
             } else {
-                Text("Ziel", style = MaterialTheme.typography.bodyMedium)
-                IntervalStepper(
-                    value = goalCount,
-                    onValueChange = onGoalCountChange
-                )
                 Text(
                     "pro ${cadenceType.label}",
                     style = MaterialTheme.typography.bodyMedium

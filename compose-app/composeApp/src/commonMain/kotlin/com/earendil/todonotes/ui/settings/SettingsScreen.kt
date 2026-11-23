@@ -51,6 +51,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -154,7 +155,8 @@ fun SettingsScreen(
                             vm.adminCreateUser(username, password, displayName, isAdmin)
                         },
                         onDeleteUser = { vm.adminDeleteUser(it) },
-                        currentUserId = profile?.userId ?: ""
+                        currentUserId = profile?.userId ?: "",
+                        fetchAvatar = { userId -> vm.fetchUserAvatar(userId) }
                     )
                 }
 
@@ -363,7 +365,9 @@ private fun AdminSection(
     onToggleRegistration: (Boolean) -> Unit,
     onCreateUser: (String, String, String, Boolean) -> Unit,
     onDeleteUser: (String) -> Unit,
-    currentUserId: String
+    currentUserId: String,
+    // M14n: Avatar-Bytes je User laden (Profilbilder in der Admin-Liste).
+    fetchAvatar: suspend (String) -> ByteArray?
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
 
@@ -429,7 +433,8 @@ private fun AdminSection(
                 UserRow(
                     user = user,
                     isSelf = user.userId == currentUserId,
-                    onDelete = { onDeleteUser(user.userId) }
+                    onDelete = { onDeleteUser(user.userId) },
+                    fetchAvatar = fetchAvatar
                 )
             }
 
@@ -469,16 +474,24 @@ private fun AdminSection(
 private fun UserRow(
     user: AdminUserResponse,
     isSelf: Boolean,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    fetchAvatar: suspend (String) -> ByteArray? = { null }
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    // M14n: Profilbild des Users laden (vorher: immer nur die Initiale).
+    var avatarBytes by remember(user.userId) { mutableStateOf<ByteArray?>(null) }
+    LaunchedEffect(user.userId) {
+        avatarBytes = fetchAvatar(user.userId)
+    }
+    val bitmap = rememberImageBitmap(avatarBytes)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AvatarImage(
-            bitmap = null,
+            bitmap = bitmap,
             displayName = user.displayName.ifBlank { user.username },
             sizeDp = 36
         )

@@ -255,6 +255,11 @@ class AuthViewModel(
         }
     }
 
+    /** M14n: Avatar-Bytes eines (anderen) Users laden — Admin-Benutzerliste.
+     *  null, wenn der User kein Avatar hat (404) oder ein Fehler auftritt. */
+    suspend fun fetchUserAvatar(userId: String): ByteArray? =
+        authManager.fetchAvatarBytes(userId)
+
     // --- Logout ---
 
     fun logout() {
