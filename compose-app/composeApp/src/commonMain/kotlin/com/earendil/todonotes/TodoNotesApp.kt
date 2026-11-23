@@ -368,6 +368,9 @@ fun TodoNotesApp(
                 container.appScope.launch { container.clearAllLocalData() }
                 authVm.logout()
                 isAuthenticated = false
+            },
+            onClearLinkCache = {
+                container.appScope.launch { container.linkPreviewRepository.clearCache() }
             }
         )
     }

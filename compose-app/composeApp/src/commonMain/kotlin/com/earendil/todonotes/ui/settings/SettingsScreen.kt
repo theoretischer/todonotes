@@ -83,7 +83,8 @@ fun SettingsScreen(
     vm: AuthViewModel,
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    onWipeComplete: () -> Unit = {}
+    onWipeComplete: () -> Unit = {},
+    onClearLinkCache: () -> Unit = {}
 ) {
     val profile by vm.profile.collectAsState()
     val error by vm.error.collectAsState()
@@ -159,6 +160,8 @@ fun SettingsScreen(
                         fetchAvatar = { userId -> vm.fetchUserAvatar(userId) }
                     )
                 }
+
+                LinkCacheSection(onClearLinkCache = onClearLinkCache)
 
                 DangerZoneSection(
                     isAdmin = profile?.isAdmin == true,
@@ -621,6 +624,34 @@ private fun CreateUserDialog(
 }
 
 // ---- Danger-Zone (Daten löschen) ----
+
+@Composable
+private fun LinkCacheSection(onClearLinkCache: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Link-Vorschauen", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Gecachte Titel/Bilder verwerfen und neu holen",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedButton(onClick = onClearLinkCache) {
+                Text("Leeren")
+            }
+        }
+    }
+}
 
 @Composable
 private fun DangerZoneSection(
