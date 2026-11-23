@@ -107,7 +107,14 @@ fun TodoEditDialog(
                 }) { Text("Weiter") }
             },
             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Abbrechen") } }
-        ) { DatePicker(state = state) }
+        ) {
+            DatePicker(
+                state = state,
+                colors = DatePickerDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
     }
 
     if (showTimePicker) {

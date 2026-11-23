@@ -238,17 +238,23 @@ private fun WeekdayPicker(
         ) {
             days.forEach { (calDay, label) ->
                 val isSelected = calDay in selected
-                AssistChip(
+                // M14i: FilterChip (Label zentriert, wie die Segment-Buttons)
+                // statt AssistChip (Label linksbuendig bei weight-Breite).
+                FilterChip(
+                    selected = isSelected,
                     onClick = {
                         onSelectionChange(
                             if (isSelected) selected - calDay else selected + calDay
                         )
                     },
-                    label = { Text(label) },
-                    colors = if (isSelected) AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) else AssistChipDefaults.assistChipColors(),
+                    label = {
+                        Text(
+                            label,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    shape = CircleShape,
                     modifier = Modifier.weight(1f)
                 )
             }
