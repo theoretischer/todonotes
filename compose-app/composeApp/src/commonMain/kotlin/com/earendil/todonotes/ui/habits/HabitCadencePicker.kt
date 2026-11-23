@@ -16,11 +16,15 @@ import com.earendil.todonotes.ui.components.IntervalStepper
  * wie der Recurrence-Editor (Stepper + Segment-Chips), statt der
  * Radio-Zeilen mit Inline-Zahlen-Pillen.
  *
- * Stepper-Zeile über den Chips (M14m/M14n):
- *  - NDAYS → „Ziel (− n +) über (− m +) Tage“: n = goalCount,
- *    m = interval — das Ziel ist über die n Tage verteilt.
- *  - Tag/Woche/Monat/Jahr → nur „Ziel (− n +) pro Woche“ (das
- *    Intervall ist dort die Periodenlänge 1, kein Extra-Stepper).
+ * Zwei Stepper-Zeilen über den Chips (M14o):
+ *  - „Ziel (− n +)“: Ziel-Anzahl pro Periode (goalCount)
+ *  - „über (− m +) Tag(e)“: Periodenlänge (interval) — bei ALLEN
+ *    Einheiten, die Einheit folgt dem gewählten Chip.
+ *    („Ziel 3 über 2 Tage verteilt“ — auch „pro Tag/Woche/…“ ist
+ *    einfach „über 1 Tag“.)
+ *
+ * Zwei ZEILEN statt einer — eine Row mit beiden Steppern + Wörtern
+ * ist zu knapp, der letzte Text bricht mehrzeilig um.
  *
  * Keine Wochentags-/Monats-Extras: der Reset-Tag ergibt sich aus
  * dem Startdatum.
@@ -43,8 +47,7 @@ fun HabitCadencePicker(
             fontWeight = FontWeight.SemiBold
         )
 
-        // Stepper-Zeile über den Chips — Ziel immer, Intervall nur
-        // bei „Alle n Tage“ (M14n: „Ziel 3 über 2 Tage verteilt“).
+        // Zeile 1: Ziel (M14o — eigenständige Zeile, kein Umbruch-Risiko)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -55,19 +58,23 @@ fun HabitCadencePicker(
                 value = goalCount,
                 onValueChange = onGoalCountChange
             )
-            if (cadenceType == CadenceType.NDAYS) {
-                Text("über", style = MaterialTheme.typography.bodyMedium)
-                IntervalStepper(
-                    value = interval,
-                    onValueChange = onIntervalChange
-                )
-                Text("Tage", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                Text(
-                    "pro ${cadenceType.label}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+        }
+
+        // Zeile 2: über — Periodenlänge, bei ALLEN Einheiten
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("über", style = MaterialTheme.typography.bodyMedium)
+            IntervalStepper(
+                value = interval,
+                onValueChange = onIntervalChange
+            )
+            Text(
+                intervalUnitLabel(cadenceType, interval),
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
 
         // Segment-Buttons: Tag / Woche / Monat / Jahr / Alle-n-Tage.
@@ -99,4 +106,14 @@ fun HabitCadencePicker(
             }
         }
     }
+}
+
+/** „über (− m +) Tag(e)“: Einzahl/Mehrzahl je nach Periodenlänge,
+ *  NDAYS (= „Alle n Tage“) zählt wie DAY. */
+private fun intervalUnitLabel(type: CadenceType, n: Int): String = when (type) {
+    CadenceType.DAY -> if (n == 1) "Tag" else "Tage"
+    CadenceType.WEEK -> if (n == 1) "Woche" else "Wochen"
+    CadenceType.MONTH -> if (n == 1) "Monat" else "Monate"
+    CadenceType.YEAR -> if (n == 1) "Jahr" else "Jahre"
+    CadenceType.NDAYS -> if (n == 1) "Tag" else "Tage"
 }
