@@ -178,9 +178,12 @@ private fun RecurSegmented(
     }
 }
 
-/** Stepper (− n +) für das Intervall (M14h). */
+/**
+ * Stepper (− n +) für Intervalle (M14h). internal: auch der
+ * HabitCadencePicker nutzt ihn (M14j — gleiche Auswahl-Optik).
+ */
 @Composable
-private fun IntervalStepper(
+internal fun IntervalStepper(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,

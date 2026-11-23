@@ -1,31 +1,30 @@
 package com.earendil.todonotes.ui.habits
 
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
+import com.earendil.todonotes.ui.components.IntervalStepper
 
 /**
- * Zeitraum-Picker für Gewohnheiten (Samsung-Reminder-Stil, vereinfacht).
+ * Zeitraum-Picker für Gewohnheiten — M14j: dasselbe Auswahl-System
+ * wie der Recurrence-Editor (Stepper + Segment-Chips), statt der
+ * Radio-Zeilen mit Inline-Zahlen-Pillen.
  *
- * Auswahl: [n] mal pro Tag | Woche | Monat | Jahr  |  [n] mal alle [m] Tage
- * Das n (Ziel-Anzahl) steht INLINE im Label, Default 1.
+ * Semantik:
+ *  - Tag/Woche/Monat/Jahr → Ziel gilt PRO Zeitraum (Ziel-Anzahl
+ *    steckt im eigenen Feld darunter, Default 1).
+ *  - "Alle n Tage" (NDAYS) → n ist das Intervall → Stepper oben.
  *
- * Der Reset-Tag wird NICHT hier gewählt – er ergibt sich aus dem Startdatum
- * (Wochentag bei Woche, Tag des Monats bei Monat/Jahr).
+ * Keine Wochentags-/Monats-Extras hier — der Reset-Tag ergibt sich
+ * aus dem Startdatum.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HabitCadencePicker(
     cadenceType: CadenceType,
@@ -42,106 +41,50 @@ fun HabitCadencePicker(
             fontWeight = FontWeight.SemiBold
         )
 
-        Column(modifier = Modifier.selectableGroup()) {
-            CadenceRow(
-                prefix = "Jeden",
-                suffix = "Tag",
-                isSelected = cadenceType == CadenceType.DAY,
-                interval = interval,
-                onSelect = { onCadenceChange(CadenceType.DAY) },
-                onIntervalChange = onIntervalChange
-            )
-            CadenceRow(
-                prefix = "Jede",
-                suffix = "Woche",
-                isSelected = cadenceType == CadenceType.WEEK,
-                interval = interval,
-                onSelect = { onCadenceChange(CadenceType.WEEK) },
-                onIntervalChange = onIntervalChange
-            )
-            CadenceRow(
-                prefix = "Jeden",
-                suffix = "Monat",
-                isSelected = cadenceType == CadenceType.MONTH,
-                interval = interval,
-                onSelect = { onCadenceChange(CadenceType.MONTH) },
-                onIntervalChange = onIntervalChange
-            )
-            CadenceRow(
-                prefix = "Jedes",
-                suffix = "Jahr",
-                isSelected = cadenceType == CadenceType.YEAR,
-                interval = interval,
-                onSelect = { onCadenceChange(CadenceType.YEAR) },
-                onIntervalChange = onIntervalChange
-            )
-            CadenceRow(
-                prefix = "Alle",
-                suffix = "Tage",
-                isSelected = cadenceType == CadenceType.NDAYS,
-                interval = interval,
-                onSelect = { onCadenceChange(CadenceType.NDAYS) },
-                onIntervalChange = onIntervalChange
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CadenceRow(
-    prefix: String,
-    suffix: String,
-    isSelected: Boolean,
-    interval: Int,
-    onSelect: () -> Unit,
-    onIntervalChange: (Int) -> Unit
-) {
-    FlowRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .selectable(selected = isSelected, onClick = onSelect),
-        verticalArrangement = Arrangement.Center,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        RadioButton(selected = isSelected, onClick = null)
-        Text(prefix, style = MaterialTheme.typography.bodyMedium)
-        InlineIntField(value = interval, onValueChange = onIntervalChange)
-        Text(suffix, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-/** Kompaktes Inline-Int-Feld (fühlt sich wie Text an, PrimaryContainer-Hintergrund). */
-@Composable
-private fun InlineIntField(
-    value: Int,
-    onValueChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    BasicTextField(
-        value = value.toString(),
-        onValueChange = { v ->
-            val n = v.toIntOrNull()
-            if (n != null && n in 1..9999) onValueChange(n)
-        },
-        modifier = modifier.width(40.dp),
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.primary
-        ),
-        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-        decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
+        // Intervall-Stepper nur bei "Alle n Tage"
+        AnimatedVisibility(visible = cadenceType == CadenceType.NDAYS) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                innerTextField()
+                Text("Alle", style = MaterialTheme.typography.bodyMedium)
+                IntervalStepper(
+                    value = interval,
+                    onValueChange = onIntervalChange
+                )
+                Text("Tage", style = MaterialTheme.typography.bodyMedium)
             }
         }
-    )
+
+        // Segment-Buttons: Tag / Woche / Monat / Jahr / Alle-n-Tage
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val units = listOf(
+                CadenceType.DAY to "Tag",
+                CadenceType.WEEK to "Woche",
+                CadenceType.MONTH to "Monat",
+                CadenceType.YEAR to "Jahr",
+                CadenceType.NDAYS to "Tage"
+            )
+            units.forEach { (type, label) ->
+                FilterChip(
+                    selected = cadenceType == type,
+                    onClick = { onCadenceChange(type) },
+                    label = {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    shape = CircleShape,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
 }

@@ -98,7 +98,7 @@ fun TodosScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 220.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (groups.overdue.isNotEmpty()) {
                     item { SectionHeader("Überfällig", groups.overdue.size, color = MaterialTheme.colorScheme.error) }
