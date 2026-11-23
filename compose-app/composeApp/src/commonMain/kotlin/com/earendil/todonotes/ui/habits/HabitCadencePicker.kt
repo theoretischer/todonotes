@@ -57,8 +57,10 @@ fun HabitCadencePicker(
             }
         }
 
-        // Segment-Buttons: Tag / Woche / Monat / Jahr / Alle-n-Tage
-        Row(
+        // Segment-Buttons: Tag / Woche / Monat / Jahr / Alle-n-Tage.
+        // M14j-Fix: FlowRow mit NATÜRLICHER Breite + Umbruch (derselbe
+        // Fehler wie M14i: weight(1f) quetscht alles in eine Zeile).
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -76,13 +78,10 @@ fun HabitCadencePicker(
                     label = {
                         Text(
                             label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     },
-                    shape = CircleShape,
-                    modifier = Modifier.weight(1f)
+                    shape = CircleShape
                 )
             }
         }
