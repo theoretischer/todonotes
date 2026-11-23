@@ -320,19 +320,9 @@ fun QuickAddBar(
                     onStateChange = { recurrenceState = it },
                     showTitle = false
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = {
-                        recurrenceState = RecurrenceState()  // zurücksetzen
-                        showRecurrenceSheet = false
-                    }) { Text("Keine Wiederholung") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = { showRecurrenceSheet = false }) {
-                        Text("Fertig")
-                    }
-                }
+                // M14i: „Fertig"/„Keine Wiederholung" raus — „Nie" ist als
+                // Chip dabei, und jede Auswahl greift sofort. Schließen
+                // über Tap daneben/außerhalb.
             }
         }
     }

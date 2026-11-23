@@ -160,7 +160,9 @@ private fun RecurSegmented(
         RecurFreq.MONTHLY to "Monat",
         RecurFreq.YEARLY to "Jahr"
     )
-    Row(
+    // M14i: natürliche Breite pro Chip, Umbruch in die nächste Zeile
+    // per FlowRow (statt weight(1f)-Reihe, die alles gleichmäßig quetscht).
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -170,8 +172,7 @@ private fun RecurSegmented(
                 selected = selected,
                 onClick = { onSelect(freq) },
                 label = { Text(label, style = MaterialTheme.typography.bodyMedium) },
-                shape = CircleShape,
-                modifier = Modifier.weight(1f)
+                shape = CircleShape
             )
         }
     }
@@ -229,7 +230,7 @@ private fun WeekdayPicker(
         Weekdays.SATURDAY to "S",
         Weekdays.SUNDAY to "S"
     )
-    Column(modifier = Modifier.fillMaxWidth().padding(start = 32.dp, top = 4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Text("Wochentage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -260,7 +261,7 @@ private fun MonthlyOptions(
     state: RecurrenceState,
     onStateChange: (RecurrenceState) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(start = 32.dp, top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Im Monat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         Column(modifier = Modifier.selectableGroup()) {
@@ -363,7 +364,7 @@ private fun DayOfMonthGrid(
     selected: Set<Int>,
     onSelectionChange: (Set<Int>) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Text("Tage im Monat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         // 7 Spalten für 31 Tage
         Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 4.dp)) {
