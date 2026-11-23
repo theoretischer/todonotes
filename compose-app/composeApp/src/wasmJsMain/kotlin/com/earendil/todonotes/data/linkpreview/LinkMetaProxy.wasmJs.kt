@@ -27,6 +27,7 @@ private class BackendLinkMetaProxy(
         withContext(Dispatchers.Default) {
             val serverUrl = getServerUrl().trimEnd('/')
             val token = getToken()
+            println("LinkProxy.load: url=$url serverUrl='$serverUrl' tokenLen=${token.length}")
             if (serverUrl.isBlank() || token.isBlank()) return@withContext null
             val resp = httpClient.post("$serverUrl/linkmeta") {
                 bearerAuth(token)
