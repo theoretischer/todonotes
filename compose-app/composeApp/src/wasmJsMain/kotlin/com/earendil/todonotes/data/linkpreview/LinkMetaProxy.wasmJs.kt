@@ -5,9 +5,9 @@ import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 
 /**
  * Wasm: Der Browser blockt jeden externen og-Fetch (CORS — kein
@@ -24,22 +24,29 @@ private class BackendLinkMetaProxy(
     private val getToken: () -> String
 ) : LinkMetaProxy {
     override suspend fun load(url: String): LinkMetaProxyResponse? = try {
-        withContext(Dispatchers.Default) {
-            val serverUrl = getServerUrl().trimEnd('/')
-            val token = getToken()
-            println("LinkProxy.load: url=$url serverUrl='$serverUrl' tokenLen=${token.length}")
-            if (serverUrl.isBlank() || token.isBlank()) return@withContext null
-            val resp = httpClient.post("$serverUrl/linkmeta") {
-                bearerAuth(token)
-                setBody(LinkMetaProxyRequest(url))
-            }
-            if (!resp.status.isSuccess()) null
-            else resp.body<LinkMetaProxyResponse>()
+        // Bewusst GLEICH gebaut wie SyncManager.push/pull (kein
+        // withContext, contentType explizit) — der Sync-Request funktioniert
+        // auf Wasm nachweislich; hier keinen anderen Weg probieren.
+        val serverUrl = getServerUrl().trimEnd('/')
+        val token = getToken()
+        println("LinkProxy.load: url=$url serverUrl='$serverUrl' tokenLen=${token.length}")
+        if (serverUrl.isBlank() || token.isBlank()) return null
+        val resp = httpClient.post("$serverUrl/linkmeta") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(token)
+            setBody(LinkMetaProxyRequest(url))
         }
+        if (!resp.status.isSuccess()) {
+            println("LinkProxy.load: HTTP ${resp.status.value} ${resp.status.description}")
+            return null
+        }
+        println("LinkProxy.load: 200, decodiere …")
+        resp.body<LinkMetaProxyResponse>()
     } catch (e: Throwable) {
         // Wasm-Ktor wirft bei Netzwerkfehlern kotlin.Error("Fail to
         // fetch") — Error wird von `catch (e: Exception)` NICHT
         // gefangen. Deshalb Throwable.
+        println("LinkProxy.load FAILED: ${e::class.simpleName}: ${e.message}")
         null
     }
 }
