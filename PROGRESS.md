@@ -42,6 +42,11 @@ KOMPLETT abgehakt.** Danach: Alarm-Screen im M14-Stil + M16 „Teilen
 mit der App“ (ACTION_SEND → Prefill/Notiz-Anhäng, finish statt
 moveTaskToBack, Share-Append-Datenverlust-Bug auf Textebene
 gefixt, BottomBar in der Session versteckt). 109 Tests grün.
+**Session 2026-11-23 (abends): F7 „Link-Vorschau"** — Links in
+Chat-Nachrichten und Aufgaben zeigen eine Vorschau-Karte (Bild +
+Titel + Domain, og-Tags). Reddit-Sonderweg über den öffentlichen
+oembed-Endpunkt (inkl. /s/-Share-Redirect-Auflösung). 132 Tests
+grün, Web deployt.
 
 ## Aktueller Stand
 
@@ -664,6 +669,63 @@ rutschte die Box sonst unter die Systemknöpfe; System-Back in der
 Session = Abbrechen + finish().
 
 109 Tests grün (Stand `a9c5259`).
+
+### 27. F7 „Link-Vorschau" (`9eee198` → `98302e6`)
+
+Links in Chat-Nachrichten und Aufgaben-Titeln/Notizen zeigen jetzt
+eine Vorschau-Karte wie in WhatsApp/Slack: Bild (1.9:1) + Titel +
+Beschreibung + Domain, klickbar (LocalUriHandler → Browser).
+Kompakte Variante (1 Zeile) in Todo-Zeilen, große Karte in
+Chat-Blasen (onBubble-Kontrast).
+
+**Architektur:** reiner CLIENT-Cache — kein Sync, keine Server-
+Änderung. DB v14→v15: Tabelle `link_previews` (url PK, title,
+description, siteName, imageBytes BLOB max 3 MB, fetchedAt, failed).
+`LinkMetaParser` (Regex, bewusst KEIN jsoup — läuft auch auf Wasm):
+og:title/description/image/site_name, twitter:*- und
+<title>/<meta description>-Fallbacks, HTML-Entities, relative
+Bild-URLs → absolut. `LinkPreviewRepository`: Ktor-Fetch mit
+Browser-UA, Cache-TTL 7 Tage, Negativ-Cache 1 Tag, In-Flight-Dedupe
+(dieselbe URL nicht parallel mehrfach — Chat/Liste zeigt sie oft
+mehrfach). Bild-Download über denselben Client.
+
+**Bug 1 — og-Tags weit außerhalb des <head> (Nutzer-Report
+YouTube):** YouTube setzt og:title/og:image erst bei ~Zeichen 680.000
+(hinter einem riesigen Inline-Script); `<title>YouTube</title>`
+steht bei 2.012. Parser schaute nur in die ersten 64 KB → Karte
+zeigte „youtube.com / YouTube". Fixes: Parser scannt das GANZE
+Dokument (Repo-Deckel 1 MB), Fallback-Titel = LÄNGSTER <title>
+(SPA-Platzhalter sind kurz), unaufgelöste JS-Templates im Titel
+fliegen raus. Verifiziert gegen echtes YouTube-HTML.
+
+**Bug 2 — Reddit ist anders (Nutzer-Frage „geht da gar nichts?"):
+**Reddit liefert an alles ohne echte Browser-Engine eine Bot-
+Sperrseite — verifiziert mit Browser-, Discord- und Twitter-UA,
+`.json`, `api.reddit.com`, `old.reddit.com`, RSS (429), redlib-
+Mirrors (Anubis), sogar microlink.io sagt „antibot, PRO nötig".
+ABER der öffentliche **oembed**-Endpunkt antwortet ohne Auth:
+`reddit.com/oembed?url=<postUrl>` → title, author_name, Subreddit
+(im html-Feld). Kein Bild (Reddits Bild-CDNs blocken ebenfalls) —
+Reddit-Karten = Titel + „r/<sub>" + „u/<Autor>".
+- `RedditOembed.kt`: URL-Erkennung (Post-/s/-Share-/redd.it-Links),
+  Endpoint-Bau, Mini-JSON-Parser (\u-Escapes, Entities).
+- **Bug 2a:** Sperrseite HAT `<title>Reddit</title>` — „leerer
+  Titel"-Test griff nie → oembed kam nie dran. Jetzt: Reddit-Post-
+  URL ohne og:image → oembed versuchen.
+- **Bug 2b:** `/s/<hash>`-Share-Links (das, was die Reddit-App beim
+  Teilen erzeugt) sind 301-Redirects auf /comments/<id>/ — oembed
+  gibt auf rohe /s/-Links 400. Ktor folgt dem Redirect, aber die
+  finale URL ist nicht abfragbar (response.request bleibt Original).
+  Fix: zweiter Client ohne followRedirects liest den Location-Header,
+  Query-Müll (utm_*, share_id) wird abgeschnitten.
+- **Bug 2c:** Cache-Invalidierung „Titel == SiteName" griff nicht
+  (Reddit ≠ reddit.com) → Reddit-URLs mit siteName ‚reddit.com'
+  + kein Bild werden zusätzlich als veraltet behandelt.
+Am Gerät verifiziert: r/pigeon → „Why is he trying to eat me
+today?" · u/camerasnake.
+
+**Tests:** 11 Parser-Tests + 9 oembed-Tests; 132 grün. Web deployt
+(`ec6a1c7`).
 
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
