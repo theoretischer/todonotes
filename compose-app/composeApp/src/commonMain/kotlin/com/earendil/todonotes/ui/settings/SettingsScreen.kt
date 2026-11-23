@@ -290,7 +290,10 @@ private fun ProfileSection(
                 onValueChange = { newPassword = it },
                 colors = filledTextFieldColors(),
                 shape = RoundedCornerShape(16.dp),
-                label = { Text("Neues Passwort (optional)") },
+                // M14m: „(optional)" als Hinweis unterm Feld — im Label brach
+                // es in zwei Zeilen um.
+                label = { Text("Neues Passwort") },
+                supportingText = { Text("optional", style = MaterialTheme.typography.labelSmall) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 visualTransformation = if (showPassword) VisualTransformation.None

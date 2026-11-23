@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.CadenceType
 import com.earendil.todonotes.data.entity.Habit
 import com.earendil.todonotes.data.entity.HabitType
+import com.earendil.todonotes.data.repo.formatStartLabel
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -173,7 +174,7 @@ fun HabitEditDialog(
                     ) {
                         Icon(Icons.Default.Schedule, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text(formatDateLabel(startDate))
+                        Text(formatStartLabel(startDate.year, startDate.monthNumber, startDate.dayOfMonth))
                     }
 
                     HorizontalDivider()
@@ -183,31 +184,15 @@ fun HabitEditDialog(
                         cadenceType = cadenceType,
                         interval = interval,
                         onCadenceChange = { cadenceType = it },
-                        onIntervalChange = { interval = it }
+                        onIntervalChange = { interval = it },
+                        // M14m: Ziel (goalCount) wird im CadencePicker selbst
+                        // editiert (Stepper-Zeile über den Chips) — das separate
+                        // „Ziel: n mal"-Feld ist damit weg.
+                        goalCount = goalCount,
+                        onGoalCountChange = { goalCount = it }
                     )
 
                     HorizontalDivider()
-
-                    // Ziel-Anzahl pro Zeitraum
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Ziel: ", style = MaterialTheme.typography.bodyMedium)
-                        TextField(
-                            value = goalCount.toString(),
-                            onValueChange = { v ->
-                                val n = v.toIntOrNull()
-                                if (n != null && n in 1..9999) goalCount = n
-                            },
-                            modifier = Modifier.width(80.dp).height(48.dp),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                            colors = filledTextFieldColors(),
-                            shape = RoundedCornerShape(16.dp)
-                        )
-                        Text(" mal", style = MaterialTheme.typography.bodyMedium)
-                    }
                 } else {
                     // SATISFACTION: Startwert-Slider 0-10
                     HorizontalDivider()
@@ -258,11 +243,3 @@ fun HabitEditDialog(
     )
 }
 
-/** "yyyy-MM-dd" — buildString statt String.format (Wasm-kompatibel). */
-private fun formatDateLabel(date: LocalDate): String = buildString {
-    append(date.year.toString().padStart(4, '0'))
-    append('-')
-    append(date.monthNumber.toString().padStart(2, '0'))
-    append('-')
-    append(date.dayOfMonth.toString().padStart(2, '0'))
-}

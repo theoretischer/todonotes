@@ -35,6 +35,7 @@ import com.earendil.todonotes.data.entity.NotificationStyle
 import com.earendil.todonotes.ui.components.RecurrenceCodec
 import com.earendil.todonotes.ui.components.RecurrenceEditor
 import com.earendil.todonotes.ui.components.RecurrenceState
+import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -136,14 +137,7 @@ fun QuickAddBar(
                 placeholder = { Text("Neue Aufgabe…") },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                ),
+                colors = filledTextFieldColors(),
                 trailingIcon = {
                     // Erstellen-Knopf: nur ein Häkchen, klein & simpel.
                     IconButton(
@@ -169,12 +163,7 @@ fun QuickAddBar(
                     onValueChange = { notes = it },
                     placeholder = { Text("Notizen…") },
                     shape = RoundedCornerShape(16.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
+                    colors = filledTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.earendil.todonotes.data.entity.NotificationStyle
 import com.earendil.todonotes.data.entity.Todo
 import com.earendil.todonotes.data.repo.formatDateGerman
+import com.earendil.todonotes.data.repo.formatDueShort
 import com.earendil.todonotes.ui.components.RoundCheckbox
 import com.earendil.todonotes.ui.components.RecurrenceCodec
 import com.earendil.todonotes.ui.components.RecurrenceEditor
@@ -207,14 +208,10 @@ fun TodoEditDialog(
                     ) {
                         Icon(Icons.Default.Schedule, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        val dateStr = buildString {
-                            append(year.toString().padStart(4, '0'))
-                            append('-'); append(month.toString().padStart(2, '0'))
-                            append('-'); append(day.toString().padStart(2, '0'))
-                            append(' '); append(hour.toString().padStart(2, '0'))
-                            append(':'); append(minute.toString().padStart(2, '0'))
-                        }
-                        Text(dateStr)
+                        // M14m: "Di, 24. Nov · 00:00" statt "2026-11-24 00:00"
+                        Text(
+                            formatDueShort(year, month, day, hour, minute)
+                        )
                     }
                 }
 

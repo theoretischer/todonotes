@@ -56,6 +56,61 @@ internal fun formatTimeGerman(millis: Long): String {
     return "$h:$min"
 }
 
+private val WEEKDAY_SHORT_DE = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
+private val MONTH_SHORT_DE = listOf(
+    "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"
+)
+
+/** Wochentag-Kürzel (deutsch): 1 = Montag ... 7 = Sonntag. */
+private fun weekdayShortDe(dayOfWeek: Int): String =
+    WEEKDAY_SHORT_DE[(dayOfWeek - 1).coerceIn(0, 6)]
+
+/** Monatsname-Kürzel (deutsch): 1 = Jan ... 12 = Dez. */
+private fun monthShortDe(month: Int): String =
+    MONTH_SHORT_DE[(month - 1).coerceIn(0, 11)]
+
+/** Wochentag (1 = Montag ... 7 = Sonntag) eines Datums, Wasm-sicher via
+ *  kotlinx.datetime (Ordo-dies-Konkretes: Tag 1 = Montag im ISO-8601-
+ *  Kalender). [Dowel] = Tag als Zahl; Berechnung: Datum → Epoch-Tage →
+ *  Modulo. */
+private fun dayOfWeekIso(year: Int, month: Int, day: Int): Int {
+    val date = LocalDate(year, month, day)
+    // EpochDay 0 = Donnerstag (1970-01-01) → ISO-Wochentag verschieben.
+    val epochDays = date.toEpochDays()
+    val dow = ((epochDays + 3) % 7 + 7) % 7  // 0 = Montag
+    return dow + 1
+}
+
+/** Formatiert ein Datum als "Di, 24. Nov · 00:00" — Kurzform für Aufgaben-
+ *  Fälligkeits-Buttons (M14m; statt "2026-11-24 00:00"). */
+internal fun formatDueShort(
+    year: Int, month: Int, day: Int, hour: Int, minute: Int
+): String = buildString {
+    append(weekdayShortDe(dayOfWeekIso(year, month, day)))
+    append(", ")
+    append(day)
+    append(". ")
+    append(monthShortDe(month))
+    append(" · ")
+    append(hour.toString().padStart(2, '0'))
+    append(':')
+    append(minute.toString().padStart(2, '0'))
+}
+
+/** Formatiert ein Datum als "Mo, 23. Nov 2026" — Startdatum-Anzeige
+ *  bei Gewohnheiten (M14m; statt "2026-11-23"). */
+internal fun formatStartLabel(
+    year: Int, month: Int, day: Int
+): String = buildString {
+    append(weekdayShortDe(dayOfWeekIso(year, month, day)))
+    append(", ")
+    append(day)
+    append(". ")
+    append(monthShortDe(month))
+    append(' ')
+    append(year)
+}
+
 /** Liefert (dayOfYear, year) für einen Zeitstempel — für Tageswechsel-
  *  Erkennung in der Chat-Liste. Ersatz für Calendar.get(DAY_OF_YEAR)/YEAR. */
 internal fun dayOfYearAndYear(millis: Long): Pair<Int, Int> {

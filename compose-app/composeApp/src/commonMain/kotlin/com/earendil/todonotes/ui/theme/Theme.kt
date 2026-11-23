@@ -98,15 +98,25 @@ fun TodoNotesTheme(
 }
 
 /**
- * Gefüllte TextField-Farben (M14g-Kanon, wie die Aufgaben-Eingabe):
- * Fläche surfaceContainerHigh, KEIN Indikator-Strich — der Fokus zeigt
- * sich über die Flächenfarbe, nicht über eine Linie. Für alle Felder
- * der App (Dialoge, Einstellungen, Chat, Auth, …).
+ * M14m: Eigenes Feld-Fuellungs-Grau — EIN Ton dunkler (Light) bzw. heller
+ * (Dark) als die surfaceVariant-Karten (#ECECF0 / #34363D), damit gefüllte
+ * Eingabefelder AUF den Karten sichtbar bleiben. (Vorher nutzten sie
+ * surfaceContainerHigh = exakt die Kartenfarbe → unsichtbar.)
+ */
+@Composable
+internal fun inputFillColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF3E4048) else Color(0xFFE0E2E8)
+
+/**
+ * Gefüllte TextField-Farben (M14g/M14m-Kanon, wie die Aufgaben-Eingabe):
+ * Fläche inputFillColor (ein Ton kräftiger als Karten), KEIN Indikator-
+ * Strich — der Fokus zeigt sich über die Flächenfarbe, nicht über eine
+ * Linie. Für alle Felder der App (Dialoge, Einstellungen, Chat, Auth, …).
  */
 @Composable
 fun filledTextFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    focusedContainerColor = inputFillColor(),
+    unfocusedContainerColor = inputFillColor(),
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
     focusedTextColor = MaterialTheme.colorScheme.onSurface,

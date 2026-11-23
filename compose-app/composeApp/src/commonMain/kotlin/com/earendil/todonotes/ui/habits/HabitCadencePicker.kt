@@ -15,22 +15,25 @@ import com.earendil.todonotes.ui.components.IntervalStepper
 /**
  * Zeitraum-Picker für Gewohnheiten — M14j: dasselbe Auswahl-System
  * wie der Recurrence-Editor (Stepper + Segment-Chips), statt der
- * Radio-Zeilen mit Inline-Zahlen-Pillen.
+ * Radio-Zeilen mit Inline-Zahlen-Pillen. M14m: die Stepper-Zeile
+ * steht jetzt IMMER über den Chips (wie im Aufgaben-Menü), mit der
+ * Zahl, die zum gewählten Chip passt:
  *
- * Semantik:
- *  - Tag/Woche/Monat/Jahr → Ziel gilt PRO Zeitraum (Ziel-Anzahl
- *    steckt im eigenen Feld darunter, Default 1).
- *  - "Alle n Tage" (NDAYS) → n ist das Intervall → Stepper oben.
+ *  - „Alle (− n +) Tage" bei NDAYS (n = Intervall)
+ *  - „Ziel (− n +) pro Tag/Woche/Monat/Jahr" sonst (n = goalCount)
  *
- * Keine Wochentags-/Monats-Extras hier — der Reset-Tag ergibt sich
- * aus dem Startdatum.
+ * Das alte separate „Ziel: n mal"-Feld im Dialog ist damit weg —
+ * das Ziel wird hier editiert. Keine Wochentags-/Monats-Extras:
+ * der Reset-Tag ergibt sich aus dem Startdatum.
  */
 @Composable
 fun HabitCadencePicker(
     cadenceType: CadenceType,
     interval: Int,
+    goalCount: Int,
     onCadenceChange: (CadenceType) -> Unit,
     onIntervalChange: (Int) -> Unit,
+    onGoalCountChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -41,25 +44,35 @@ fun HabitCadencePicker(
             fontWeight = FontWeight.SemiBold
         )
 
-        // Intervall-Stepper nur bei "Alle n Tage"
-        AnimatedVisibility(visible = cadenceType == CadenceType.NDAYS) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+        // Stepper-Zeile über den Chips — Zahl je nach Chip (M14m).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (cadenceType == CadenceType.NDAYS) {
                 Text("Alle", style = MaterialTheme.typography.bodyMedium)
                 IntervalStepper(
                     value = interval,
                     onValueChange = onIntervalChange
                 )
                 Text("Tage", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Text("Ziel", style = MaterialTheme.typography.bodyMedium)
+                IntervalStepper(
+                    value = goalCount,
+                    onValueChange = onGoalCountChange
+                )
+                Text(
+                    "pro ${cadenceType.label}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
 
         // Segment-Buttons: Tag / Woche / Monat / Jahr / Alle-n-Tage.
-        // M14j-Fix: FlowRow mit NATÜRLICHER Breite + Umbruch (derselbe
-        // Fehler wie M14i: weight(1f) quetscht alles in eine Zeile).
+        // M14j-Fix: FlowRow mit NATÜRLICHER Breite + Umbruch (weight(1f)
+        // quetscht alles in eine Zeile — gelernt aus M14i).
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)

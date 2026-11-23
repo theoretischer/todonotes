@@ -97,10 +97,13 @@ fun TrackerDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                // M14m: Bottom-Navigation/Systemleiste nicht überlappen.
+                .windowInsetsPadding(WindowInsets.navigationBars)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
             if (habit.type == HabitType.HABIT) {
+                Spacer(Modifier.height(16.dp))  // M14m: Abstand zur TopBar
                 HabitPeriodSection(
                     habit = habit,
                     logs = logs,
@@ -109,6 +112,7 @@ fun TrackerDetailScreen(
                     onSetPeriodCount = onSetPeriodCount
                 )
             } else {
+                Spacer(Modifier.height(16.dp))  // M14m: Abstand zur TopBar
                 SatisfactionSection(
                     habit = habit,
                     history = history,
@@ -249,13 +253,24 @@ private fun HabitPeriodSection(
 
     Spacer(Modifier.height(24.dp))
 
-    // Liste abgeschlossener Zeiträume (neueste zuerst)
-    Text(
-        "Zeiträume",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold
-    )
-    Spacer(Modifier.height(8.dp))
+    // Liste abgeschlossener Zeiträume (neueste zuerst) — M14m: in einer Karte
+    // (wie alle anderen Abschnitte) statt nackter Zeilen.
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                "Zeiträume",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
     val completed = stats.filter { !it.isCurrent }
     if (completed.isEmpty()) {
         Text(
@@ -288,6 +303,8 @@ private fun HabitPeriodSection(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
+        }
+    }
         }
     }
 

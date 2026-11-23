@@ -39,10 +39,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import com.earendil.todonotes.ui.theme.filledTextFieldColors
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -672,17 +675,30 @@ private fun EditMessageDialog(
             )
         },
         confirmButton = {
-            TextButton(
+            // M14m: gefüllter Speichern-Button (wie in den anderen Dialogen)
+            // + Icon; Speichern als grauer Textbutton fiel nicht auf.
+            Button(
                 onClick = { onConfirm(editText) },
                 enabled = editText.isNotBlank() && editText != message.text
-            ) { Text("Speichern") }
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Speichern")
+            }
         },
         dismissButton = {
             Row {
+                // M14m: Löschen mit Icon links, danach Abbrechen — Icon-Buttons.
                 TextButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(6.dp))
                     Text("Löschen", color = MaterialTheme.colorScheme.error)
                 }
-                TextButton(onClick = onDismiss) { Text("Abbrechen") }
+                TextButton(onClick = onDismiss) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Abbrechen")
+                }
             }
         }
     )
