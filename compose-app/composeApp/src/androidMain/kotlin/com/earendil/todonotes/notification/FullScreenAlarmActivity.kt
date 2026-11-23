@@ -83,10 +83,12 @@ class FullScreenAlarmActivity : ComponentActivity() {
             )
         }
 
-        // Bildschirm anlassen, damit die Meldung lesbar bleibt
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        )
+        // KEIN FLAG_KEEP_SCREEN_ON (Bug 12): Das hielt das OLED die GANZE Nacht
+        // an (22-Uhr-Alarm -> Display an bis Morgen). setTurnScreenOn weckt den
+        // Bildschirm schon — ohne KEEP_SCREEN_ON greift wieder ganz normal der
+        // Display-Timeout des Systems (paar Sekunden), dann schlafen.
+        // Aufwachen (Power-Taste) zeigt die Meldung weiterhin überm Sperrbild-
+        // schirm (setShowWhenLocked, s.o.).
 
         // System-Bars verstecken (Statusleiste, Navigationsleiste, Zurück-Geste-
         // Leiste) — der Alarm füllt den ganzen Bildschirm.
