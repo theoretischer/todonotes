@@ -25,7 +25,11 @@ Tabs (ScreenTitle überall, blaue CAPS-Labels einheitlich,
 Breadcrumb in die Liste, HOME klickbar). M14f: Eckenradius-
 System (16dp Karten, 28dp Dialoge, 8dp Abstand) inkl. drei
 Fixes (Wrapper-Hintergrund kassierte Rundung, rote Lösch-
-Box, Todo-Karten surface statt background). 92 Tests grün.
+Box, Todo-Karten surface statt background). M14g: gefüllte
+Eingabefelder überall, runde Checkboxen, Dialog/Sheet-
+Farben = surface. M14h/i: Editor-BottomBar, DatePicker-
+Farben (auch im Kalender-Grid!), Recurrence-Editor als
+Stepper + Segment-Chips. 92 Tests grün.
 
 ## Aktueller Stand
 
@@ -453,6 +457,45 @@ ListItem+Divider gemischt mit 24dp-Eingaben).
   → Aufgaben-„Karten“ unsichtbar. Eigene background raus —
   der SwipeToDeleteRow-Wrapper liefert surface + 16dp.
 
+### 21. M14g — Gefüllte Felder, runde Checkboxen, Dialog-Farben (`7555ca6`)
+
+Nutzer-Report: Outline-Felder in Dialogen/Einstellungen/Chat,
+Dialog-Farben „die sonst nirgends vorkommen“, eckige Checkboxen
+obwohl die Aufgaben runde haben.
+
+- **filledTextFieldColors()** (Theme.kt) = QuickAddBar-Kanon:
+  surfaceContainerHigh-Füllung, kein Indikator-Strich. Alle 21
+  OutlinedTextField → TextField + 16dp-Shape (Dialoge,
+  Einstellungen, Chat, Notiz-Ordner, Tracker, Auth).
+- **RoundCheckbox** (neue Komponente) = Aufgaben-Listen-Kanon
+  (Icons.Outlined.Circle / Filled.CheckCircle, 22dp): ersetzt die
+  eckige M3-Checkbox in TodoEditDialog, HabitEditDialog,
+  NoteBodyReadOnly (Notiz-Checklisten).
+- AlertDialog + ModalBottomSheet überall containerColor =
+  surface (vorher M3-Default surfaceContainerHigh = das
+  Grau, das sonst nie als Fläche vorkam).
+
+### 22. M14h/i — Editor-Bar, DatePicker, Recurrence-Editor (`b8fd100` → `ffc0d0f`)
+
+- **Editor-BottomBar**: surfaceContainer → surface wie TopBar.
+- **DatePicker-Dialoge** (Todo/QuickAdd/Habit): colors mit
+  containerColor = surface — WICHTIG: der DatePicker-
+  Composable (Kalender-Grid) holt seine Fläche aus seinen
+  EIGENEN colors, nicht aus dem Dialog! Nur der Dialog-Rahmen
+  (Abbrechen/Weiter) färbte sich über die Dialog-colors.
+- **RecurrenceEditor-Overhaul**: Radio-Zeilen mit springenden
+  InlineIntField-Pillen („Jeden [1] Tag“) → **Stepper (− n +)
+  fürs Intervall + FilterChip-Segment-Buttons** (Nie/Min./Std./
+  Tag/Woche/Monat/Jahr), suffixPlural im RecurFreq-Enum.
+  Gleicher Stepper für Laufzeit-Count und Am-n.-des-Monats
+  (DayStepper 1..31). Radio-Zeilen 48dp.
+- **M14i**: Chips in FlowRow mit natürlicher Breite (Umbruch
+  statt weight(1f)-Quetscherei); „Fertig“/„Keine Wiederholung“
+  raus aus dem Sheet („Nie“-Chip + Sofort-Wirkung);
+  Wochentags-/Im-Monat-/Tage-UI ohne start-Indent;
+  Wochentags-Chips AssistChip → FilterChip mit zentriertem
+  Label (M D M D F S S).
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -498,6 +541,11 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
   Breadcrumb in der Liste, Verlauf-Header wie Aufgaben)
 - M14f: Eckenradius-System (16dp Karten / 28dp Dialoge /
   8dp Abstand) + Verlauf-Karten statt ListItem+Divider
+- M14g: gefüllte Eingabefelder (filledTextFieldColors),
+  runde Checkboxen (RoundCheckbox), Dialog/Sheet = surface
+- M14h/i: Editor-BottomBar surface, DatePicker-Farben,
+  Recurrence-Editor: Stepper + Segment-Chips (FlowRow),
+  Sheet ohne Fertig/Keine-Wiederholung
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
