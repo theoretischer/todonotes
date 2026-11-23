@@ -219,7 +219,7 @@ private fun HabitPeriodSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(220.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
             contentAlignment = Alignment.Center
         ) {
@@ -377,7 +377,7 @@ private fun PeriodBarChart(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
     ) {
         Canvas(
@@ -589,7 +589,7 @@ private fun RatingChart(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(start = 30.dp, top = 8.dp, end = 8.dp, bottom = 20.dp)) {

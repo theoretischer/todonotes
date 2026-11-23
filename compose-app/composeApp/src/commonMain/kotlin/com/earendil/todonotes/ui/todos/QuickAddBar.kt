@@ -120,7 +120,7 @@ fun QuickAddBar(
     // (surface) — TextField + Options-Knöpfe liegen AUF ihr. Das TextField
     // selbst eine Nuance heller (Fläche 2) damit es sich abhebt.
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,  // = BottomBar-Farbe
         modifier = modifier.fillMaxWidth()
     ) {

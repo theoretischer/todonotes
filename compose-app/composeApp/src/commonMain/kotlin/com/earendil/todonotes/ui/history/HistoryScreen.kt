@@ -1,15 +1,19 @@
 package com.earendil.todonotes.ui.history
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,7 +65,8 @@ fun HistoryScreen(
     } else {
         LazyColumn(
             modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp)
+            contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (habitHistory.isNotEmpty()) {
                 item {
@@ -79,47 +84,48 @@ fun HistoryScreen(
                         onDelete = { onDeleteHistoryEntry(entry.id) },
                         onClick = {}
                     ) {
-                        if (entry.newRating != null) {
-                            // Zufriedenheits-Tracker: "von 3 auf 4"
-                            androidx.compose.material3.ListItem(
-                                headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
-                                supportingContent = {
-                                    Text("Zufriedenheit: ${formatDateGerman(entry.loggedAt)}")
-                                },
-                                trailingContent = {
-                                    val old = entry.count
-                                    val new = entry.newRating ?: entry.count
-                                    Text(
-                                        "$old → $new",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = when {
-                                            new > old -> MaterialTheme.colorScheme.primary
-                                            new < old -> MaterialTheme.colorScheme.error
-                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        }
-                                    )
-                                }
-                            )
-                        } else {
-                            androidx.compose.material3.ListItem(
-                                headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
-                                supportingContent = {
-                                    Text("Periode ab ${formatDateGerman(entry.periodStart)}: " +
-                                         "${entry.count}/${entry.goal} (${entry.cadenceLabel})")
-                                },
-                                trailingContent = {
-                                    Text(
-                                        "${entry.count}/${entry.goal}",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = if (entry.count >= entry.goal)
-                                            MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            )
+                        HistoryCard {
+                            if (entry.newRating != null) {
+                                // Zufriedenheits-Tracker: "von 3 auf 4"
+                                androidx.compose.material3.ListItem(
+                                    headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
+                                    supportingContent = {
+                                        Text("Zufriedenheit: ${formatDateGerman(entry.loggedAt)}")
+                                    },
+                                    trailingContent = {
+                                        val old = entry.count
+                                        val new = entry.newRating ?: entry.count
+                                        Text(
+                                            "$old → $new",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = when {
+                                                new > old -> MaterialTheme.colorScheme.primary
+                                                new < old -> MaterialTheme.colorScheme.error
+                                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
+                                        )
+                                    }
+                                )
+                            } else {
+                                androidx.compose.material3.ListItem(
+                                    headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
+                                    supportingContent = {
+                                        Text("Periode ab ${formatDateGerman(entry.periodStart)}: " +
+                                             "${entry.count}/${entry.goal} (${entry.cadenceLabel})")
+                                    },
+                                    trailingContent = {
+                                        Text(
+                                            "${entry.count}/${entry.goal}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = if (entry.count >= entry.goal)
+                                                MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
-                    HorizontalDivider()
                 }
             }
 
@@ -139,24 +145,43 @@ fun HistoryScreen(
                         onDelete = { onDeleteTodo(todo.id) },
                         onClick = {}
                     ) {
-                        androidx.compose.material3.ListItem(
-                            headlineContent = { Text(linkified(todo.title, MaterialTheme.colorScheme.primary), fontWeight = FontWeight.Medium) },
-                            supportingContent = {
-                                todo.completedAt?.let {
-                                    Text("Erledigt: ${formatDateTime(it)}")
+                        HistoryCard {
+                            androidx.compose.material3.ListItem(
+                                headlineContent = { Text(linkified(todo.title, MaterialTheme.colorScheme.primary), fontWeight = FontWeight.Medium) },
+                                supportingContent = {
+                                    todo.completedAt?.let {
+                                        Text("Erledigt: ${formatDateTime(it)}")
+                                    }
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { onReopenTodo(todo.id) }) { Text("Wieder öffnen") }
                                 }
-                            },
-                            trailingContent = {
-                                TextButton(onClick = { onReopenTodo(todo.id) }) { Text("Wieder öffnen") }
-                            }
-                        )
+                            )
+                        }
                     }
-                    HorizontalDivider()
                 }
             }
+
             item { Spacer(Modifier.height(80.dp)) }
         }
         }
+    }
+}
+
+/**
+ * Verlauf-Eintrag als Karte (M14f): 16dp-Radius wie alle Karten, 8dp
+ * Abstand über das spacedBy der Liste. Zuvor: nacktes ListItem + Divider.
+ */
+@Composable
+private fun HistoryCard(content: @Composable () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        content()
     }
 }
 

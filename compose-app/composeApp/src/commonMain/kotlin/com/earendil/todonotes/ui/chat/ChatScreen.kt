@@ -619,7 +619,7 @@ private fun ChatInputBar(
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Sentences
             ),
-            shape = RoundedCornerShape(24.dp)
+            shape = RoundedCornerShape(16.dp)
         )
         Spacer(Modifier.padding(start = 4.dp))
         IconButton(
