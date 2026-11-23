@@ -85,38 +85,37 @@ fun NotesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
 
-        // M14e: Große Titelzeile als Anker (wie Aufgaben/Verlauf/Gewohnheiten)
-        // — der Breadcrumb-Pfad rückt als kleine blaue CAPS-Zeile DARUNTER
-        // (Konsistenz mit den Sektions-Überschriften der Aufgaben).
+        // M14e: Große Titelzeile als Anker (wie Aufgaben/Verlauf/Gewohnheiten).
         ScreenTitle("Notizen", modifier = Modifier.align(Alignment.TopStart))
-
-        // Header-Box: umschließt nur die Breadcrumb (unter dem Titel). So
-        // bleibt die ROOT-Drop-Hitbox genau auf dem HOME-Schriftzug.
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .fillMaxWidth()
-                .zIndex(5f)
-                .statusBarsPadding()
-                .padding(top = 64.dp)
-                .onGloballyPositioned { coords ->
-                    folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
-                }
-        ) {
-            NotesBreadcrumb(
-                crumbs = state.breadcrumbs,
-                onCrumb = notesVm::navigateToCrumb
-            )
-        }
 
         if (state.folders.isEmpty() && state.notes.isEmpty()) {
             EmptyNotesHint()
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 104.dp, end = 16.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 96.dp, end = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // M14e: Breadcrumb-Pfad als ERSTES Listenelement — die kleine
+                // blaue CAPS-Zeile sitzt damit exakt dort, wo bei Aufgaben der
+                // erste Sektions-Header („HEUTE“) sitzt: 96dp unten, gleiche
+                // Typo/Paddings → erste Karte/Notiz überall auf gleicher Höhe.
+                // Die Box drum herum liefert die ROOT-Drop-Hitbox (Notiz auf
+                // HOME ziehen = in die Wurzel verschieben).
+                item(key = "breadcrumb") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { coords ->
+                                folderBounds[ROOT_DROP_KEY] = coords.boundsInRoot()
+                            }
+                    ) {
+                        NotesBreadcrumb(
+                            crumbs = state.breadcrumbs,
+                            onCrumb = notesVm::navigateToCrumb
+                        )
+                    }
+                }
                 items(state.folders, key = { it.id }) { folder ->
                     Box(
                         modifier = Modifier
@@ -274,15 +273,15 @@ private fun NotesBreadcrumb(
     onCrumb: (Crumb) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // M14e: Pfad als kleine blaue CAPS-Zeile — im Stil der Sektions-
-    // Überschriften („HEUTE“, „MORGEN“ …) der Aufgaben. Alles klickbar:
-    // Tap auf HOME (oder einen Ordner davor) navigiert dorthin.
-    // Der aktuelle Ordner (letzter Crumb) ist nur Anzeige (kein Tap).
+    // M14e: Pfad als kleine blaue CAPS-Zeile — baugleich mit dem
+    // SectionHeader der Aufgaben (gleiche Typo, gleiche Paddings
+    // top=8/bottom=4 → erste Karte überall auf gleicher Höhe).
+    // HOME und Vorgänger-Ordner sind klickbar (navigieren dorthin),
+    // der aktuelle Ordner (letzter Crumb) ist nur Anzeige.
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(32.dp)
-            .padding(horizontal = 16.dp),
+            .padding(top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         crumbs.forEachIndexed { idx, crumb ->

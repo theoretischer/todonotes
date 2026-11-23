@@ -67,11 +67,11 @@ fun HistoryScreen(
                 item {
                     Text(
                         "Gewohnheiten".uppercase(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                     )
                 }
                 items(habitHistory, key = { it.id }) { entry ->
@@ -127,11 +127,11 @@ fun HistoryScreen(
                 item {
                     Text(
                         "Aufgaben".uppercase(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                     )
                 }
                 items(completedTodos, key = { it.id }) { todo ->
