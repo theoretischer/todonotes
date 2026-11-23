@@ -235,7 +235,10 @@ private fun TodoRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            // M14f: KEIN eigener Hintergrund mehr — der SwipeToDeleteRow-
+            // Wrapper liefert surface + 16dp-Rundung. Vorher: background-
+            // Farbe → Todos waren "Karten" in exakt der Hintergrundfarbe
+            // (unauffällig). Jetzt surface wie Notizen/Gewohnheiten/Verlauf.
             .clickable { onEdit() }
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
