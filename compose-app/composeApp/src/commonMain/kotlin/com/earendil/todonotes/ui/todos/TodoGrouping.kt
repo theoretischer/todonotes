@@ -40,8 +40,11 @@ fun groupOpenTodos(todos: List<Todo>, now: Long = Clock.System.now().toEpochMill
     val startOfTomorrow = today.plus(1, DateTimeUnit.DAY).atStartOfDayIn(tz).toEpochMilliseconds()
     val startOfDayAfterTomorrow = today.plus(2, DateTimeUnit.DAY).atStartOfDayIn(tz).toEpochMilliseconds()
     // "Diese Woche" = bis Ende der Woche (Sonntag 23:59:59.999).
-    // Wochenbeginn = Montag → Sonntag = heute + (7 - isoDayNumber(now)) Tage
-    val daysToSunday = (7 - nowLdt.dayOfWeek.ordinal) // ordinal: MO=0..SU=6 → So = +6-ordinal
+    // Wochenbeginn = Montag → Sonntag = heute + (6 - ordinal) Tage
+    // (ordinal: MO=0..SO=6 → Montag +6, Sonntag +0 = SO-heutiger Sonntag).
+    // Bug 7: Vorher (7 - ordinal) — Montag +7 = uebernaechster Montag,
+    // also 7 volle Tage ab heute statt bis zum Wochenende.
+    val daysToSunday = (6 - nowLdt.dayOfWeek.ordinal)
     val endOfWeekDate = today.plus(daysToSunday, DateTimeUnit.DAY)
     val endOfWeek = kotlinx.datetime.LocalDateTime(endOfWeekDate, kotlinx.datetime.LocalTime(23, 59, 59, 999_000_000))
         .toInstant(tz).toEpochMilliseconds()
