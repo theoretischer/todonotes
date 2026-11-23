@@ -89,7 +89,11 @@ class TodoRepository(
                     notes = todo.notes,
                     dueAt = nextDue,
                     recurrence = rrule,
-                    logToHistory = todo.logToHistory
+                    logToHistory = todo.logToHistory,
+                    // Bug 13: Style DURCHREICHEN statt Default — sonst fiel jede
+                    // folgende Occurrence auf Vollbild zurück („merkt sich nur
+                    // bis zur nächsten Wiederholung").
+                    notificationStyle = todo.notificationStyle
                 )
             }
         }
