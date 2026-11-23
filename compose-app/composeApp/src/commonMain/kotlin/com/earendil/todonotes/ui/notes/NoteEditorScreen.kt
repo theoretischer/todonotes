@@ -59,6 +59,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -66,6 +68,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -176,6 +179,18 @@ fun NoteEditorScreen(
     // der Cursor an den Zeilenanfang, obwohl man mitten in einer Zeile war.
     var savedCursor by remember { mutableStateOf(-1) }
     val bodyFocusRequester = remember { FocusRequester() }
+
+    // --- Bug 5: Cursor-Sichtbarkeit beim Tippen (Nutzer-Report: „springt
+    //     garnicht mehr, Getipptes wird von der BottomBar verdeckt“) ---
+    // Das automatische bringIntoView klemmte im Scaffold-Inge-setup. Wir
+    // messen die Cursor-Position SELBST (Feld-Textlayout + Feld-Offset in
+    // der Column) und scrollen die Column manuell — mit Luft nach unten,
+    // weil die Format-Leiste/Tastatur den unteren Teil verdeckt.
+    val editorScroll = rememberScrollState()
+    var editorViewportH by remember { mutableStateOf(0) }        // Column-Hoehe in px
+    var fieldOffsetInColumn by remember { mutableStateOf(0f) }   // Feld-Top in Column-Px
+    var fieldLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var cursorOffset by remember { mutableStateOf(0) } // aktualisiert in commitBody()/Edit-Wechsel
     // Punkt 6: Zeitstempel des letzten Checkbox-Button-Taps (Doppeltipp-
     // Erkennung, < 400ms). Kein Compose-State nötig — wird nur im
     // onClick-Handler gelesen/geschrieben (keine Rekompilierung nötig).
@@ -216,6 +231,30 @@ fun NoteEditorScreen(
         }
         // Bug 1: Edit-Modus VERLASSEN („Fertig“-Check, Back) → Cursor merken.
         if (!editing) savedCursor = bodyValue?.selection?.min ?: -1
+    }
+
+    // Bug 5: Bei jeder Cursor-Bewegung (Tippen/Schreiben) die Cursor-Zeile
+    // in den sichtbaren Bereich scrollen. Cursor auf ~35% der Viewport-Hoehe
+    // — genug Abstand zur Format-Leiste/Tastatur darunter.
+    LaunchedEffect(cursorOffset, editing, editorViewportH) {
+        if (!editing) return@LaunchedEffect
+        val layout = fieldLayout ?: return@LaunchedEffect
+        if (editorViewportH <= 0) return@LaunchedEffect
+        val cursorRect = try {
+            layout.getCursorRect(cursorOffset)
+        } catch (e: Throwable) {
+            return@LaunchedEffect
+        }
+        val cursorY = fieldOffsetInColumn + (cursorRect.top + cursorRect.bottom) / 2f
+        val target = (cursorY - editorViewportH * 0.35f)
+            .coerceAtLeast(0f)
+            .toInt()
+            .coerceIn(0, editorScroll.maxValue)
+        if (kotlin.math.abs(target - editorScroll.value) > 2) {
+            try {
+                editorScroll.animateScrollTo(target, androidx.compose.animation.core.tween(150))
+            } catch (_: Throwable) { /* Wasm: Abbruch beim Neustart ist OK */ }
+        }
     }
 
     // Fokus auf Titel-Feld wenn Titel-Edit startet.
@@ -289,6 +328,7 @@ fun NoteEditorScreen(
 
     fun commitBody(newValue: TextFieldValue) {
         bodyValue = newValue
+        cursorOffset = newValue.selection.min // Bug 5: Cursor-Scroll auslösen
         vm.updateBody(newValue.text)
     }
 
@@ -513,7 +553,8 @@ fun NoteEditorScreen(
                 // wuerde die Tastatur-Hoehe DOPPELT abziehen → Mini-Viewport →
                 // bringIntoView scrollt weit uebers Ziel (Nutzer-Report).
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
+                .onGloballyPositioned { editorViewportH = it.size.height }
+                .verticalScroll(editorScroll)
                 // Bugs 2+3: Tap-Flaeche ist jetzt die GANZE Column (fuellt den
                 // Screen) — unter dem geschriebenen Text tippen geht auch in
                 // den Edit-Modus. Kein clickable mehr auf dem Lese-Block:
@@ -527,6 +568,7 @@ fun NoteEditorScreen(
                             // beim Tap auf leeren Raum).
                             val t = bodyValue?.text ?: ""
                             bodyValue = TextFieldValue(t, TextRange(t.length))
+                            cursorOffset = t.length // Bug 5
                             focusEditOnSwitch = true
                             editing = true
                         }
@@ -551,6 +593,7 @@ fun NoteEditorScreen(
                         val t = bodyValue?.text ?: ""
                         val clamped = rawOffset.coerceIn(0, t.length)
                         bodyValue = TextFieldValue(t, TextRange(clamped))
+                        cursorOffset = clamped // Bug 5
                         focusEditOnSwitch = true
                         editing = true
                     }
@@ -561,8 +604,12 @@ fun NoteEditorScreen(
                 BasicTextField(
                     value = currentBodyValue,
                     onValueChange = { commitBody(it) },
+                    onTextLayout = { fieldLayout = it },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onGloballyPositioned { coords ->
+                            fieldOffsetInColumn = coords.positionInParent().y
+                        }
                         .focusRequester(bodyFocusRequester)
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown || event.key != Key.Enter) {
