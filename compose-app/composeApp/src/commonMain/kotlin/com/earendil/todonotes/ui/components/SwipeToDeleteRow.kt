@@ -69,7 +69,7 @@ fun SwipeToDeleteRow(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.errorContainer),
+                .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.CenterEnd
         ) {
             Box(
