@@ -110,7 +110,13 @@ class LinkPreviewRepository(
             if (!inFlight.add(normalized)) return existing?.takeUnless { it.failed }
         }
         return try {
-            fetch(normalized, nowMs)
+            try {
+                fetch(normalized, nowMs)
+            } catch (e: Throwable) {
+                // Letzte Verteidigungslinie: ein Vorschau-Fetch darf die
+                // App niemals crashen (Wasm: Fail to fetch ist Error).
+                null
+            }
         } finally {
             fetchMutex.withLock { inFlight.remove(normalized) }
         }
@@ -165,7 +171,10 @@ class LinkPreviewRepository(
                 imageBytes = imageBytes,
                 fetchedAt = nowMs
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable statt Exception: der Wasm-Ktor wirft bei
+            // CORS-Fehlschlag kotlin.Error("Fail to fetch") — Exception
+            // fängt das nicht und die ganze App crasht.
             // Netzwerk/Timeout/Decode — als Fehlschlag cachen, nicht crashen.
             storeFailed(url, nowMs)
             null
@@ -204,7 +213,7 @@ class LinkPreviewRepository(
                 imageBytes = null,
                 fetchedAt = nowMs
             ))
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // Netzwerkfehler im oembed-Weg ist kein Grund, die URL
             // insgesamt als kaputt zu markieren.
             null
@@ -224,7 +233,7 @@ class LinkPreviewRepository(
         }
         val location = resp.headers["Location"] ?: return null
         LinkMetaParser.resolveUrl(url, location).substringBefore('?')
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         null
     }
 
@@ -239,7 +248,7 @@ class LinkPreviewRepository(
             if (type.startsWith("image/").not() && type.isNotBlank()) null
             else resp.bodyAsBytes().takeIf { it.size in 1..MAX_IMAGE_BYTES }
         }
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
         null
     }
 
