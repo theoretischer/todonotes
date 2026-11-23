@@ -13,3 +13,14 @@ actual fun getPlatform(): Platform = AndroidPlatform()
 /** Android: Lifecycle wird in MainActivity via LifecycleEventObserver
  *  gehandhabt (ON_RESUME → onAppResume). Hier Noop. */
 actual fun setupAppLifecyclePlatform(container: AppContainer) { }
+
+/** Android: Activity-Referenz für moveTaskToBack („Teilen"-Endbedingung). */
+internal object ActivityRefs {
+    @JvmStatic
+    var current: androidx.activity.ComponentActivity? = null
+}
+
+/** Teilen-Endbedingung: App minimieren → zurück zur absendenden App. */
+actual fun moveAppToBack() {
+    ActivityRefs.current?.moveTaskToBack(true)
+}

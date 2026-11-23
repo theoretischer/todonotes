@@ -32,3 +32,4 @@ private fun setupVisibilityListener(callback: () -> Unit) {
     });
     """)
 }
+actual fun moveAppToBack() {}

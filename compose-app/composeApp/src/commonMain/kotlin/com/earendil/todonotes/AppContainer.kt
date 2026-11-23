@@ -56,6 +56,13 @@ class AppContainer(
      *  übernommen, wenn man die App wieder öffnet. */
     var onAppResume: (() -> Unit)? = null
 
+    /** „Teilen mit der App“ (M16): Der via ACTION_SEND geteilte Text.
+     *  Wird von der Android-MainActivity (ShareFlowController) gesetzt,
+     *  landet als Prefill im Quick-Add und wird beim Beenden der
+     *  Share-Situation (Aufgabe erstellt / an Notiz angehängt / verworfen)
+     *  wieder auf null gesetzt. Auf Web/Desktop bleibt er null. */
+    var sharedText: String? = null
+
     /** Plattform-spezifische Lifecycle-Events registrieren (Android:
      *  ON_RESUME, Web: visibilitychange, Desktop: Window-Focus).
      *  Ruft bei „App in den Vordergrund" [onAppResume] auf.

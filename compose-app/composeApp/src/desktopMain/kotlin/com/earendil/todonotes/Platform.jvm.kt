@@ -18,3 +18,4 @@ actual fun setupAppLifecyclePlatform(container: AppContainer) {
             }
         }
 }
+actual fun moveAppToBack() {}

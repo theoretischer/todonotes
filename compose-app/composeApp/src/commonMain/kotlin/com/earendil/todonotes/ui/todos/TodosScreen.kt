@@ -70,7 +70,14 @@ fun TodosScreen(
     onDeleteTodo: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** Höhe der BottomBar in px (für die Quick-Add-Position). */
-    bottomBarPadding: Int = 0
+    bottomBarPadding: Int = 0,
+    /** „Teilen mit der App" (M16): Prefill + Notebook-Weiterleitung. */
+    sharedPrefill: String? = null,
+    onSharedPrefillConsumed: () -> Unit = {},
+    onSendToNotes: () -> Unit = {},
+    /** Notebook-Knopf zeigen, solange die Share-Session läuft (nicht nur
+     *  während der Prefill noch nicht konsumiert ist). */
+    sendToNotesVisible: Boolean = false
 ) {
     var editingTodo by remember { mutableStateOf<Todo?>(null) }
     val groups = remember(todos) { groupOpenTodos(todos) }
@@ -181,6 +188,10 @@ fun TodosScreen(
         val liftPx = if (imeBottomPx > bottomBarPx) imeBottomPx else bottomBarPx
         QuickAddBar(
             onCreateTodo = onCreateTodo,
+            prefill = sharedPrefill,
+            onPrefillConsumed = onSharedPrefillConsumed,
+            onSendToNotes = onSendToNotes,
+            showSendToNotes = sendToNotesVisible,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = with(density) { liftPx.toDp() } + 12.dp)  // + Luft zur BottomBar

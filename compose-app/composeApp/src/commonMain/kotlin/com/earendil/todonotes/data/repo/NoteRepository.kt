@@ -5,6 +5,8 @@ import com.earendil.todonotes.data.TodoNotesDatabase
 import com.earendil.todonotes.data.entity.Note
 import com.earendil.todonotes.data.entity.NoteType
 import com.earendil.todonotes.data.sync.SyncManager
+import com.earendil.todonotes.data.richtext.NoteBodyJson
+import com.earendil.todonotes.data.richtext.appendSharedTextToBody
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -98,6 +100,20 @@ class NoteRepository(
         val maxPos = (dao.getInFolder(newFolderId).maxOfOrNull { it.position } ?: 0L) + 1
         dao.update(note.copy(folderId = newFolderId, updatedAt = nowMs(), position = maxPos))
         dirty()
+    }
+
+    /** "Teilen mit der App": geteilten Text ans ENDE einer Notiz anhängen
+     *  (ShareAppend-Regeln: leeres Listen-Item wird gefüllt, sonst neue
+     *  Zeile im Stil des Blocks). Titel/updatedAt bleiben unangetastet —
+     *  nur der Body wächst. Liefert false, wenn die Notiz (mittlerweile)
+     *  gelöscht ist. */
+    suspend fun appendSharedText(id: String, rawText: String): Boolean {
+        val note = dao.getLiveById(id) ?: return false
+        val body = NoteBodyJson.decodeOrNew(note.bodyJson)
+        val newBody = appendSharedTextToBody(body, rawText)
+        dao.updateBody(id, note.title, NoteBodyJson.encode(newBody), nowMs())
+        dirty()
+        return true
     }
 
     suspend fun deleteNote(id: String) {

@@ -31,6 +31,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- „Teilen mit der App" (M16): Text teilen → TodoNotes.
+                 mimeType text/* (nicht nur plain — Browser teilen z. B.
+                 text/html mit Session-History, der reine Text steckt im
+                 EXTRA_TEXT und wird via getCharSequenceExtra gezogen). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
         </activity>
 
         <!-- M8: Vollbild-Alarm über dem Sperrbildschirm -->

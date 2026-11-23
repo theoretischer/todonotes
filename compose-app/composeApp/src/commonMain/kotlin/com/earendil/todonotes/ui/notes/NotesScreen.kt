@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -66,7 +67,14 @@ fun NotesScreen(
     notesVm: NotesViewModel,
     onOpenNote: (noteId: String, isNew: Boolean, type: NoteType) -> Unit,
     onOpenChat: (noteId: String, isNew: Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** „Teilen mit der App" (M16): Pick-Modus — Ordner-Klicks navigieren
+     *  normal, Notiz/Chat-Klick hängen den geteilten Text ans Ende
+     *  (Chat: als neue Nachricht) und rufen [onPicked] — die Notiz wird
+     *  NICHT geöffnet. Null = normaler Modus. */
+    pickModeText: String? = null,
+    onPicked: (noteId: String) -> Unit = {},
+    onPickCancelled: () -> Unit = {}
 ) {
     val state by notesVm.browserState.collectAsState()
 
@@ -104,6 +112,46 @@ fun NotesScreen(
                 // Typo/Paddings → erste Karte/Notiz überall auf gleicher Höhe.
                 // Die Box drum herum liefert die ROOT-Drop-Hitbox (Notiz auf
                 // HOME ziehen = in die Wurzel verschieben).
+                // M16 Share-Pick-Modus: Banner statt des normalen Titels —
+                // der Nutzer soll eine NOTIZ/CHAT auswählen, an die der
+                // geteilte Text angehängt wird.
+                if (pickModeText != null) {
+                    item(key = "share-banner") {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.MenuBook,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "Geteilten Text anhängen",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        if (pickModeText.length > 60) pickModeText.take(57) + "…" else pickModeText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                                        maxLines = 1
+                                    )
+                                }
+                                TextButton(onClick = onPickCancelled) { Text("Abbrechen") }
+                            }
+                        }
+                    }
+                }
                 item(key = "breadcrumb") {
                     Box(
                         modifier = Modifier
@@ -154,8 +202,14 @@ fun NotesScreen(
                             .onSizeChanged { rowHeights[note.id] = it.height }
                     ) {
                         SwipeOrReorderRow(
-                            onDelete = { notesVm.deleteNote(note.id) },
-                            onClick = { onOpenNote(note.id, false, note.type) },
+                            onDelete = { if (pickModeText == null) notesVm.deleteNote(note.id) },
+                            onClick = {
+                                if (pickModeText != null) {
+                                    // Pick-Modus: NICHT oeffnen — Text anhaengen
+                                    // (TodoNotesApp macht das + Endbedingung).
+                                    onPicked(note.id)
+                                } else onOpenNote(note.id, false, note.type)
+                            },
                             reorderEnabled = true,
                             itemId = note.id,
                             repositories = state.notes.map { it.id },

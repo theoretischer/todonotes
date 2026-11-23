@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.History
@@ -63,11 +64,30 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun QuickAddBar(
     onCreateTodo: (TodoFormData) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** „Teilen mit der App" (M16): Geteilten Text als Prefill ins Feld
+     *  setzen (einmalig pro neuem Share — danach onPrefillConsumed). */
+    prefill: String? = null,
+    onPrefillConsumed: () -> Unit = {},
+    /** Notebook-Knopf: geteilten Text stattdessen an den Notiz-Picker
+     *  weiterleiten (M16). */
+    onSendToNotes: () -> Unit = {},
+    /** True, wenn grade ein Share-Text vorbelegt ist → Notebook-Knopf
+     *  zeigen. */
+    showSendToNotes: Boolean = false
 ) {
     val tz = TimeZone.currentSystemDefault()
 
     var title by remember { mutableStateOf("") }
+
+    // Share-Prefill: FRISCH eingefügt (nur bei neuem Wert), Feld nicht
+    // überschreiben, wenn der Nutzer schon tippt.
+    LaunchedEffect(prefill) {
+        if (prefill != null && title.isBlank()) {
+            title = prefill
+            onPrefillConsumed()
+        }
+    }
     var notes by remember { mutableStateOf("") }
     var notesOpen by remember { mutableStateOf(false) }
 
@@ -236,6 +256,15 @@ fun QuickAddBar(
                     selected = notesOpen,
                     onClick = { notesOpen = !notesOpen }
                 )
+                if (showSendToNotes) {
+                    QuickOptionButton(
+                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                        contentDescription = "An Notiz anhängen",
+                        label = "Notiz",
+                        selected = true,
+                        onClick = onSendToNotes
+                    )
+                }
             }
         }
     }

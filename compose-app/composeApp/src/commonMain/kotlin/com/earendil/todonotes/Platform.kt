@@ -16,3 +16,11 @@ expect fun getPlatform(): Platform
  *  Web: visibilitychange→visible, Desktop: Window-Focus). Ruft bei
  *  „App in den Vordergrund" [AppContainer.onAppResume] auf. */
 expect fun setupAppLifecyclePlatform(container: AppContainer)
+
+/**
+ * "Teilen mit der App"-Endbedingung: App minimieren und zur
+ * Herkunfts-App zurückkehren (Android: moveTaskToBack — die Share-Activity
+ * läuft im Task der absendenden App, damit landet man genau da wieder,
+ * woher der Text kam). Desktop/Web: no-op (kein Task-Modell).
+ */
+expect fun moveAppToBack()

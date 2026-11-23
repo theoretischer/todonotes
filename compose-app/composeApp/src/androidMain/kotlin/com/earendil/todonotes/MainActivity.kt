@@ -33,6 +33,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
+        // „Teilen mit der App"-Endbedingung: moveTaskToBack braucht die
+        // Activity (Platform.android.kt: ActivityRefs). Die Share-Activity
+        // läuft IM TASK der absendenden App → moveTaskToBack kehrt genau
+        // dorthin zurück.
+        ActivityRefs.current = this
+
+        // „Teilen mit der App" (M16): ACTION_SEND-Text-Intent empfangen —
+        // aktiviert den Share-Flow (Prefill Quick-Add → Notebook-Knopf →
+        // Notiz-Anhäng-Picker → Endbedingung). onNewIntent braucht den
+        // Controller auch (App lief schon), daher als Property.
+        shareController = ShareFlowController(this).also { it.handleOnce(intent) }
+
         setContent {
             App(container)
         }
@@ -49,4 +61,14 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        // App lief schon (singleTask/startActivity-Semantik) → zweiter
+        // Share oder derselbe Intent nochmal: nur einmal pro Intent
+        // feuern (handleOnce).
+        shareController?.handleOnce(intent)
+    }
+
+    private var shareController: ShareFlowController? = null
 }
