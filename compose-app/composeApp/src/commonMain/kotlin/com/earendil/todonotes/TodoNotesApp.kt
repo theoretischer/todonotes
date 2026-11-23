@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -203,10 +204,16 @@ fun TodoNotesApp(
             // Notiz dafür aussuchen, nicht versehentlich durch die App
             // springen (Nutzer-Wunsch: BottomBar einfach verstecken).
             if (!shareActive) NavigationBar(
-                // Nur navigationBars hier — KEIN ime! Die Bottom-Bar bleibt bei
-                // offener Tastatur unten liegen (die Tastatur schiebt sich drüber),
-                // nur die Quick-Add-Box fährt mit imePadding hoch. (M13)
-                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                // Bug 2 (Nutzer-Report): Am Handy sah man durch den System-Nav-
+                // Streifen (Zurück/Recents) hindurch die Aufgaben. Grund: der
+                // windowInsetsPadding-Modifier hob die GANZE NavigationBar-
+                // Surface über den Streifen — darunter lag nichts. Die M3-
+                // NavigationBar polstert nur ihren CONTENT (windowInsets-
+                // Parameter, Default: systemBars Bottom+Horizontal), die
+                // Surface füllt bis zum unteren Rand. Also Modifier weg,
+                // Default-Parameter greifen — Surface deckt den Streifen.
+                // (Nur ime bewusst NICHT: Tastatur schiebt sich drüber, M13.)
+                windowInsets = NavigationBarDefaults.windowInsets
             ) {
                 Tab.entries.forEach { tab ->
                     NavigationBarItem(

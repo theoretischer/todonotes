@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,6 +89,26 @@ fun TodosScreen(
     val density = LocalDensity.current
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Bug 1 (Nutzer-Report): Das fixe bottom=220.dp des contentPadding
+        // verdeckte die letzte Aufgabe — die Quick-Add-Bar ist mal 56dp+
+        // (Notizen-Feld, Labels …), mal hoch, je nach Zustand. Wir messen
+        // die realte Höhe (onSizeChanged) und setzen das contentPadding
+        // dynamisch: Bar-Höhe + Lift (BottomBar/IME) + Luft. Bis zur ersten
+        // Messung gilt der alte 220dp-Wert als Fallback.
+        var quickAddHeightPx by remember { mutableStateOf(-1) }
+        val imeBottomPx = WindowInsets.ime.getBottom(density)
+        val navBarPx = WindowInsets.navigationBars.getBottom(density)
+        // M16: Share-Session (BottomBar versteckt) → bottomBarPx=0 → Box
+        // rutschte unter die System-Navigation. Abstand jetzt gegen
+        // max(ime, NavBar-Inset) — BottomBar da? Dann deckt bottomBarPx
+        // das eh ab (NavBar-Inset <= BottomBar-Höhe).
+        // max(ime, NavBar, BottomBar) in px
+        val bottomBarPx = bottomBarPadding
+        val liftPx = maxOf(imeBottomPx, navBarPx, bottomBarPx)
+        val quickAddLiftDp = with(density) { liftPx.toDp() } + 12.dp  // + Luft zur BottomBar
+        val listBottomPadding = if (quickAddHeightPx > 0)
+            with(density) { quickAddHeightPx.toDp() } + quickAddLiftDp + 8.dp
+        else 220.dp  // bis zur ersten Messung: alter Wert
         // Bug 6: Titel scrollt MIT der Liste (Nutzer-Wunsch: hochgeschoben
         // statt verdeckt). Er ist jetzt erstes Listenelement, nicht fixiert;
         // sein statusBarsPadding sitzt er mitbringend ganz oben, das Avatar
@@ -112,7 +133,7 @@ fun TodosScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 220.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = listBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item(key = "title") { ScreenTitle("Aufgaben") }
@@ -187,15 +208,6 @@ fun TodosScreen(
         // max() mit NavBar-Höhe: geschlossene Tastatur → Box bleibt über der
         // Bottom-Bar (Padding im Scaffold fällt dafür im Todos-Tab weg, s.
         // TodoNotesApp).
-        val bottomBarPx = bottomBarPadding
-        val imeBottomPx = WindowInsets.ime.getBottom(density)
-        // M16: Share-Session (BottomBar versteckt) → bottomBarPx=0 → Box
-        // rutschte unter die System-Navigation. Abstand jetzt gegen
-        // max(ime, NavBar-Inset) — BottomBar da? Dann deckt bottomBarPx
-        // das eh ab (NavBar-Inset <= BottomBar-Höhe).
-        val navBarPx = WindowInsets.navigationBars.getBottom(density)
-        // max(ime, NavBar, BottomBar) in px
-        val liftPx = maxOf(imeBottomPx, navBarPx, bottomBarPx)
         QuickAddBar(
             onCreateTodo = onCreateTodo,
             prefill = sharedPrefill,
@@ -203,8 +215,9 @@ fun TodosScreen(
             onSendToNotes = onSendToNotes,
             showSendToNotes = sendToNotesVisible,
             modifier = Modifier
+                .onSizeChanged { quickAddHeightPx = it.height }
                 .align(Alignment.BottomCenter)
-                .padding(bottom = with(density) { liftPx.toDp() } + 12.dp)  // + Luft zur BottomBar
+                .padding(bottom = quickAddLiftDp)
                 .padding(horizontal = 12.dp)
         )
     }
