@@ -632,10 +632,13 @@ private fun DangerZoneSection(
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
 
-            OutlinedButton(
+            // M14l: Karte ist errorContainer-rot — Outline-Buttons mit roter
+            // Schrift waren unsichtbar (Rot auf Rot). Weiß gefüllt + rote Schrift.
+            Button(
                 onClick = { dialogMode = DangerMode.MY_DATA },
                 modifier = Modifier.fillMaxWidth(),
-                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onErrorContainer,
                     contentColor = MaterialTheme.colorScheme.error
                 )
             ) {
@@ -645,10 +648,11 @@ private fun DangerZoneSection(
             }
 
             if (isAdmin) {
-                OutlinedButton(
+                Button(
                     onClick = { dialogMode = DangerMode.ALL },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onErrorContainer,
                         contentColor = MaterialTheme.colorScheme.error
                     )
                 ) {
