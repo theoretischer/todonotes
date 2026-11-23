@@ -17,11 +17,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,7 +51,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Erscheint über dem Sperrbildschirm, wenn der Fullscreen-Intent feuert
- * (M8, Port aus altem android/-Projekt).
+ * (M8, Port aus altem android/-Projekt — M14-Stil-Update: Karte im
+ * Farb-Radius-System, gefüllte Buttons, kein Gradient-Overlay mehr).
  *
  * Wichtig:
  * - Bleibt ÜBER dem Keyguard und drängt den Nutzer NICHT zum Entschlüsseln.
@@ -136,6 +138,9 @@ private fun FullScreenAlarmContent(
     onSnooze: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
+    // M14-Stil wie in der App: Hintergrund, darunter eine KARTE im
+    // 16dp-Radius-System (surfaceContainer = Kartenfarbe). Kein
+    // Gradient-Overlay mehr — die Karte ruht direkt auf background.
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = colors.background
@@ -143,27 +148,25 @@ private fun FullScreenAlarmContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            colors.primary.copy(alpha = 0.15f),
-                            colors.background
-                        )
-                    )
-                )
+                .background(colors.background)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 28.dp, vertical = 48.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.Center
             ) {
-                // Oberer Bereich: Alarm-Icon + Titel
                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.surfaceContainer)
+                        .padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Alarm-Icon im runden Badge (Karten-Stil, wie der
+                    // Titel-Screen: 20%-Alpha statt Gradient)
                     Box(
                         modifier = Modifier
                             .size(88.dp)
@@ -199,13 +202,11 @@ private fun FullScreenAlarmContent(
                             textAlign = TextAlign.Center
                         )
                     }
-                }
 
-                // Buttons unten
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                    Spacer(Modifier.height(8.dp))
+
+                    // Buttons in M14-Optik: gefüllter Primär-Button mit
+                    // Haken (wie „Fertig"-Check), Text-Button „Schließen".
                     Button(
                         onClick = onDone,
                         modifier = Modifier.fillMaxWidth().height(64.dp)
@@ -214,9 +215,9 @@ private fun FullScreenAlarmContent(
                         Spacer(Modifier.width(8.dp))
                         Text("Erledigt", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    OutlinedButton(
+                    TextButton(
                         onClick = onSnooze,
-                        modifier = Modifier.fillMaxWidth().height(56.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Filled.Close, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
