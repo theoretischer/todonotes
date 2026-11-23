@@ -29,7 +29,9 @@ Box, Todo-Karten surface statt background). M14g: gefüllte
 Eingabefelder überall, runde Checkboxen, Dialog/Sheet-
 Farben = surface. M14h/i: Editor-BottomBar, DatePicker-
 Farben (auch im Kalender-Grid!), Recurrence-Editor als
-Stepper + Segment-Chips. 92 Tests grün.
+Stepper + Segment-Chips. M14j: Todo-Listen-Abstand 8dp +
+HabitCadencePicker auf dasselbe Chip-System (inkl. Lektion:
+Chips immer FlowRow, nie weight(1f)). 92 Tests grün.
 
 ## Aktueller Stand
 
@@ -496,6 +498,27 @@ obwohl die Aufgaben runde haben.
   Wochentags-Chips AssistChip → FilterChip mit zentriertem
   Label (M D M D F S S).
 
+### 23. M14j — Todo-Abstand + HabitCadencePicker auf Chip-System (`d29d5e3` → `b4e2bf4`)
+
+Zwei Bugs aus dem UI-Review:
+
+- **Bug 1:** Abstand zwischen Aufgaben war 4dp, alle anderen
+  Listen (Gewohnheiten/Notizen/Verlauf) 8dp → Todos auf 8dp
+  angeglichen.
+- **Bug 2:** HabitCadencePicker (Gewohnheit erstellen/bearbeiten)
+  hatte noch die Radio-Zeilen mit springenden Inline-Zahlen-
+  Pillen. Jetzt dasselbe System wie der Recurrence-Editor:
+  Segment-Chips (Tag/Woche/Monat/Jahr/Tage) + IntervalStepper
+  (− n +) nur bei „Alle n Tage“ (nur dort gibt es ein
+  Intervall — sonst steckt das Ziel im eigenen Feld).
+  IntervalStepper im RecurrenceEditor dafür internal gemacht.
+  Keine Wochentags-/Monats-Extras hier — Reset-Tag ergibt
+  sich aus dem Startdatum.
+- **M14j-Fix:** Chip-Reihe als weight(1f)-Row gepackt →
+  gequetscht statt umbrechend (SELBER Fehler wie M14i —
+  gelernt: Chips IMMER in FlowRow mit natürlicher Breite,
+  nie weight(1f)).
+
 ## Offene Punkte (Stand nach Bug-Fix-Session)
 
 Funktional:
@@ -546,6 +569,8 @@ Vollständige Historie in `MIGRATION-CMP.md` (M1–M9) und Git-Historie.
 - M14h/i: Editor-BottomBar surface, DatePicker-Farben,
   Recurrence-Editor: Stepper + Segment-Chips (FlowRow),
   Sheet ohne Fertig/Keine-Wiederholung
+- M14j: Todo-Abstand 8dp, HabitCadencePicker =
+  RecurrenceEditor-Chip-System (Stepper nur bei NDAYS)
 - M11-Verlaufsfix + Migrations-Feuerwehr (v13→14) — bestätigt
 - M12 Links klickbar (Todo/Chat/Verlauf/Lesemodus)
 - M13 Quick-Add-Bar (FAB ersetzt, IME 3 Runden fixiert)
