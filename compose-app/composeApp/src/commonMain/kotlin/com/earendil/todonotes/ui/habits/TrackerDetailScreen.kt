@@ -299,6 +299,7 @@ private fun HabitPeriodSection(
                     color = if (p.count >= goal) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp)) // Bug 8
                         .clickable { editingPeriod = p }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )

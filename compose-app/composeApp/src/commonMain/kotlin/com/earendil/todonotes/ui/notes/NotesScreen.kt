@@ -3,6 +3,7 @@
 package com.earendil.todonotes.ui.notes
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -323,6 +324,7 @@ private fun NotesBreadcrumb(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp)) // Bug 8
                         .combinedClickable(onClick = { onCrumb(crumb) })
                 )
             }
@@ -576,6 +578,7 @@ private fun MoveTargetRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp)) // Bug 8
             .combinedClickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically

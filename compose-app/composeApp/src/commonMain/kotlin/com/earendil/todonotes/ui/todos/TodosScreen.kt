@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -243,6 +244,7 @@ private fun TodoRow(
             // Wrapper liefert surface + 16dp-Rundung. Vorher: background-
             // Farbe → Todos waren "Karten" in exakt der Hintergrundfarbe
             // (unauffällig). Jetzt surface wie Notizen/Gewohnheiten/Verlauf.
+            .clip(RoundedCornerShape(16.dp)) // Bug 8: Ripple in den Rundungen
             .clickable { onEdit() }
             .padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically

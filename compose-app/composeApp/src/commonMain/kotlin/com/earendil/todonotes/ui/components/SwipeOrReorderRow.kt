@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -131,6 +132,7 @@ fun SwipeOrReorderRow(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(deleteWidth)
+                        .clip(RoundedCornerShape(16.dp)) // Bug 8
                         .clickable {
                             scope.launch {
                                 offsetX.animateTo(0f, tween(150))
@@ -164,6 +166,8 @@ fun SwipeOrReorderRow(
                     )
                 }
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                // Bug 8: Ripple/Hover auf die Karten-Rundung clippen.
+                .clip(RoundedCornerShape(16.dp))
                 // --- Geste A: INSTANT horizontales Wischen → Swipe-Delete ---
                 // Feuert sofort (kein Long-Press), aber NUR wenn horizontal
                 // dominiert. Vertikale Bewegung wird NICHT konsumiert →

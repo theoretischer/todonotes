@@ -2,6 +2,7 @@ package com.earendil.todonotes.ui.habits
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -245,6 +246,7 @@ private fun NewHabitMenuItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp)) // Bug 8
             .padding(horizontal = 24.dp, vertical = 14.dp)
             .combinedClickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically

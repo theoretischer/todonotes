@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -76,6 +77,7 @@ fun SwipeToDeleteRow(
                 modifier = Modifier
                     .fillMaxHeight()
                     .width(deleteWidth)
+                    .clip(RoundedCornerShape(16.dp)) // Bug 8: Ripple in den Rundungen
                     .clickable {
                         scope.launch {
                             offsetX.animateTo(0f, tween(150))
@@ -98,6 +100,9 @@ fun SwipeToDeleteRow(
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.toInt(), 0) }
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+                // Bug 8: Ripple/Hover der Karte auf die Rundung clippen —
+                // sonst eckige Markierung ueber der abgerundeten Karte.
+                .clip(RoundedCornerShape(16.dp))
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
