@@ -9,6 +9,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.request
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -50,6 +51,19 @@ class LinkPreviewRepository(
     private val fetchMutex = Mutex()
     private val inFlight = mutableSetOf<String>()
 
+    /**
+     * Zweiter Client OHNE Redirect-Following — nur zum Auflösen von
+     * Share-Redirects (Location-Header lesen). Grund (Nutzer-Report):
+     * Reddits /s/-Links sind 301-Redirects auf die echte Post-URL;
+     * oembed gibt für rohe /s/-Links 400, braucht also die aufgelöste
+     * Adresse. Der Hauptclient folgt Redirects engine-intern, dabei
+     * ist die finale URL nicht abfragbar (response.request bleibt
+     * die Original-URL).
+     */
+    private val noRedirectClient by lazy {
+        HttpClient(httpClient.engine) { followRedirects = false }
+    }
+
     /** Cache-Treffer (auch abgelaufene — die UI zeigt sofort was da ist,
      *  das Auffrischen läuft im Hintergrund). */
     suspend fun cached(url: String): LinkPreview? =
@@ -84,7 +98,9 @@ class LinkPreviewRepository(
                 // Als veraltet behandeln und neu holen.
                 val looksUseless = existing.imageBytes == null &&
                     (existing.title.isBlank() ||
-                        existing.title.equals(existing.siteName, ignoreCase = true))
+                        existing.title.equals(existing.siteName, ignoreCase = true) ||
+                        // Reddits Sperrseite: Titel "Reddit", Domain reddit.com
+                        (RedditOembed.applies(normalized) && existing.siteName == "reddit.com"))
                 if (!looksUseless) return existing.takeUnless { it.failed }
             }
         }
@@ -159,14 +175,22 @@ class LinkPreviewRepository(
     /**
      * Zweiter Versuch über Reddits oembed-Endpunkt.
      *
-     * Liefert Titel + Subreddit, aber kein Bild (Reddits Bild-CDNs
-     * blocken ebenfalls). Gibt null zurück, wenn oembed nichts
-     * Brauchbares hat — der Aufrufer entscheidet dann weiter.
+     * `url` ist dabei die ggf. durch Redirects aufgelöste Adresse
+     * (Share-Links /s/<hash> müssen zuerst zu /comments/<id>/ werden,
+     * sonst antwortet oembed mit 400). Liefert Titel + Subreddit,
+     * aber kein Bild (Reddits Bild-CDNs blocken ebenfalls). Gibt null
+     * zurück, wenn oembed nichts Brauchbares hat — der Aufrufer
+     * entscheidet dann weiter.
      */
     private suspend fun redditFallback(url: String, nowMs: Long): LinkPreview? {
         if (!RedditOembed.applies(url)) return null
         return try {
-            val resp = httpClient.get(RedditOembed.endpointFor(url)) {
+            // /s/<hash>-Share-Links: erst per Location-Header auflösen,
+            // oembed akzeptiert nur echte Post-URLs (400 sonst).
+            val targetUrl = if (SHARE_LINK.containsMatchIn(url)) {
+                resolveShareRedirect(url) ?: return null
+            } else url
+            val resp = httpClient.get(RedditOembed.endpointFor(targetUrl)) {
                 header("User-Agent", USER_AGENT)
                 header("Accept", "application/json")
             }
@@ -185,6 +209,23 @@ class LinkPreviewRepository(
             // insgesamt als kaputt zu markieren.
             null
         }
+    }
+
+    /** Share-Redirect-URL (Reddit /r/x/s/<hash>). */
+    private val SHARE_LINK = Regex("/r/[^/]+/s/[A-Za-z0-9]+")
+
+    /**
+     * Löst einen Share-Redirect per Location-Header auf (301) und
+     * schneidet den Query-Müll (share_id, utm_*) ab.
+     */
+    private suspend fun resolveShareRedirect(url: String): String? = try {
+        val resp = noRedirectClient.get(url) {
+            header("User-Agent", USER_AGENT)
+        }
+        val location = resp.headers["Location"] ?: return null
+        LinkMetaParser.resolveUrl(url, location).substringBefore('?')
+    } catch (e: Exception) {
+        null
     }
 
     private suspend fun loadImage(imageUrl: String): ByteArray? = try {
